@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · TPM Tornquist</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Tarjetas TPM · Tornquist</div>
+  <nav>
+    <a href="index.html">Inicio</a>
+    <a href="formulario.html">Cargar</a>
+    <a href="dashboard.html" class="activo">Dashboard</a>
+    <a href="seguimiento.html">Seguimiento</a>
+    <span id="flag"></span>
+  </nav>
+</div>
+
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div><h1>Dashboard</h1><p class="sub">Estado del sistema de tarjetas TPM.</p></div>
+    <button class="btn sec sm" id="recargar">Actualizar</button>
+  </div>
+
+  <div id="msg"></div>
+  <div class="kpis" id="kpis"></div>
+
+  <h2>Tarjetas abiertas por color</h2>
+  <div class="grid cols-3" id="porColor"></div>
+
+  <div class="grid cols-2" style="margin-top:18px">
+    <div class="card"><h2 style="margin-top:0">Por estado</h2><canvas id="chEstado" height="200"></canvas></div>
+    <div class="card"><h2 style="margin-top:0">Por color</h2><canvas id="chColor" height="200"></canvas></div>
+  </div>
+  <div class="grid cols-2" style="margin-top:14px">
+    <div class="card"><h2 style="margin-top:0">Top sectores</h2><canvas id="chSector" height="220"></canvas></div>
+    <div class="card"><h2 style="margin-top:0">Por grupo responsable</h2><canvas id="chGrupo" height="220"></canvas></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="comun.js"></script>
+<script>
+  if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">DEMO</span>';
+  var charts = {};
+
+  function kpiCard(n,l,cls){ return '<div class="kpi '+(cls||'')+'"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+
+  function pintarKPIs(k){
+    document.getElementById('kpis').innerHTML =
+      kpiCard(k.total,'Total tarjetas') +
+      kpiCard(k.abiertas + k.enProceso,'Abiertas') +
+      kpiCard(k.cerradas,'Cerradas') +
+      kpiCard(k.pctCierre + '%','% cierre') +
+      kpiCard(k.vencidas,'Vencidas', k.vencidas ? 'rojo':'') +
+      kpiCard(k.tiempoCierreProm + ' d','Tiempo medio cierre', 'amber');
+
+    document.getElementById('porColor').innerHTML = Object.keys(k.porColor).map(function(c){
+      var v = k.porColor[c];
+      return '<div class="card" style="border-top:5px solid '+colorTipo(c)+'">'+
+        '<div style="font-size:26px;font-weight:bold;color:'+colorTipo(c)+'">'+v.ab+'</div>'+
+        '<div class="l" style="color:var(--muted);font-size:13px">'+c+' abiertas · '+v.t+' en total</div></div>';
+    }).join('');
+  }
+
+  function doughnut(id, labels, data, colors){
+    if (charts[id]) charts[id].destroy();
+    charts[id] = new Chart(document.getElementById(id), {
+      type:'doughnut',
+      data:{ labels:labels, datasets:[{ data:data, backgroundColor:colors, borderWidth:1, borderColor:'#fff' }] },
+      options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:12 } } } } }
+    });
+  }
+  function barras(id, labels, data, color, horizontal){
+    if (charts[id]) charts[id].destroy();
+    charts[id] = new Chart(document.getElementById(id), {
+      type:'bar',
+      data:{ labels:labels, datasets:[{ data:data, backgroundColor:color }] },
+      options:{ indexAxis: horizontal?'y':'x', plugins:{ legend:{ display:false } },
+        scales:{ x:{ ticks:{ font:{ size:11 } } }, y:{ ticks:{ font:{ size:11 } } } } }
+    });
+  }
+
+  async function cargar(){
+    document.getElementById('msg').innerHTML='';
+    try{
+      var r = await api('listar');
+      if(!r.ok){ document.getElementById('msg').innerHTML='<div class="msg err">'+(r.error||'error')+'</div>'; return; }
+      var ts = r.tarjetas; var k = calcularKPIs(ts);
+      pintarKPIs(k);
+
+      if (typeof Chart === 'undefined') {
+        document.getElementById('msg').innerHTML = '<div class="msg err">No se pudieron cargar los graficos (sin conexion al CDN). Los indicadores de arriba si estan actualizados.</div>';
+        return;
+      }
+      doughnut('chEstado', ['Abierta','En proceso','Cerrada','Anulada'],
+        [k.abiertas,k.enProceso,k.cerradas,k.anuladas], ['#378ADD','#EF9F27','#639922','#B4B2A9']);
+      doughnut('chColor', ['Roja','Azul','Verde'],
+        [k.porColor.Roja.t,k.porColor.Azul.t,k.porColor.Verde.t], ['#C0392B','#2D6CB5','#4E9A2F']);
+
+      var sec = Object.keys(k.porSector).map(function(s){return [s,k.porSector[s]];})
+        .sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+      barras('chSector', sec.map(function(x){return x[0];}), sec.map(function(x){return x[1];}), '#548235', true);
+
+      var gr = Object.keys(k.porGrupo);
+      barras('chGrupo', gr, gr.map(function(g){return k.porGrupo[g];}), '#3D5F26', false);
+    }catch(e){ document.getElementById('msg').innerHTML='<div class="msg err">Error de conexion: '+e.message+'</div>'; }
+  }
+
+  document.getElementById('recargar').addEventListener('click', cargar);
+  cargar();
+</script>
+</body>
+</html>

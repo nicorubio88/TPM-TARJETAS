@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cargar tarjeta · TPM Tornquist</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Tarjetas TPM · Tornquist</div>
+  <nav>
+    <a href="index.html">Inicio</a>
+    <a href="formulario.html" class="activo">Cargar</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="seguimiento.html">Seguimiento</a>
+    <span id="flag"></span>
+  </nav>
+</div>
+
+<div class="wrap" style="max-width:820px">
+  <h1>Cargar tarjeta</h1>
+  <p class="sub">Elegi el color: define quien la resuelve. Los datos en gris son opcionales.</p>
+
+  <div id="msg"></div>
+
+  <div class="card">
+    <label>Tipo de tarjeta</label>
+    <div class="tipos" id="tipos"></div>
+    <div id="grupoInfo" class="kv" style="margin-top:8px"></div>
+
+    <div class="grid cols-2">
+      <div>
+        <label>Detectado por *</label>
+        <input id="detectadoPor" placeholder="Nombre y apellido">
+      </div>
+      <div>
+        <label>Turno</label>
+        <select id="turno"><option value="">—</option></select>
+      </div>
+    </div>
+
+    <div class="grid cols-2">
+      <div>
+        <label>Sector *</label>
+        <select id="sector"></select>
+      </div>
+      <div>
+        <label>Equipo / maquina</label>
+        <input id="equipo" placeholder="Ej: Leg 2, Caldera, Prensa">
+      </div>
+    </div>
+
+    <div class="grid cols-2">
+      <div>
+        <label>Componente / ubicacion</label>
+        <input id="componente" placeholder="Ej: motor bomba 3, tablero TG-12">
+      </div>
+      <div>
+        <label id="lblCat">Categoria</label>
+        <select id="categoria"></select>
+      </div>
+    </div>
+
+    <label>Descripcion de la anomalia o mejora *</label>
+    <textarea id="descripcion" placeholder="Que se detecto, donde y desde cuando."></textarea>
+
+    <div class="grid cols-3">
+      <div>
+        <label>Prioridad</label>
+        <select id="prioridad"></select>
+      </div>
+      <div>
+        <label>Responsable asignado</label>
+        <input id="responsable" placeholder="(opcional) persona">
+      </div>
+      <div>
+        <label>Fecha compromiso</label>
+        <input id="fechaCompromiso" type="date">
+      </div>
+    </div>
+
+    <div class="grid cols-2">
+      <div>
+        <label>Foto (URL)</label>
+        <input id="fotoUrl" placeholder="(opcional) link a la foto">
+      </div>
+      <div id="boxCosto" style="display:none">
+        <label>Costo / ahorro estimado (USD)</label>
+        <input id="costo" type="number" placeholder="(opcional) para arbol de perdidas">
+      </div>
+    </div>
+
+    <div style="margin-top:18px;display:flex;gap:10px">
+      <button class="btn" id="guardar" disabled>Guardar tarjeta</button>
+      <button class="btn sec" id="limpiar">Limpiar</button>
+    </div>
+  </div>
+</div>
+
+<script src="comun.js"></script>
+<script>
+  if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">DEMO</span>';
+  var tipoSel = '';
+
+  document.getElementById('turno').innerHTML = '<option value="">—</option>' + opciones(TURNOS);
+  document.getElementById('sector').innerHTML = '<option value="">Elegir...</option>' + opciones(SECTORES);
+  document.getElementById('prioridad').innerHTML = opciones(PRIORIDADES, 'Media');
+  document.getElementById('fechaCompromiso').value = '';
+
+  document.getElementById('tipos').innerHTML = Object.keys(TIPOS).map(function(k){
+    var t = TIPOS[k];
+    return '<div class="tipo" data-t="'+k+'"><div class="cab" style="background:'+t.color+'">Tarjeta '+k+'</div><div class="d">'+t.desc+'</div></div>';
+  }).join('');
+
+  function setCategorias(){
+    var lista = (tipoSel === 'Verde') ? TIPOS_MEJORA : CATEGORIAS_ANOMALIA;
+    document.getElementById('lblCat').textContent = (tipoSel === 'Verde') ? 'Tipo de mejora' : 'Categoria de anomalia';
+    document.getElementById('categoria').innerHTML = '<option value="">—</option>' + opciones(lista);
+    document.getElementById('boxCosto').style.display = (tipoSel === 'Verde') ? 'block' : 'none';
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.tipo'), function(el){
+    el.addEventListener('click', function(){
+      tipoSel = el.getAttribute('data-t');
+      Array.prototype.forEach.call(document.querySelectorAll('.tipo'), function(x){ x.classList.remove('sel'); });
+      el.classList.add('sel');
+      var g = TIPOS[tipoSel].grupo;
+      document.getElementById('grupoInfo').innerHTML = 'Responsable automatico: <b>' + g + '</b>';
+      document.getElementById('guardar').disabled = false;
+      setCategorias();
+    });
+  });
+
+  function msg(txt, ok){ document.getElementById('msg').innerHTML = '<div class="msg '+(ok?'ok':'err')+'">'+txt+'</div>'; window.scrollTo(0,0); }
+
+  function limpiarCampos(){
+    ['detectadoPor','equipo','componente','descripcion','responsable','fotoUrl','costo'].forEach(function(id){ document.getElementById(id).value=''; });
+  }
+  document.getElementById('limpiar').addEventListener('click', function(){
+    limpiarCampos();
+    document.getElementById('msg').innerHTML='';
+  });
+
+  document.getElementById('guardar').addEventListener('click', async function(){
+    if (!tipoSel) return msg('Elegi el tipo de tarjeta.', false);
+    var data = {
+      tipo: tipoSel,
+      detectadoPor: document.getElementById('detectadoPor').value.trim(),
+      turno: document.getElementById('turno').value,
+      sector: document.getElementById('sector').value,
+      equipo: document.getElementById('equipo').value.trim(),
+      componente: document.getElementById('componente').value.trim(),
+      categoria: document.getElementById('categoria').value,
+      descripcion: document.getElementById('descripcion').value.trim(),
+      prioridad: document.getElementById('prioridad').value,
+      responsable: document.getElementById('responsable').value.trim(),
+      fechaCompromiso: document.getElementById('fechaCompromiso').value,
+      fotoUrl: document.getElementById('fotoUrl').value.trim(),
+      costo: document.getElementById('costo').value
+    };
+    if (!data.detectadoPor || !data.sector || !data.descripcion) return msg('Completa los campos obligatorios (*).', false);
+    var btn = document.getElementById('guardar'); btn.disabled = true; btn.textContent = 'Guardando...';
+    try {
+      var r = await api('crear', { data: data });
+      if (r.ok) {
+        msg('Tarjeta <b>' + r.id + '</b> creada y asignada a <b>' + r.grupo + '</b>.', true);
+        limpiarCampos();
+      } else { msg('Error: ' + (r.error || 'no se pudo guardar'), false); }
+    } catch (e) { msg('Error de conexion: ' + e.message, false); }
+    btn.disabled = false; btn.textContent = 'Guardar tarjeta';
+  });
+</script>
+</body>
+</html>

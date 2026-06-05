@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seguimiento · TPM Tornquist</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Tarjetas TPM · Tornquist</div>
+  <nav>
+    <a href="index.html">Inicio</a>
+    <a href="formulario.html">Cargar</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="seguimiento.html" class="activo">Seguimiento</a>
+    <span id="flag"></span>
+  </nav>
+</div>
+
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div><h1>Seguimiento</h1><p class="sub">Filtra, asigna responsables y cierra cada tarjeta.</p></div>
+    <button class="btn sec sm" id="recargar">Actualizar</button>
+  </div>
+
+  <div id="msg"></div>
+
+  <div class="card">
+    <div class="filtros">
+      <div><label>Color</label><select id="fColor"><option value="">Todos</option><option>Roja</option><option>Azul</option><option>Verde</option></select></div>
+      <div><label>Estado</label><select id="fEstado"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Anulada</option></select></div>
+      <div><label>Grupo</label><select id="fGrupo"><option value="">Todos</option><option>Mantenimiento</option><option>Operacion</option><option>Mejora Enfocada</option></select></div>
+      <div><label>Sector</label><select id="fSector"><option value="">Todos</option></select></div>
+      <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto..."></div>
+      <div style="flex:0"><label>&nbsp;</label><label style="font-weight:normal;font-size:12px;color:var(--ink)"><input type="checkbox" id="fVencidas" style="width:auto;margin-right:6px">Solo vencidas</label></div>
+    </div>
+    <div style="overflow:auto;max-height:62vh">
+      <table>
+        <thead><tr>
+          <th>ID</th><th>Color</th><th>Sector / equipo</th><th>Descripcion</th>
+          <th>Grupo</th><th>Responsable</th><th>Dias</th><th>Estado</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="sub" id="conteo" style="margin-top:10px"></p>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div><h3 id="mTitulo"></h3><div id="mBadges" style="margin:6px 0"></div></div>
+      <button class="btn sec sm" id="mCerrarX">✕</button>
+    </div>
+    <div id="mDetalle"></div>
+
+    <h2 style="font-size:14px">Gestion</h2>
+    <div class="grid cols-2">
+      <div><label>Responsable asignado</label><input id="gResponsable"></div>
+      <div><label>Fecha compromiso</label><input id="gCompromiso" type="date"></div>
+    </div>
+    <div class="grid cols-2">
+      <div><label>Estado</label><select id="gEstado"></select></div>
+      <div><label>Prioridad</label><select id="gPrioridad"></select></div>
+    </div>
+    <label>Nota</label>
+    <textarea id="gNotas"></textarea>
+    <div style="display:flex;gap:10px;margin-top:10px">
+      <button class="btn" id="gGuardar">Guardar cambios</button>
+    </div>
+
+    <h2 style="font-size:14px">Cerrar tarjeta</h2>
+    <label>Accion de cierre (que se hizo)</label>
+    <textarea id="gAccionCierre" placeholder="Como se resolvio."></textarea>
+    <div class="grid cols-2">
+      <div><label>Costo / ahorro (USD)</label><input id="gCosto" type="number"></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn" id="gCerrar" style="width:100%">Marcar como cerrada</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="comun.js"></script>
+<script>
+  if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">DEMO</span>';
+  var TODAS = [], actual = null;
+
+  document.getElementById('fSector').innerHTML = '<option value="">Todos</option>' + opciones(SECTORES);
+  document.getElementById('gEstado').innerHTML = opciones(ESTADOS);
+  document.getElementById('gPrioridad').innerHTML = opciones(PRIORIDADES);
+
+  function msg(t,ok){ document.getElementById('msg').innerHTML='<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
+
+  async function cargar(){
+    try{
+      var r = await api('listar');
+      if(!r.ok){ msg(r.error||'error', false); return; }
+      TODAS = r.tarjetas; render();
+    }catch(e){ msg('Error de conexion: '+e.message, false); }
+  }
+
+  function filtradas(){
+    var c=document.getElementById('fColor').value, e=document.getElementById('fEstado').value,
+        g=document.getElementById('fGrupo').value, s=document.getElementById('fSector').value,
+        tx=document.getElementById('fTexto').value.toLowerCase(), v=document.getElementById('fVencidas').checked;
+    return TODAS.filter(function(t){
+      if(c && t['Tipo']!==c) return false;
+      if(e && t['Estado']!==e) return false;
+      if(g && t['Grupo responsable']!==g) return false;
+      if(s && t['Sector']!==s) return false;
+      if(v && !t.vencida) return false;
+      if(tx){ var blob=(t['ID']+' '+t['Equipo']+' '+t['Descripcion']+' '+t['Responsable asignado']+' '+t['Componente/Ubicacion']).toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
+      return true;
+    });
+  }
+
+  function render(){
+    var f = filtradas();
+    document.getElementById('tbody').innerHTML = f.map(function(t){
+      return '<tr class="clic" data-id="'+esc(t['ID'])+'">'+
+        '<td style="font-family:monospace;font-size:12px">'+esc(t['ID'])+'</td>'+
+        '<td>'+badgeTipo(t['Tipo'])+'</td>'+
+        '<td>'+esc(t['Sector'])+(t['Equipo']?'<br><span style="color:var(--muted);font-size:12px">'+esc(t['Equipo'])+'</span>':'')+'</td>'+
+        '<td>'+esc(String(t['Descripcion']).slice(0,70))+(String(t['Descripcion']).length>70?'…':'')+'</td>'+
+        '<td>'+esc(t['Grupo responsable'])+'</td>'+
+        '<td>'+esc(t['Responsable asignado']||'—')+'</td>'+
+        '<td style="text-align:center">'+(t.diasAbierta===''?'—':t.diasAbierta)+'</td>'+
+        '<td>'+badgeEstado(t['Estado'], t.vencida)+'</td></tr>';
+    }).join('');
+    document.getElementById('conteo').textContent = f.length + ' de ' + TODAS.length + ' tarjetas';
+    Array.prototype.forEach.call(document.querySelectorAll('#tbody tr'), function(tr){
+      tr.addEventListener('click', function(){ abrir(tr.getAttribute('data-id')); });
+    });
+  }
+
+  function abrir(id){
+    actual = TODAS.find(function(t){ return t['ID']===id; });
+    if(!actual) return;
+    var t = actual;
+    document.getElementById('mTitulo').textContent = t['ID'];
+    document.getElementById('mBadges').innerHTML = badgeTipo(t['Tipo']) + ' ' + badgeEstado(t['Estado'], t.vencida);
+    document.getElementById('mDetalle').innerHTML =
+      '<div class="kv"><b>Sector:</b> '+esc(t['Sector'])+' &nbsp; <b>Equipo:</b> '+esc(t['Equipo']||'—')+' &nbsp; <b>Componente:</b> '+esc(t['Componente/Ubicacion']||'—')+'</div>'+
+      '<div class="kv"><b>Categoria:</b> '+esc(t['Categoria']||'—')+' &nbsp; <b>Prioridad:</b> '+esc(t['Prioridad'])+'</div>'+
+      '<div class="kv"><b>Detectado por:</b> '+esc(t['Detectado por'])+' ('+esc(t['Turno']||'s/turno')+') &nbsp; <b>Alta:</b> '+esc(t['Fecha alta'])+'</div>'+
+      '<div class="kv"><b>Grupo responsable:</b> '+esc(t['Grupo responsable'])+'</div>'+
+      '<div class="kv" style="margin-top:6px"><b>Descripcion:</b> '+esc(t['Descripcion'])+'</div>'+
+      (t['Accion de cierre']?'<div class="kv" style="margin-top:6px"><b>Cierre:</b> '+esc(t['Accion de cierre'])+' ('+esc(t['Fecha cierre'])+')</div>':'');
+    document.getElementById('gResponsable').value = t['Responsable asignado']||'';
+    document.getElementById('gCompromiso').value = (t['Fecha compromiso']||'').slice(0,10);
+    document.getElementById('gEstado').value = t['Estado'];
+    document.getElementById('gPrioridad').value = t['Prioridad']||'Media';
+    document.getElementById('gNotas').value = t['Notas']||'';
+    document.getElementById('gAccionCierre').value = '';
+    document.getElementById('gCosto').value = t['Costo estimado']||'';
+    document.getElementById('modal').classList.add('show');
+  }
+  function cerrarModal(){ document.getElementById('modal').classList.remove('show'); }
+
+  document.getElementById('mCerrarX').addEventListener('click', cerrarModal);
+  document.getElementById('modal').addEventListener('click', function(e){ if(e.target.id==='modal') cerrarModal(); });
+
+  document.getElementById('gGuardar').addEventListener('click', async function(){
+    if(!actual) return;
+    var cambios = {
+      responsable: document.getElementById('gResponsable').value.trim(),
+      fechaCompromiso: document.getElementById('gCompromiso').value,
+      estado: document.getElementById('gEstado').value,
+      prioridad: document.getElementById('gPrioridad').value,
+      notas: document.getElementById('gNotas').value.trim()
+    };
+    try{ var r = await api('actualizar', { id: actual['ID'], cambios: cambios });
+      if(r.ok){ cerrarModal(); msg('Tarjeta '+actual['ID']+' actualizada.', true); cargar(); }
+      else msg(r.error||'error', false);
+    }catch(e){ msg('Error: '+e.message, false); }
+  });
+
+  document.getElementById('gCerrar').addEventListener('click', async function(){
+    if(!actual) return;
+    var accion = document.getElementById('gAccionCierre').value.trim();
+    if(!accion) return msg('Indica la accion de cierre.', false);
+    try{ var r = await api('cerrar', { id: actual['ID'], accion: accion, costo: document.getElementById('gCosto').value });
+      if(r.ok){ cerrarModal(); msg('Tarjeta '+actual['ID']+' cerrada.', true); cargar(); }
+      else msg(r.error||'error', false);
+    }catch(e){ msg('Error: '+e.message, false); }
+  });
+
+  ['fColor','fEstado','fGrupo','fSector','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
+  document.getElementById('fTexto').addEventListener('input', render);
+  document.getElementById('recargar').addEventListener('click', cargar);
+  cargar();
+</script>
+</body>
+</html>

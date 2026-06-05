@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tarjetas TPM · Tornquist</title>
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Sistema de Tarjetas TPM · Planta Tornquist</div>
+  <span id="flag"></span>
+</div>
+<div class="wrap">
+  <h1>Mantenimiento Autonomo y Mejora</h1>
+  <p class="sub">Carga de anomalias y mejoras, asignacion automatica por color y seguimiento del cierre.</p>
+
+  <div class="home">
+    <a href="formulario.html">
+      <div class="ic">＋</div>
+      <h3>Cargar tarjeta</h3>
+      <p>Roja, azul o verde. El responsable se asigna solo segun el color.</p>
+    </a>
+    <a href="dashboard.html">
+      <div class="ic">▦</div>
+      <h3>Dashboard</h3>
+      <p>Estado general, por color, por sector y tiempos de cierre.</p>
+    </a>
+    <a href="seguimiento.html">
+      <div class="ic">☑</div>
+      <h3>Seguimiento</h3>
+      <p>Listado, asignacion de responsable y cierre de cada tarjeta.</p>
+    </a>
+  </div>
+
+  <div class="card" style="margin-top:22px">
+    <h2 style="margin-top:0">Como funciona el color</h2>
+    <div class="tipos" id="tipos"></div>
+  </div>
+</div>
+
+<script src="comun.js"></script>
+<script>
+  if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">MODO DEMO (datos locales)</span>';
+  document.getElementById('tipos').innerHTML = Object.keys(TIPOS).map(function(k){
+    var t = TIPOS[k];
+    return '<div class="tipo"><div class="cab" style="background:'+t.color+'">Tarjeta '+k+'</div><div class="d">'+t.desc+'</div></div>';
+  }).join('');
+</script>
+</body>
+</html>
