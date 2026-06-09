@@ -8,7 +8,7 @@ const CONFIG = {
   /* Pega aca la URL /exec de tu Apps Script para usar Google Sheet.
      Si la dejas vacia, la app funciona en MODO DEMO con datos locales
      del navegador (localStorage), ideal para probar antes de publicar. */
-  API_URL: 'https://script.google.com/macros/s/AKfycbxUYpbmGe-T0Rc-jD0dxkzdAnwOzop9ikIvajMgxDRa5gj33a5ErLSkbNTar4kNkJkN/exec',
+  API_URL: '',
   PLANTA: 'Tornquist'
 };
 
@@ -36,23 +36,59 @@ const TURNOS = ['A', 'B', 'C', 'D'];
 const PRIORIDADES = ['Alta', 'Media', 'Baja'];
 const ESTADOS = ['Abierta', 'En proceso', 'Cerrada', 'Anulada'];
 
-/* Categorias de anomalia (Mantenimiento Autonomo) para rojas y azules */
-const CATEGORIAS_ANOMALIA = [
-  'Suciedad / contaminacion',
-  'Lubricacion deficiente',
-  'Ajuste / apriete flojo',
-  'Lugar de dificil acceso',
-  'Foco de suciedad / fuga',
-  'Desgaste / deterioro',
-  'Anomalia electrica / instrumentacion',
-  'Ruido / vibracion anormal',
-  'Condicion insegura',
-  'Defecto que afecta calidad',
-  'Elemento innecesario / fuera de lugar'
+/* Categorias de anomalia = los 7 fuguai del Mantenimiento Autonomo, agrupados.
+   Aplican a cualquier color (describen QUE se encontro). */
+const CATEGORIAS_TPM = {
+  '1 · Condicion basica incumplida': [
+    'Suciedad / falta de limpieza',
+    'Lubricacion deficiente',
+    'Ajuste / apriete flojo'
+  ],
+  '2 · Foco de contaminacion (fuente)': [
+    'Fuga (aceite / aire / agua / vapor)',
+    'Fuente de polvo / viruta / particulas',
+    'Derrame / dispersion de material'
+  ],
+  '3 · Lugar de dificil acceso': [
+    'Dificil limpieza',
+    'Dificil lubricacion',
+    'Dificil inspeccion',
+    'Dificil operacion / ajuste'
+  ],
+  '4 · Deterioro / pequena deficiencia': [
+    'Desgaste / juego / holgura',
+    'Ruido / vibracion / sobretemperatura',
+    'Anomalia electrica / instrumentacion',
+    'Grieta / deformacion / corrosion'
+  ],
+  '5 · Defecto de calidad': [
+    'Contaminacion / cuerpo extrano que afecta calidad'
+  ],
+  '6 · Seguridad': [
+    'Condicion insegura'
+  ],
+  '7 · MUDA': [
+    'Elemento innecesario / fuera de lugar'
+  ]
+};
+
+/* Etapa del pilar de Mantenimiento Autonomo a la que responde la tarjeta */
+const ETAPAS_MA = [
+  'Paso 1 · Restaurar condiciones',
+  'Paso 2 · Eliminar focos / facilitar acceso',
+  'Paso 3 · Estandarizar (LILA)'
 ];
 
-/* Tipos de mejora para tarjetas verdes */
-const TIPOS_MEJORA = [
+/* Etapa sugerida segun el grupo de la categoria (el usuario puede cambiarla) */
+const ETAPA_SUGERIDA = {
+  '1 · Condicion basica incumplida': 'Paso 1 · Restaurar condiciones',
+  '4 · Deterioro / pequena deficiencia': 'Paso 1 · Restaurar condiciones',
+  '2 · Foco de contaminacion (fuente)': 'Paso 2 · Eliminar focos / facilitar acceso',
+  '3 · Lugar de dificil acceso': 'Paso 2 · Eliminar focos / facilitar acceso'
+};
+
+/* Dimension de la mejora (solo tarjetas verdes) */
+const DIMENSIONES_MEJORA = [
   'Seguridad', 'Calidad', 'Productividad', 'Costo',
   'Ergonomia', 'Medio Ambiente', 'Facilidad de operacion / limpieza'
 ];
@@ -87,8 +123,11 @@ function demoApi(action, p) {
       'Equipo': d.equipo || '', 'Componente/Ubicacion': d.componente || '', 'Categoria': d.categoria || '',
       'Descripcion': d.descripcion || '', 'Prioridad': d.prioridad || 'Media', 'Foto URL': d.fotoUrl || '',
       'Responsable asignado': d.responsable || '', 'Fecha compromiso': d.fechaCompromiso || '',
-      'Estado': 'Abierta', 'Fecha cierre': '', 'Accion de cierre': '', 'Costo estimado': d.costo || '', 'Notas': d.notas || ''
+      'Estado': 'Abierta', 'Fecha cierre': '', 'Accion de cierre': '', 'Costo estimado': d.costo || '', 'Notas': d.notas || '',
+      'Etapa MA': d.etapaMa || '', 'Dimension mejora': d.dimensionMejora || ''
     });
+    // en demo, la foto (dataURL) se guarda directo como Foto URL
+    if (d.fotoData) arr[arr.length - 1]['Foto URL'] = d.fotoData;
     demoGuardar_(arr);
     return { ok: true, id: id, grupo: grupo };
   }
@@ -98,7 +137,7 @@ function demoApi(action, p) {
   if (action === 'actualizar') {
     const t = arr.find(function (x) { return x['ID'] === p.id; });
     if (!t) return { ok: false, error: 'No encontrada' };
-    const mapa = { responsable: 'Responsable asignado', fechaCompromiso: 'Fecha compromiso', estado: 'Estado', prioridad: 'Prioridad', notas: 'Notas', categoria: 'Categoria' };
+    const mapa = { responsable: 'Responsable asignado', fechaCompromiso: 'Fecha compromiso', estado: 'Estado', prioridad: 'Prioridad', notas: 'Notas', categoria: 'Categoria', etapaMa: 'Etapa MA' };
     Object.keys(p.cambios || {}).forEach(function (k) { if (mapa[k]) t[mapa[k]] = p.cambios[k]; });
     demoGuardar_(arr);
     return { ok: true, id: p.id };
@@ -149,7 +188,7 @@ function calcularKPIs(tarjetas) {
     total: tarjetas.length, abiertas: 0, enProceso: 0, cerradas: 0, anuladas: 0,
     vencidas: 0, pctCierre: 0, antiguedadProm: 0, tiempoCierreProm: 0,
     porColor: { Roja: { t: 0, ab: 0 }, Azul: { t: 0, ab: 0 }, Verde: { t: 0, ab: 0 } },
-    porSector: {}, porGrupo: {}
+    porSector: {}, porGrupo: {}, porEtapa: {}
   };
   let sumAnt = 0, nAnt = 0, sumCierre = 0, nCierre = 0;
   tarjetas.forEach(function (t) {
@@ -162,6 +201,7 @@ function calcularKPIs(tarjetas) {
     const c = t['Tipo']; if (k.porColor[c]) { k.porColor[c].t++; if (est === 'Abierta' || est === 'En proceso') k.porColor[c].ab++; }
     const s = t['Sector'] || '—'; k.porSector[s] = (k.porSector[s] || 0) + 1;
     const g = t['Grupo responsable'] || '—'; k.porGrupo[g] = (k.porGrupo[g] || 0) + 1;
+    const et = t['Etapa MA'] || 'Sin etapa'; k.porEtapa[et] = (k.porEtapa[et] || 0) + 1;
     if (est === 'Abierta' || est === 'En proceso') { if (t.diasAbierta !== '') { sumAnt += t.diasAbierta; nAnt++; } }
     if (est === 'Cerrada' && t.diasAbierta !== '') { sumCierre += t.diasAbierta; nCierre++; }
   });
@@ -200,4 +240,36 @@ function opciones(arr, sel) {
   return arr.map(function (v) { return '<option value="' + esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
 }
 
+function opcionesGrupos(obj, sel) {
+  return Object.keys(obj).map(function (g) {
+    const items = obj[g].map(function (v) { return '<option value="' + esc(v) + '"' + (v === sel ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('');
+    return '<optgroup label="' + esc(g) + '">' + items + '</optgroup>';
+  }).join('');
+}
+
 function hoyISO() { const f = new Date(); const p = (n) => String(n).padStart(2, '0'); return f.getFullYear() + '-' + p(f.getMonth() + 1) + '-' + p(f.getDate()); }
+
+/* Lee una foto del input, la reduce (max 1024px, JPEG) y devuelve un dataURL.
+   Mantiene el peso bajo para subir a Drive o guardar en demo. */
+function comprimirImagen(file, maxLado, calidad) {
+  maxLado = maxLado || 1024; calidad = calidad || 0.7;
+  return new Promise(function (resolve, reject) {
+    if (!file) return resolve('');
+    const reader = new FileReader();
+    reader.onerror = function () { reject(new Error('No se pudo leer la imagen')); };
+    reader.onload = function (e) {
+      const img = new Image();
+      img.onerror = function () { reject(new Error('Imagen invalida')); };
+      img.onload = function () {
+        let w = img.width, h = img.height;
+        if (w > h && w > maxLado) { h = Math.round(h * maxLado / w); w = maxLado; }
+        else if (h > maxLado) { w = Math.round(w * maxLado / h); h = maxLado; }
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', calidad));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}

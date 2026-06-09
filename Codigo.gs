@@ -16,6 +16,7 @@
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const SHEET_NAME = 'Tarjetas';
 const TZ = 'America/Argentina/Buenos_Aires';
+const FOTOS_FOLDER_ID = '';     // opcional: ID de carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
 
 // Notificaciones: email o Google Group por grupo responsable (opcional)
 const NOTIF = {
@@ -31,7 +32,8 @@ const HEADERS = [
   'ID', 'Fecha alta', 'Tipo', 'Grupo responsable', 'Detectado por', 'Turno',
   'Sector', 'Equipo', 'Componente/Ubicacion', 'Categoria', 'Descripcion',
   'Prioridad', 'Foto URL', 'Responsable asignado', 'Fecha compromiso',
-  'Estado', 'Fecha cierre', 'Accion de cierre', 'Costo estimado', 'Notas'
+  'Estado', 'Fecha cierre', 'Accion de cierre', 'Costo estimado', 'Notas',
+  'Etapa MA', 'Dimension mejora'
 ];
 
 /* ============================ ROUTING ============================ */
@@ -99,11 +101,15 @@ function crear_(d) {
   var id = generarId_(tipo);
   var ahora = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm');
 
+  var fotoUrl = d.fotoUrl || '';
+  if (d.fotoData) { try { fotoUrl = guardarFoto_(d.fotoData, id); } catch (err) {} }
+
   var fila = [
     id, ahora, tipo, grupo, d.detectadoPor, d.turno || '',
     d.sector, d.equipo || '', d.componente || '', d.categoria || '', d.descripcion,
-    d.prioridad || 'Media', d.fotoUrl || '', d.responsable || '', d.fechaCompromiso || '',
-    'Abierta', '', '', d.costo || '', d.notas || ''
+    d.prioridad || 'Media', fotoUrl, d.responsable || '', d.fechaCompromiso || '',
+    'Abierta', '', '', d.costo || '', d.notas || '',
+    d.etapaMa || '', d.dimensionMejora || ''
   ];
 
   getSheet_().appendRow(fila);
@@ -117,6 +123,21 @@ function generarId_(tipo) {
   var rnd = '';
   for (var i = 0; i < 3; i++) rnd += chars.charAt(Math.floor(Math.random() * chars.length));
   return PREFIJO_COLOR[tipo] + '-' + fecha + '-' + rnd;
+}
+
+function carpetaFotos_() {
+  if (FOTOS_FOLDER_ID) return DriveApp.getFolderById(FOTOS_FOLDER_ID);
+  var it = DriveApp.getFoldersByName('Fotos Tarjetas TPM');
+  return it.hasNext() ? it.next() : DriveApp.createFolder('Fotos Tarjetas TPM');
+}
+
+function guardarFoto_(dataUrl, id) {
+  var m = String(dataUrl).match(/^data:(.*?);base64,(.*)$/);
+  if (!m) return '';
+  var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], id + '.jpg');
+  var file = carpetaFotos_().createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+  return 'https://drive.google.com/uc?export=view&id=' + file.getId();
 }
 
 /* ============================ LISTAR ============================ */
@@ -165,7 +186,7 @@ function actualizar_(id, cambios) {
   var sh = getSheet_();
   var mapa = {
     responsable: 'Responsable asignado', fechaCompromiso: 'Fecha compromiso',
-    estado: 'Estado', prioridad: 'Prioridad', notas: 'Notas', categoria: 'Categoria'
+    estado: 'Estado', prioridad: 'Prioridad', notas: 'Notas', categoria: 'Categoria', etapaMa: 'Etapa MA'
   };
   Object.keys(cambios).forEach(function (k) {
     if (mapa[k]) sh.getRange(fila, colDe_(mapa[k])).setValue(cambios[k]);

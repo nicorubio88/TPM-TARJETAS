@@ -30,6 +30,10 @@
   <h2>Tarjetas abiertas por color</h2>
   <div class="grid cols-3" id="porColor"></div>
 
+  <h2>Tablero de acciones (kanban)</h2>
+  <p class="sub" style="margin-top:-4px">Columnas por prioridad · filas por estado. Las vencidas se marcan en rojo.</p>
+  <div class="card"><div class="kanban" id="kanban"></div></div>
+
   <div class="grid cols-2" style="margin-top:18px">
     <div class="card"><h2 style="margin-top:0">Por estado</h2><canvas id="chEstado" height="200"></canvas></div>
     <div class="card"><h2 style="margin-top:0">Por color</h2><canvas id="chColor" height="200"></canvas></div>
@@ -37,6 +41,13 @@
   <div class="grid cols-2" style="margin-top:14px">
     <div class="card"><h2 style="margin-top:0">Top sectores</h2><canvas id="chSector" height="220"></canvas></div>
     <div class="card"><h2 style="margin-top:0">Por grupo responsable</h2><canvas id="chGrupo" height="220"></canvas></div>
+  </div>
+  <div class="grid cols-2" style="margin-top:14px">
+    <div class="card"><h2 style="margin-top:0">Por etapa de Mantenimiento Autonomo</h2><canvas id="chEtapa" height="200"></canvas></div>
+    <div class="card" style="display:flex;flex-direction:column;justify-content:center">
+      <h2 style="margin-top:0">Avance del pilar</h2>
+      <div id="etapaResumen" style="font-size:13px;color:var(--muted);line-height:1.9"></div>
+    </div>
   </div>
 </div>
 
@@ -47,6 +58,26 @@
   var charts = {};
 
   function kpiCard(n,l,cls){ return '<div class="kpi '+(cls||'')+'"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+
+  function kTarjeta(t){
+    return '<div class="ktarjeta'+(t.vencida?' venc':'')+'" style="border-left-color:'+colorTipo(t['Tipo'])+'">'+
+      '<div class="kid">'+esc(t['ID'])+'</div>'+
+      '<div class="ktxt">'+esc(t['Sector'])+(t['Equipo']?' · '+esc(t['Equipo']):'')+'</div>'+
+      '<div class="kresp">'+esc(t['Responsable asignado']||'sin asignar')+(t.diasAbierta!==''?' · '+t.diasAbierta+'d':'')+'</div></div>';
+  }
+  function pintarKanban(ts){
+    var filas = [['Pendiente', ['Abierta']], ['En proceso', ['En proceso']], ['Cerradas', ['Cerrada']]];
+    var prios = ['Alta','Media','Baja'];
+    var html = '<div></div>' + prios.map(function(p){ return '<div class="kh '+p.toLowerCase()+'">'+p+'</div>'; }).join('');
+    filas.forEach(function(f){
+      html += '<div class="rowlbl">'+f[0]+'</div>';
+      prios.forEach(function(p){
+        var cards = ts.filter(function(t){ return f[1].indexOf(t['Estado'])>-1 && (t['Prioridad']||'Media')===p; });
+        html += '<div class="cell">' + (cards.length? cards.map(kTarjeta).join('') : '<div class="kvacio">—</div>') + '</div>';
+      });
+    });
+    document.getElementById('kanban').innerHTML = html;
+  }
 
   function pintarKPIs(k){
     document.getElementById('kpis').innerHTML =
@@ -90,6 +121,7 @@
       if(!r.ok){ document.getElementById('msg').innerHTML='<div class="msg err">'+(r.error||'error')+'</div>'; return; }
       var ts = r.tarjetas; var k = calcularKPIs(ts);
       pintarKPIs(k);
+      pintarKanban(ts);
 
       if (typeof Chart === 'undefined') {
         document.getElementById('msg').innerHTML = '<div class="msg err">No se pudieron cargar los graficos (sin conexion al CDN). Los indicadores de arriba si estan actualizados.</div>';
@@ -106,6 +138,13 @@
 
       var gr = Object.keys(k.porGrupo);
       barras('chGrupo', gr, gr.map(function(g){return k.porGrupo[g];}), '#3D5F26', false);
+
+      var etOrden = ['Paso 1 · Restaurar condiciones','Paso 2 · Eliminar focos / facilitar acceso','Paso 3 · Estandarizar (LILA)','Sin etapa'];
+      var etLabels = etOrden.filter(function(e){return k.porEtapa[e];});
+      barras('chEtapa', etLabels.map(function(e){return e.split(' · ')[0];}), etLabels.map(function(e){return k.porEtapa[e];}), '#548235', false);
+      document.getElementById('etapaResumen').innerHTML = etOrden.filter(function(e){return k.porEtapa[e];}).map(function(e){
+        return '<div><b style="color:var(--ink)">'+k.porEtapa[e]+'</b> &nbsp;'+e+'</div>';
+      }).join('') || '<span>Sin tarjetas cargadas.</span>';
     }catch(e){ document.getElementById('msg').innerHTML='<div class="msg err">Error de conexion: '+e.message+'</div>'; }
   }
 

@@ -31,8 +31,8 @@
 
     <div class="grid cols-2">
       <div>
-        <label>Detectado por *</label>
-        <input id="detectadoPor" placeholder="Nombre y apellido">
+        <label>Detectado por (quien carga) *</label>
+        <select id="detectadoPor"></select>
       </div>
       <div>
         <label>Turno</label>
@@ -57,8 +57,19 @@
         <input id="componente" placeholder="Ej: motor bomba 3, tablero TG-12">
       </div>
       <div>
-        <label id="lblCat">Categoria</label>
+        <label id="lblCat">Categoria de anomalia (TPM)</label>
         <select id="categoria"></select>
+      </div>
+    </div>
+
+    <div class="grid cols-2">
+      <div>
+        <label>Etapa de Mantenimiento Autonomo</label>
+        <select id="etapaMa"></select>
+      </div>
+      <div id="boxDim" style="display:none">
+        <label>Dimension de la mejora</label>
+        <select id="dimensionMejora"></select>
       </div>
     </div>
 
@@ -72,7 +83,7 @@
       </div>
       <div>
         <label>Responsable asignado</label>
-        <input id="responsable" placeholder="(opcional) persona">
+        <select id="responsable"></select>
       </div>
       <div>
         <label>Fecha compromiso</label>
@@ -82,8 +93,9 @@
 
     <div class="grid cols-2">
       <div>
-        <label>Foto (URL)</label>
-        <input id="fotoUrl" placeholder="(opcional) link a la foto">
+        <label>Foto (sacar o adjuntar)</label>
+        <input id="foto" type="file" accept="image/*" capture="environment">
+        <div id="fotoPrev"></div>
       </div>
       <div id="boxCosto" style="display:none">
         <label>Costo / ahorro estimado (USD)</label>
@@ -98,6 +110,7 @@
   </div>
 </div>
 
+<script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
   if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">DEMO</span>';
@@ -105,7 +118,12 @@
 
   document.getElementById('turno').innerHTML = '<option value="">—</option>' + opciones(TURNOS);
   document.getElementById('sector').innerHTML = '<option value="">Elegir...</option>' + opciones(SECTORES);
+  document.getElementById('detectadoPor').innerHTML = '<option value="">Elegir persona...</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
+  document.getElementById('responsable').innerHTML = '<option value="">(opcional) elegir persona...</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
   document.getElementById('prioridad').innerHTML = opciones(PRIORIDADES, 'Media');
+  document.getElementById('categoria').innerHTML = '<option value="">—</option>' + opcionesGrupos(CATEGORIAS_TPM);
+  document.getElementById('etapaMa').innerHTML = '<option value="">—</option>' + opciones(ETAPAS_MA);
+  document.getElementById('dimensionMejora').innerHTML = '<option value="">—</option>' + opciones(DIMENSIONES_MEJORA);
   document.getElementById('fechaCompromiso').value = '';
 
   document.getElementById('tipos').innerHTML = Object.keys(TIPOS).map(function(k){
@@ -113,12 +131,13 @@
     return '<div class="tipo" data-t="'+k+'"><div class="cab" style="background:'+t.color+'">Tarjeta '+k+'</div><div class="d">'+t.desc+'</div></div>';
   }).join('');
 
-  function setCategorias(){
-    var lista = (tipoSel === 'Verde') ? TIPOS_MEJORA : CATEGORIAS_ANOMALIA;
-    document.getElementById('lblCat').textContent = (tipoSel === 'Verde') ? 'Tipo de mejora' : 'Categoria de anomalia';
-    document.getElementById('categoria').innerHTML = '<option value="">—</option>' + opciones(lista);
-    document.getElementById('boxCosto').style.display = (tipoSel === 'Verde') ? 'block' : 'none';
-  }
+  // sugerir la etapa de MA segun el grupo (optgroup) de la categoria elegida
+  document.getElementById('categoria').addEventListener('change', function(){
+    var opt = this.options[this.selectedIndex];
+    var grupo = opt && opt.parentNode && opt.parentNode.label ? opt.parentNode.label : '';
+    var sug = ETAPA_SUGERIDA[grupo];
+    if (sug && !document.getElementById('etapaMa').value) document.getElementById('etapaMa').value = sug;
+  });
 
   Array.prototype.forEach.call(document.querySelectorAll('.tipo'), function(el){
     el.addEventListener('click', function(){
@@ -128,14 +147,28 @@
       var g = TIPOS[tipoSel].grupo;
       document.getElementById('grupoInfo').innerHTML = 'Responsable automatico: <b>' + g + '</b>';
       document.getElementById('guardar').disabled = false;
-      setCategorias();
+      // costo y dimension de mejora solo para verde
+      document.getElementById('boxCosto').style.display = (tipoSel === 'Verde') ? 'block' : 'none';
+      document.getElementById('boxDim').style.display = (tipoSel === 'Verde') ? 'block' : 'none';
     });
+  });
+
+  var fotoDataURL = '';
+  document.getElementById('foto').addEventListener('change', async function(){
+    var f = this.files[0];
+    if(!f){ fotoDataURL=''; document.getElementById('fotoPrev').innerHTML=''; return; }
+    document.getElementById('fotoPrev').innerHTML = '<span style="font-size:12px;color:var(--muted)">Procesando imagen...</span>';
+    try{
+      fotoDataURL = await comprimirImagen(f);
+      document.getElementById('fotoPrev').innerHTML = '<img src="'+fotoDataURL+'" style="max-height:90px;margin-top:6px;border-radius:6px;border:1px solid var(--line)">';
+    }catch(e){ fotoDataURL=''; document.getElementById('fotoPrev').innerHTML='<span style="font-size:12px;color:#A32D2D">No se pudo cargar la imagen</span>'; }
   });
 
   function msg(txt, ok){ document.getElementById('msg').innerHTML = '<div class="msg '+(ok?'ok':'err')+'">'+txt+'</div>'; window.scrollTo(0,0); }
 
   function limpiarCampos(){
-    ['detectadoPor','equipo','componente','descripcion','responsable','fotoUrl','costo'].forEach(function(id){ document.getElementById(id).value=''; });
+    ['detectadoPor','equipo','componente','descripcion','responsable','costo'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('foto').value=''; document.getElementById('fotoPrev').innerHTML=''; fotoDataURL='';
   }
   document.getElementById('limpiar').addEventListener('click', function(){
     limpiarCampos();
@@ -156,8 +189,10 @@
       prioridad: document.getElementById('prioridad').value,
       responsable: document.getElementById('responsable').value.trim(),
       fechaCompromiso: document.getElementById('fechaCompromiso').value,
-      fotoUrl: document.getElementById('fotoUrl').value.trim(),
-      costo: document.getElementById('costo').value
+      fotoData: fotoDataURL,
+      costo: document.getElementById('costo').value,
+      etapaMa: document.getElementById('etapaMa').value,
+      dimensionMejora: document.getElementById('dimensionMejora').value
     };
     if (!data.detectadoPor || !data.sector || !data.descripcion) return msg('Completa los campos obligatorios (*).', false);
     var btn = document.getElementById('guardar'); btn.disabled = true; btn.textContent = 'Guardando...';

@@ -16,6 +16,7 @@ Misma arquitectura que el sistema de seguridad (EHS): frontend HTML + backend Go
 |---|---|
 | `Codigo.gs` | Backend. Se pega en Google Apps Script. Lee y escribe la Google Sheet. |
 | `comun.js` | Configuración, catálogos (sectores, turnos, categorías) y capa de datos del frontend. |
+| `personas.js` | Nómina de planta (nombre y sector) para los desplegables de "detectado por" y "responsable". |
 | `estilos.css` | Estilos compartidos. |
 | `index.html` | Inicio con las tres secciones. |
 | `formulario.html` | Carga de tarjeta. |
@@ -53,18 +54,34 @@ En el editor de Apps Script, seleccionar la función `setup` y ejecutarla una ve
 
 ### 5. Conectar el frontend
 1. Abrir `comun.js` y pegar la URL en `CONFIG.API_URL`.
-2. Subir los 6 archivos del frontend (`comun.js`, `estilos.css`, `index.html`,
+2. Subir los 7 archivos del frontend (`comun.js`, `personas.js`, `estilos.css`, `index.html`,
    `formulario.html`, `dashboard.html`, `seguimiento.html`) a un hosting estático
    (Digital Ocean App Platform + GitHub, igual que el sistema EHS, o cualquier servidor web).
 
 Listo. El formulario carga tarjetas en la planilla, el dashboard muestra los indicadores
 y seguimiento permite asignar responsables y cerrar.
 
+## Fotos, nómina y kanban
+
+- **Fotos:** el formulario permite sacar o adjuntar una foto; en el celular abre la cámara. La imagen se reduce
+  en el navegador y, en producción, se guarda en una carpeta de Google Drive ("Fotos Tarjetas TPM", o la que
+  indiques en `FOTOS_FOLDER_ID`); en la planilla queda el link. En modo demo la foto se guarda en el navegador.
+- **Nómina:** los nombres salen de `personas.js`. Para altas, bajas o cambios de personal, editá ese archivo
+  (está agrupado por sector). No contiene sueldos ni datos sensibles, solo nombre y sector.
+- **Kanban:** el dashboard muestra el tablero de acciones con columnas por prioridad (Alta/Media/Baja) y filas
+  por estado (Pendiente / En proceso / Cerradas); las vencidas se resaltan en rojo.
+
 ## Estructura de datos (hoja "Tarjetas")
 
 ID · Fecha alta · Tipo · Grupo responsable · Detectado por · Turno · Sector · Equipo ·
 Componente/Ubicación · Categoría · Descripción · Prioridad · Foto URL · Responsable asignado ·
-Fecha compromiso · Estado · Fecha cierre · Acción de cierre · Costo estimado · Notas
+Fecha compromiso · Estado · Fecha cierre · Acción de cierre · Costo estimado · Notas ·
+Etapa MA · Dimensión mejora
+
+La **Categoría** usa los 7 fuguai del Mantenimiento Autónomo agrupados: condición básica
+(limpieza/lubricación/ajuste), focos de contaminación, lugares de difícil acceso (limpieza,
+lubricación, inspección, operación), deterioro, calidad, seguridad y MUDA. La **Etapa MA**
+ubica la tarjeta en el Paso 1 (restaurar), 2 (eliminar focos / facilitar acceso) o 3 (estandarizar).
 
 El **ID** es anticolisión y lleva el color como prefijo: `ROJ-AAMMDD-HHMM-XXX` (roja), `AZU-...`, `VER-...`.
 
@@ -79,5 +96,6 @@ abiertas por color · por estado · por color · top sectores · por grupo respo
   y el pipeline de Mejora Enfocada (Kobetsu Kaizen).
 - El **tiempo medio de cierre** y las **vencidas** son los indicadores de salud del tablero de tarjetas
   (equivalente al MTTR para las anomalías de Mantenimiento Autónomo).
-- Las **categorías** de las rojas y azules siguen los tipos de anomalía del Paso 1 de Mantenimiento Autónomo
-  (suciedad, lubricación, ajuste, accesos difíciles, focos de contaminación, etc.).
+- Las **categorías** son los 7 fuguai del Paso 1 de Mantenimiento Autónomo (condición básica,
+  focos de contaminación, lugares de difícil acceso, deterioro, calidad, seguridad, MUDA), y el
+  campo **Etapa MA** permite ver en el dashboard el avance del pilar por pasos, no solo el cierre.

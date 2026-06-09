@@ -32,6 +32,7 @@
       <div><label>Estado</label><select id="fEstado"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Anulada</option></select></div>
       <div><label>Grupo</label><select id="fGrupo"><option value="">Todos</option><option>Mantenimiento</option><option>Operacion</option><option>Mejora Enfocada</option></select></div>
       <div><label>Sector</label><select id="fSector"><option value="">Todos</option></select></div>
+      <div><label>Etapa MA</label><select id="fEtapa"><option value="">Todas</option></select></div>
       <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto..."></div>
       <div style="flex:0"><label>&nbsp;</label><label style="font-weight:normal;font-size:12px;color:var(--ink)"><input type="checkbox" id="fVencidas" style="width:auto;margin-right:6px">Solo vencidas</label></div>
     </div>
@@ -58,13 +59,15 @@
 
     <h2 style="font-size:14px">Gestion</h2>
     <div class="grid cols-2">
-      <div><label>Responsable asignado</label><input id="gResponsable"></div>
+      <div><label>Responsable asignado</label><select id="gResponsable"></select></div>
       <div><label>Fecha compromiso</label><input id="gCompromiso" type="date"></div>
     </div>
     <div class="grid cols-2">
       <div><label>Estado</label><select id="gEstado"></select></div>
       <div><label>Prioridad</label><select id="gPrioridad"></select></div>
     </div>
+    <label>Etapa de Mantenimiento Autonomo</label>
+    <select id="gEtapaMa"></select>
     <label>Nota</label>
     <textarea id="gNotas"></textarea>
     <div style="display:flex;gap:10px;margin-top:10px">
@@ -81,14 +84,18 @@
   </div>
 </div>
 
+<script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
   if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">DEMO</span>';
   var TODAS = [], actual = null;
 
   document.getElementById('fSector').innerHTML = '<option value="">Todos</option>' + opciones(SECTORES);
+  document.getElementById('fEtapa').innerHTML = '<option value="">Todas</option>' + opciones(ETAPAS_MA);
   document.getElementById('gEstado').innerHTML = opciones(ESTADOS);
   document.getElementById('gPrioridad').innerHTML = opciones(PRIORIDADES);
+  document.getElementById('gEtapaMa').innerHTML = '<option value="">—</option>' + opciones(ETAPAS_MA);
+  document.getElementById('gResponsable').innerHTML = '<option value="">(sin asignar)</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
 
   function msg(t,ok){ document.getElementById('msg').innerHTML='<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
 
@@ -103,12 +110,14 @@
   function filtradas(){
     var c=document.getElementById('fColor').value, e=document.getElementById('fEstado').value,
         g=document.getElementById('fGrupo').value, s=document.getElementById('fSector').value,
+        et=document.getElementById('fEtapa').value,
         tx=document.getElementById('fTexto').value.toLowerCase(), v=document.getElementById('fVencidas').checked;
     return TODAS.filter(function(t){
       if(c && t['Tipo']!==c) return false;
       if(e && t['Estado']!==e) return false;
       if(g && t['Grupo responsable']!==g) return false;
       if(s && t['Sector']!==s) return false;
+      if(et && t['Etapa MA']!==et) return false;
       if(v && !t.vencida) return false;
       if(tx){ var blob=(t['ID']+' '+t['Equipo']+' '+t['Descripcion']+' '+t['Responsable asignado']+' '+t['Componente/Ubicacion']).toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
       return true;
@@ -143,14 +152,17 @@
     document.getElementById('mDetalle').innerHTML =
       '<div class="kv"><b>Sector:</b> '+esc(t['Sector'])+' &nbsp; <b>Equipo:</b> '+esc(t['Equipo']||'—')+' &nbsp; <b>Componente:</b> '+esc(t['Componente/Ubicacion']||'—')+'</div>'+
       '<div class="kv"><b>Categoria:</b> '+esc(t['Categoria']||'—')+' &nbsp; <b>Prioridad:</b> '+esc(t['Prioridad'])+'</div>'+
+      '<div class="kv"><b>Etapa MA:</b> '+esc(t['Etapa MA']||'—')+(t['Dimension mejora']?' &nbsp; <b>Mejora:</b> '+esc(t['Dimension mejora']):'')+'</div>'+
       '<div class="kv"><b>Detectado por:</b> '+esc(t['Detectado por'])+' ('+esc(t['Turno']||'s/turno')+') &nbsp; <b>Alta:</b> '+esc(t['Fecha alta'])+'</div>'+
       '<div class="kv"><b>Grupo responsable:</b> '+esc(t['Grupo responsable'])+'</div>'+
       '<div class="kv" style="margin-top:6px"><b>Descripcion:</b> '+esc(t['Descripcion'])+'</div>'+
-      (t['Accion de cierre']?'<div class="kv" style="margin-top:6px"><b>Cierre:</b> '+esc(t['Accion de cierre'])+' ('+esc(t['Fecha cierre'])+')</div>':'');
+      (t['Accion de cierre']?'<div class="kv" style="margin-top:6px"><b>Cierre:</b> '+esc(t['Accion de cierre'])+' ('+esc(t['Fecha cierre'])+')</div>':'')+
+      (t['Foto URL']?'<div style="margin-top:8px"><a href="'+esc(t['Foto URL'])+'" target="_blank"><img src="'+esc(t['Foto URL'])+'" style="max-height:140px;border-radius:8px;border:1px solid var(--line)"></a></div>':'');
     document.getElementById('gResponsable').value = t['Responsable asignado']||'';
     document.getElementById('gCompromiso').value = (t['Fecha compromiso']||'').slice(0,10);
     document.getElementById('gEstado').value = t['Estado'];
     document.getElementById('gPrioridad').value = t['Prioridad']||'Media';
+    document.getElementById('gEtapaMa').value = t['Etapa MA']||'';
     document.getElementById('gNotas').value = t['Notas']||'';
     document.getElementById('gAccionCierre').value = '';
     document.getElementById('gCosto').value = t['Costo estimado']||'';
@@ -168,6 +180,7 @@
       fechaCompromiso: document.getElementById('gCompromiso').value,
       estado: document.getElementById('gEstado').value,
       prioridad: document.getElementById('gPrioridad').value,
+      etapaMa: document.getElementById('gEtapaMa').value,
       notas: document.getElementById('gNotas').value.trim()
     };
     try{ var r = await api('actualizar', { id: actual['ID'], cambios: cambios });
@@ -186,7 +199,7 @@
     }catch(e){ msg('Error: '+e.message, false); }
   });
 
-  ['fColor','fEstado','fGrupo','fSector','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
+  ['fColor','fEstado','fGrupo','fSector','fEtapa','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
   document.getElementById('fTexto').addEventListener('input', render);
   document.getElementById('recargar').addEventListener('click', cargar);
   cargar();
