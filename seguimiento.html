@@ -21,7 +21,7 @@
 <div class="wrap">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
     <div><h1>Seguimiento</h1><p class="sub">Filtra, asigna responsables y cierra cada tarjeta.</p></div>
-    <button class="btn sec sm" id="recargar">Actualizar</button>
+    <div style="display:flex;gap:8px"><button class="btn sec sm" id="exportar">Exportar CSV</button><button class="btn sec sm" id="recargar">Actualizar</button></div>
   </div>
 
   <div id="msg"></div>
@@ -202,6 +202,17 @@
   ['fColor','fEstado','fGrupo','fSector','fEtapa','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
   document.getElementById('fTexto').addEventListener('input', render);
   document.getElementById('recargar').addEventListener('click', cargar);
+
+  document.getElementById('exportar').addEventListener('click', function(){
+    var cols=['ID','Fecha alta','Tipo','Grupo responsable','Detectado por','Turno','Sector','Equipo','Componente/Ubicacion','Categoria','Etapa MA','Dimension mejora','Descripcion','Prioridad','Responsable asignado','Fecha compromiso','Estado','Fecha cierre','Accion de cierre','Costo estimado'];
+    var datos=filtradas();
+    if(!datos.length){ msg('No hay tarjetas para exportar con los filtros actuales.', false); return; }
+    var q=function(v){ v=String(v==null?'':v).replace(/"/g,'""'); return '"'+v+'"'; };
+    var csv=cols.map(q).join(',')+'\r\n'+datos.map(function(t){ return cols.map(function(c){return q(t[c]);}).join(','); }).join('\r\n');
+    var blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='tarjetas_tpm_'+hoyISO()+'.csv'; a.click(); URL.revokeObjectURL(a.href);
+  });
   cargar();
 </script>
 </body>

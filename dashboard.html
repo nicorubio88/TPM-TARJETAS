@@ -49,6 +49,19 @@
       <div id="etapaResumen" style="font-size:13px;color:var(--muted);line-height:1.9"></div>
     </div>
   </div>
+  <div class="grid cols-2" style="margin-top:14px">
+    <div class="card">
+      <h2 style="margin-top:0">Participacion del equipo</h2>
+      <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:30px;font-weight:bold;color:var(--verde-d)" id="partN">0</span><span style="font-size:13px;color:var(--muted)">personas cargaron tarjetas</span></div>
+      <div style="font-size:12px;color:var(--verde-d);font-weight:bold;margin:12px 0 4px">Mas activos</div>
+      <div id="topDetectores" style="font-size:13px;color:var(--muted);line-height:1.9"></div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0">Antiguedad de tarjetas abiertas</h2>
+      <div id="aging"></div>
+      <p class="sub" style="margin:10px 0 0">Las tarjetas que pasan los 30 dias abiertas son las que mas atencion necesitan.</p>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -122,6 +135,7 @@
       var ts = r.tarjetas; var k = calcularKPIs(ts);
       pintarKPIs(k);
       pintarKanban(ts);
+      pintarPaneles(k);
 
       if (typeof Chart === 'undefined') {
         document.getElementById('msg').innerHTML = '<div class="msg err">No se pudieron cargar los graficos (sin conexion al CDN). Los indicadores de arriba si estan actualizados.</div>';
@@ -142,10 +156,27 @@
       var etOrden = ['Paso 1 · Restaurar condiciones','Paso 2 · Eliminar focos / facilitar acceso','Paso 3 · Estandarizar (LILA)','Sin etapa'];
       var etLabels = etOrden.filter(function(e){return k.porEtapa[e];});
       barras('chEtapa', etLabels.map(function(e){return e.split(' · ')[0];}), etLabels.map(function(e){return k.porEtapa[e];}), '#548235', false);
-      document.getElementById('etapaResumen').innerHTML = etOrden.filter(function(e){return k.porEtapa[e];}).map(function(e){
-        return '<div><b style="color:var(--ink)">'+k.porEtapa[e]+'</b> &nbsp;'+e+'</div>';
-      }).join('') || '<span>Sin tarjetas cargadas.</span>';
     }catch(e){ document.getElementById('msg').innerHTML='<div class="msg err">Error de conexion: '+e.message+'</div>'; }
+  }
+
+  function pintarPaneles(k){
+    var etOrden = ['Paso 1 · Restaurar condiciones','Paso 2 · Eliminar focos / facilitar acceso','Paso 3 · Estandarizar (LILA)','Sin etapa'];
+    document.getElementById('etapaResumen').innerHTML = etOrden.filter(function(e){return k.porEtapa[e];}).map(function(e){
+      return '<div><b style="color:var(--ink)">'+k.porEtapa[e]+'</b> &nbsp;'+e+'</div>';
+    }).join('') || '<span>Sin tarjetas cargadas.</span>';
+
+    document.getElementById('partN').textContent = k.detectoresUnicos;
+    var top = Object.keys(k.porDetector).map(function(d){return [d,k.porDetector[d]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+    document.getElementById('topDetectores').innerHTML = top.length ? top.map(function(x){
+      return '<div><b style="color:var(--ink)">'+x[1]+'</b> &nbsp;'+esc(x[0])+'</div>';
+    }).join('') : '<span>Sin registros.</span>';
+
+    var ag=k.aging, agMax=Math.max(ag.d7,ag.d30,ag.dmas,1);
+    var agRows=[['0 a 7 dias',ag.d7,'#639922'],['8 a 30 dias',ag.d30,'#C77D11'],['mas de 30 dias',ag.dmas,'#C0392B']];
+    document.getElementById('aging').innerHTML = agRows.map(function(r){
+      return '<div style="margin:8px 0"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink)"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>'+
+        '<div style="background:var(--soft);border-radius:5px;height:14px;margin-top:3px"><div style="background:'+r[2]+';height:14px;border-radius:5px;width:'+Math.round(r[1]/agMax*100)+'%"></div></div></div>';
+    }).join('');
   }
 
   document.getElementById('recargar').addEventListener('click', cargar);

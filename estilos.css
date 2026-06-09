@@ -95,3 +95,10 @@ tr.clic:hover{background:var(--soft)}
 .ktarjeta .kresp{font-size:10.5px;color:var(--muted);margin-top:2px}
 .ktarjeta.venc{border-left-color:var(--roja)!important;background:#FCEBEB}
 .kvacio{font-size:11px;color:#A9B6A0;text-align:center;margin:auto}
+
+.hero{background:linear-gradient(135deg,var(--verde-x),var(--verde-d));border-radius:14px;padding:30px 32px;margin-bottom:24px;color:#fff;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-60px;top:-60px;width:230px;height:230px;border-radius:50%;background:rgba(255,255,255,.05)}
+.hero-tag{font-size:12px;font-weight:bold;letter-spacing:2px;color:#9DBE72;margin-bottom:10px}
+.hero-h{font-size:27px;margin:0 0 12px;color:#fff;line-height:1.25;max-width:760px}
+.hero-p{font-size:15px;color:#D5E3C2;margin:0;max-width:720px;line-height:1.6}
+@media(max-width:600px){.hero{padding:22px}.hero-h{font-size:21px}}

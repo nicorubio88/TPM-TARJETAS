@@ -188,7 +188,8 @@ function calcularKPIs(tarjetas) {
     total: tarjetas.length, abiertas: 0, enProceso: 0, cerradas: 0, anuladas: 0,
     vencidas: 0, pctCierre: 0, antiguedadProm: 0, tiempoCierreProm: 0,
     porColor: { Roja: { t: 0, ab: 0 }, Azul: { t: 0, ab: 0 }, Verde: { t: 0, ab: 0 } },
-    porSector: {}, porGrupo: {}, porEtapa: {}
+    porSector: {}, porGrupo: {}, porEtapa: {}, porDetector: {},
+    aging: { d7: 0, d30: 0, dmas: 0 }, detectoresUnicos: 0
   };
   let sumAnt = 0, nAnt = 0, sumCierre = 0, nCierre = 0;
   tarjetas.forEach(function (t) {
@@ -202,9 +203,16 @@ function calcularKPIs(tarjetas) {
     const s = t['Sector'] || '—'; k.porSector[s] = (k.porSector[s] || 0) + 1;
     const g = t['Grupo responsable'] || '—'; k.porGrupo[g] = (k.porGrupo[g] || 0) + 1;
     const et = t['Etapa MA'] || 'Sin etapa'; k.porEtapa[et] = (k.porEtapa[et] || 0) + 1;
-    if (est === 'Abierta' || est === 'En proceso') { if (t.diasAbierta !== '') { sumAnt += t.diasAbierta; nAnt++; } }
+    const det = t['Detectado por']; if (det) k.porDetector[det] = (k.porDetector[det] || 0) + 1;
+    if (est === 'Abierta' || est === 'En proceso') {
+      if (t.diasAbierta !== '') {
+        sumAnt += t.diasAbierta; nAnt++;
+        if (t.diasAbierta <= 7) k.aging.d7++; else if (t.diasAbierta <= 30) k.aging.d30++; else k.aging.dmas++;
+      }
+    }
     if (est === 'Cerrada' && t.diasAbierta !== '') { sumCierre += t.diasAbierta; nCierre++; }
   });
+  k.detectoresUnicos = Object.keys(k.porDetector).length;
   const cerrables = k.total - k.anuladas;
   k.pctCierre = cerrables ? Math.round((k.cerradas / cerrables) * 100) : 0;
   k.antiguedadProm = nAnt ? Math.round(sumAnt / nAnt) : 0;
