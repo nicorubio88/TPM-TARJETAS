@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Material de consulta · Tarjetas TPM</title>
+<style>
+:root{--verde:#548235;--verde-d:#3D5F26;--verde-x:#24380F;--ink:#26352A;--text:#2B362C;--muted:#6E7A6C;--line:#D7DECC;--soft:#F3F6EE;--bg:#F7F9F3;--roja:#C0392B;--azul:#2D6CB5;--verdet:#4E9A2F;--amber:#C77D11}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+.topbar{background:var(--verde);color:#fff;padding:14px 20px;font-size:16px;font-weight:bold;display:flex;justify-content:space-between;align-items:center}
+.topbar a{color:#fff;text-decoration:none;font-size:13px;font-weight:normal;opacity:.9}
+.wrap{max-width:880px;margin:0 auto;padding:24px 18px 60px}
+.hero{background:linear-gradient(135deg,var(--verde-x),var(--verde-d));border-radius:14px;padding:26px 28px;color:#fff;margin-bottom:22px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-50px;top:-50px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.05)}
+.hero .tag{font-size:11px;font-weight:bold;letter-spacing:2px;color:#9DBE72;margin-bottom:8px}
+.hero h1{margin:0 0 8px;font-size:24px}
+.hero p{margin:0;font-size:14px;color:#D5E3C2;max-width:640px}
+.toc{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px}
+.toc a{flex:1;min-width:200px;text-decoration:none;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;color:var(--ink);transition:.12s}
+.toc a:hover{border-color:var(--verde);transform:translateY(-1px)}
+.toc a b{display:block;font-size:15px;color:var(--verde-d)}
+.toc a span{font-size:12px;color:var(--muted)}
+.doc{margin-bottom:34px}
+.doc-head{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid var(--verde);padding-bottom:8px;margin-bottom:6px}
+.doc-head h2{margin:0;font-size:21px;color:var(--ink)}
+.doc-sub{font-size:13px;color:var(--muted);margin:0 0 18px}
+.btn-print{background:var(--verde);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:bold;cursor:pointer;white-space:nowrap}
+.btn-print:hover{background:var(--verde-d)}
+
+/* colores de tarjeta */
+.colores{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:680px){.colores{grid-template-columns:1fr}}
+.col-card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.col-top{padding:14px;color:#fff;text-align:center}
+.col-top .nom{font-size:19px;font-weight:bold}
+.col-top .qui{font-size:12px;opacity:.95;margin-top:2px}
+.col-body{padding:14px}
+.col-body .regla{font-style:italic;color:var(--ink);font-weight:bold;font-size:13.5px;margin:0 0 10px;border-left:3px solid var(--line);padding-left:10px}
+.col-body .ej{font-size:12.5px;color:var(--text);margin:0}
+.col-body .ej b{color:var(--verde-d)}
+
+/* categorias */
+.cat{display:flex;gap:14px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.cat .num{flex-shrink:0;width:42px;height:42px;border-radius:10px;background:var(--verde);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:bold}
+.cat .body{flex:1}
+.cat h3{margin:0 0 4px;font-size:16px;color:var(--ink)}
+.cat .que{margin:0 0 8px;font-size:13.5px;color:var(--text)}
+.cat .ej{margin:0 0 8px;font-size:12.5px;color:var(--muted)}
+.cat .ej b{color:var(--ink)}
+.cat .tags{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-size:10.5px;font-weight:bold;padding:3px 9px;border-radius:20px;color:#fff}
+.pill.r{background:var(--roja)}.pill.a{background:var(--azul)}.pill.v{background:var(--verdet)}.pill.p{background:var(--verde-d)}
+.nota{background:var(--soft);border:1px solid var(--line);border-left:4px solid var(--verde);border-radius:8px;padding:12px 14px;font-size:12.5px;color:var(--text);margin-top:14px}
+.fuente{font-size:11px;color:var(--muted);font-style:italic;margin-top:8px}
+.proximo{background:#fff;border:1px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--muted);font-size:13px}
+
+@media print{
+  .topbar,.toc,.btn-print,.no-print{display:none!important}
+  body{background:#fff}
+  .wrap{padding:0;max-width:100%}
+  .hero{display:none}
+  .doc{page-break-after:always}
+  .doc:last-child{page-break-after:auto}
+  .col-top,.num,.pill{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cat,.col-card{break-inside:avoid}
+  body.solo-colores #doc-categorias{display:none}
+  body.solo-categorias #doc-colores{display:none}
+  .doc-print-head{display:flex!important}
+}
+.doc-print-head{display:none;justify-content:space-between;border-bottom:3px solid var(--verde);padding-bottom:8px;margin-bottom:14px}
+.doc-print-head .b{font-size:11px;font-weight:bold;color:var(--verde-d);letter-spacing:1px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span>Material de consulta · Tarjetas TPM</span>
+  <a href="index.html">← Volver al inicio</a>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="tag">MANTENIMIENTO AUTÓNOMO · FORMACIÓN</div>
+    <h1>Guías de consulta</h1>
+    <p>Para leer en el celular o descargar e imprimir. Lo básico para reconocer una anomalía, elegir el color correcto y entender por qué tu mirada cuida la planta.</p>
+  </div>
+
+  <div class="toc">
+    <a href="#doc-colores"><b>Los colores de tarjeta</b><span>Qué significa cada color y quién resuelve</span></a>
+    <a href="#doc-categorias"><b>Las 7 categorías de anomalía</b><span>Qué buscar en el equipo, con ejemplos</span></a>
+  </div>
+
+  <!-- ══════════ COLORES ══════════ -->
+  <div class="doc" id="doc-colores">
+    <div class="doc-print-head"><span class="b">TARJETAS TPM · PLANTA TORNQUIST</span><span class="b">LOS COLORES DE TARJETA</span></div>
+    <div class="doc-head">
+      <h2>Los colores de tarjeta</h2>
+      <button class="btn-print" onclick="imprimir('colores')">🖨 Descargar / Imprimir</button>
+    </div>
+    <p class="doc-sub">El color define <b>quién resuelve</b> la tarjeta. Es lo primero que elegís al cargar.</p>
+
+    <div class="colores">
+      <div class="col-card">
+        <div class="col-top" style="background:var(--roja)"><div class="nom">Tarjeta Roja</div><div class="qui">La resuelve Mantenimiento</div></div>
+        <div class="col-body">
+          <p class="regla">"Si para resolverlo hace falta un técnico, es roja."</p>
+          <p class="ej"><b>Cuándo:</b> requiere expertise técnica — eléctrico, mecánico o instrumentista.<br><b>Ejemplos:</b> rodamiento ruidoso, falla eléctrica, fuga que necesita soldadura, motor recalentado.</p>
+        </div>
+      </div>
+      <div class="col-card">
+        <div class="col-top" style="background:var(--azul)"><div class="nom">Tarjeta Azul</div><div class="qui">La resuelve Operación</div></div>
+        <div class="col-body">
+          <p class="regla">"Si lo podés resolver vos en el turno, es azul."</p>
+          <p class="ej"><b>Cuándo:</b> baja complejidad, lo resuelve el operador del sector.<br><b>Ejemplos:</b> limpiar suciedad, apretar un perno flojo, reubicar un elemento, completar nivel de aceite accesible.</p>
+        </div>
+      </div>
+      <div class="col-card">
+        <div class="col-top" style="background:var(--verdet)"><div class="nom">Tarjeta Verde</div><div class="qui">Va a Mejora Enfocada</div></div>
+        <div class="col-body">
+          <p class="regla">"Si es una idea para mejorar, es verde."</p>
+          <p class="ej"><b>Cuándo:</b> no es una falla, es una propuesta de mejora. Suma costo o ahorro estimado.<br><b>Ejemplos:</b> reubicar un engrasador para no subir a altura, poner un cierre rápido en una tapa, mejorar un acceso de limpieza.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="nota">
+      <b>El color no es la categoría.</b> El color dice <i>quién resuelve</i>; la categoría (página siguiente) dice <i>qué encontraste</i>. Una misma anomalía —por ejemplo una fuga— puede ser azul, roja o verde según cómo se resuelva.
+    </div>
+    <p class="fuente">Basado en T. Suzuki, <i>TPM en Industrias de Proceso</i> (JIPM), Figura 4-4. El libro usa tarjeta blanca para el operario; acá usamos azul por visibilidad en el tablero. La tarjeta verde de mejora integra el pilar de Mejora Enfocada.</p>
+  </div>
+
+  <!-- ══════════ CATEGORIAS ══════════ -->
+  <div class="doc" id="doc-categorias">
+    <div class="doc-print-head"><span class="b">TARJETAS TPM · PLANTA TORNQUIST</span><span class="b">LAS 7 CATEGORÍAS DE ANOMALÍA</span></div>
+    <div class="doc-head">
+      <h2>Las 7 categorías de anomalía</h2>
+      <button class="btn-print" onclick="imprimir('categorias')">🖨 Descargar / Imprimir</button>
+    </div>
+    <p class="doc-sub">Los siete tipos de <i>fuguai</i> que vas a encontrar en el equipo. Describen <b>qué</b> se encontró.</p>
+
+    <div class="cat">
+      <div class="num">1</div>
+      <div class="body">
+        <h3>Condición básica incumplida</h3>
+        <p class="que">El equipo no está limpio, lubricado o ajustado como debería.</p>
+        <p class="ej"><b>Ejemplos:</b> suciedad acumulada en un tablero, punto de engrase seco, perno de guarda flojo o faltante.</p>
+        <div class="tags"><span class="pill a">Suele ser azul</span><span class="pill p">Paso 1</span></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="num">2</div>
+      <div class="body">
+        <h3>Foco de contaminación</h3>
+        <p class="que">La <b>fuente</b> que genera suciedad o pérdida — no la suciedad en sí.</p>
+        <p class="ej"><b>Ejemplos:</b> fuga de aceite en un reductor, polvillo que sale de la junta de una cinta, pérdida de vapor en una válvula.</p>
+        <div class="tags"><span class="pill v">Suele ser verde</span><span class="pill r">o roja</span><span class="pill p">Paso 2</span></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="num">3</div>
+      <div class="body">
+        <h3>Lugar de difícil acceso</h3>
+        <p class="que">Un punto difícil de limpiar, lubricar, inspeccionar u operar.</p>
+        <p class="ej"><b>Ejemplos:</b> engrasador en altura, manómetro tapado que no se puede leer, válvula que exige escalera.</p>
+        <div class="tags"><span class="pill v">Suele ser verde</span><span class="pill p">Paso 2</span></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="num">4</div>
+      <div class="body">
+        <h3>Deterioro / pequeña deficiencia</h3>
+        <p class="que">Desgaste, juego, ruido, vibración, fisura, corrosión o sobretemperatura.</p>
+        <p class="ej"><b>Ejemplos:</b> rodamiento ruidoso, correa gastada, chapa con óxido, juego en un acople, motor caliente.</p>
+        <div class="tags"><span class="pill r">Suele ser roja</span><span class="pill p">Paso 1</span></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="num">5</div>
+      <div class="body">
+        <h3>Defecto de calidad</h3>
+        <p class="que">Cualquier cosa que pueda contaminar o afectar el producto.</p>
+        <p class="ej"><b>Ejemplos:</b> materias extrañas en la pasta, goteo sobre el papel, partículas en el estucado, humedad donde no debe.</p>
+        <div class="tags"><span class="pill r">Roja</span><span class="pill a">o azul</span></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="num">6</div>
+      <div class="body">
+        <h3>Condición insegura</h3>
+        <p class="que">Algo que puede provocar un accidente.</p>
+        <p class="ej"><b>Ejemplos:</b> guarda faltante, piso resbaloso, luminaria quemada, parte rotativa expuesta.</p>
+        <div class="tags"><span class="pill r">Roja</span><span class="pill a">o azul</span><span class="pill p">¡También cargala en EHS!</span></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="num">7</div>
+      <div class="body">
+        <h3>MUDA / elementos innecesarios</h3>
+        <p class="que">Cosas fuera de lugar, sin uso, o arreglos provisorios.</p>
+        <p class="ej"><b>Ejemplos:</b> herramienta olvidada en la máquina, repuesto sin uso acumulado, alambre o cinta como reparación provisoria.</p>
+        <div class="tags"><span class="pill a">Azul</span><span class="pill v">o verde</span><span class="pill p">Paso 1</span></div>
+      </div>
+    </div>
+
+    <div class="nota">
+      <b>Ante la duda, cargá la tarjeta.</b> No hace falta que algo esté roto: si está sucio, flojo, con fuga, difícil de alcanzar o haciendo un ruido nuevo, es una anomalía. El filtro lo hace el seguimiento, no vos.
+    </div>
+    <p class="fuente">Basado en T. Suzuki, <i>TPM en Industrias de Proceso</i> (JIPM), Tabla 4-6 (los siete tipos de anormalidad). "Paso" indica la etapa de Mantenimiento Autónomo a la que suele responder.</p>
+  </div>
+
+  <!-- ══════════ PROXIMO ══════════ -->
+  <div class="proximo no-print">
+    Próximamente: <b>Las condiciones básicas del equipo</b> (limpio · lubricado · ajustado) — qué dice el libro y cómo sostenerlas.
+  </div>
+</div>
+
+<script>
+  function imprimir(cual){
+    document.body.classList.add('solo-'+cual);
+    window.print();
+    setTimeout(function(){ document.body.classList.remove('solo-'+cual); }, 300);
+  }
+</script>
+</body>
+</html>
