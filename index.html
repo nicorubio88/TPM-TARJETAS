@@ -43,7 +43,7 @@
 
 <script src="comun.js"></script>
 <script>
-  if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">MODO DEMO (datos locales)</span>';
+  /* badge demo removido a pedido */
   document.getElementById('tipos').innerHTML = Object.keys(TIPOS).map(function(k){
     var t = TIPOS[k];
     return '<div class="tipo"><div class="cab" style="background:'+t.color+'">Tarjeta '+k+'</div><div class="d">'+t.desc+'</div></div>';
