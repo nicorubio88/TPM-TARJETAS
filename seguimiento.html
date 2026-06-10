@@ -5,6 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Seguimiento · TPM Tornquist</title>
 <link rel="stylesheet" href="estilos.css">
+<style>
+/* ─── ESTILOS DE IMPRESIÓN ─── */
+@media print {
+  .topbar,.filtros,.btn,.modal-bg,#msgPrint { display:none!important }
+  .no-print { display:none!important }
+  body { background:#fff!important; font-size:11pt }
+  .wrap { padding:0!important; max-width:100%!important }
+  .card { border:none!important; box-shadow:none!important; padding:0!important }
+  table { font-size:9.5pt }
+  th { background:#548235!important; color:#fff!important; -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  .badge,.estado { -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  .print-solo { display:block!important }
+  .print-header { display:flex!important }
+}
+.print-solo { display:none }
+.print-header { display:none }
+/* hoja de reporte individual */
+.orden-print { font-family:Arial,sans-serif; max-width:780px; margin:0 auto }
+.orden-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #548235; padding-bottom:12px; margin-bottom:16px }
+.orden-brand { font-size:13px; color:#3D5F26; font-weight:bold }
+.orden-id { font-size:28px; font-weight:bold; font-family:monospace; color:#263528 }
+.orden-badge { display:inline-block; color:#fff; font-weight:bold; font-size:13px; padding:5px 14px; border-radius:20px; margin:4px 4px 0 0 }
+.orden-section { margin:14px 0 }
+.orden-section h3 { font-size:11px; font-weight:bold; color:#3D5F26; letter-spacing:1px; text-transform:uppercase; margin:0 0 4px; border-bottom:1px solid #D7DECC; padding-bottom:3px }
+.orden-section p { margin:4px 0; font-size:13px; color:#2B362C; line-height:1.5 }
+.orden-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+.orden-foto { max-width:100%; max-height:200px; border-radius:8px; border:1px solid #D7DECC; margin-top:8px }
+.firma-box { border:1px solid #D7DECC; border-radius:6px; padding:14px; margin-top:10px; min-height:60px }
+.firma-label { font-size:10px; color:#6E7A6C; margin-bottom:6px }
+.lista-print { font-family:Arial,sans-serif }
+.lista-header { display:flex; justify-content:space-between; border-bottom:3px solid #548235; padding-bottom:10px; margin-bottom:14px }
+</style>
 </head>
 <body>
 <div class="topbar">
@@ -21,7 +53,11 @@
 <div class="wrap">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
     <div><h1>Seguimiento</h1><p class="sub">Filtra, asigna responsables y cierra cada tarjeta.</p></div>
-    <div style="display:flex;gap:8px"><button class="btn sec sm" id="exportar">Exportar CSV</button><button class="btn sec sm" id="recargar">Actualizar</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn sec sm no-print" id="impLista">🖨 Imprimir lista</button>
+      <button class="btn sec sm no-print" id="exportar">Exportar CSV</button>
+      <button class="btn sec sm no-print" id="recargar">Actualizar</button>
+    </div>
   </div>
 
   <div id="msg"></div>
@@ -48,7 +84,10 @@
     </div>
     <p class="sub" id="conteo" style="margin-top:10px"></p>
   </div>
-</div>
+</div><!-- end wrap -->
+
+<!-- ═══════════ ÁREA DE IMPRESIÓN (oculta en pantalla) ═══════════ -->
+<div id="printArea" class="print-solo" style="padding:20px"></div>
 
 <div class="modal-bg" id="modal">
   <div class="modal">
@@ -207,6 +246,198 @@
   ['fColor','fEstado','fGrupo','fSector','fEtapa','fArea','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
   document.getElementById('fTexto').addEventListener('input', render);
   document.getElementById('recargar').addEventListener('click', cargar);
+
+  /* ═══════════════ IMPRESIÓN ═══════════════ */
+
+  function colorBadge(tipo){return '<span class="orden-badge" style="background:'+colorTipo(tipo)+'">'+esc(tipo)+'</span>';}
+  function estadoBadge(t){
+    var col=t['Estado']==='Cerrada'?'#639922':t['Estado']==='En proceso'?'#C77D11':'#2D6CB5';
+    return '<span class="orden-badge" style="background:'+col+'">'+esc(t['Estado'])+'</span>';
+  }
+  function ubicacion(t){
+    var u=esc(t['Area equipo']||'');
+    if(t['Equipo']) u+=(u?' › ':'')+esc(t['Equipo']);
+    if(t['Componente/Ubicacion']) u+=' › '+esc(t['Componente/Ubicacion']);
+    return u||'—';
+  }
+  function fmtFecha(v){ return v?String(v).slice(0,16):'—'; }
+
+  /* ── ORDEN INDIVIDUAL ── */
+  function htmlOrden(t){
+    var foto=t['Foto URL']&&t['Foto URL'].startsWith('data:')?'<img class="orden-foto" src="'+t['Foto URL']+'">':
+             t['Foto URL']?'<p style="font-size:12px;color:#2D6CB5"><a href="'+esc(t['Foto URL'])+'">Ver foto adjunta</a></p>':'<p style="color:#999;font-size:12px">Sin foto</p>';
+    var ahora=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+    return `
+<div class="orden-print">
+  <div class="orden-header">
+    <div>
+      <div class="orden-brand">ORDEN DE TRABAJO TPM — Planta Tornquist</div>
+      <div class="orden-id">${esc(t['ID'])}</div>
+      <div style="margin-top:8px">${colorBadge(t['Tipo'])} ${estadoBadge(t)}</div>
+    </div>
+    <div style="text-align:right;font-size:11px;color:#6E7A6C">
+      <div>Impreso: ${ahora}</div>
+      <div style="margin-top:4px">Alta: ${fmtFecha(t['Fecha alta'])}</div>
+      <div style="margin-top:4px;font-size:15px;font-weight:bold;color:#C0392B">${t.vencida?'⚠ VENCIDA':''}</div>
+    </div>
+  </div>
+
+  <div class="orden-grid">
+    <div class="orden-section">
+      <h3>Ubicación del equipo</h3>
+      <p style="font-weight:bold">${ubicacion(t)}</p>
+      <p>Sector organizativo: ${esc(t['Sector']||'—')}</p>
+    </div>
+    <div class="orden-section">
+      <h3>Categoría y etapa</h3>
+      <p><b>Categoría:</b> ${esc(t['Categoria']||'—')}</p>
+      <p><b>Etapa MA:</b> ${esc(t['Etapa MA']||'—')}</p>
+      <p><b>Prioridad:</b> ${esc(t['Prioridad']||'—')}</p>
+    </div>
+  </div>
+
+  <div class="orden-section">
+    <h3>Descripción de la anomalía o mejora</h3>
+    <p style="background:#F3F6EE;padding:10px;border-radius:6px;min-height:48px">${esc(t['Descripcion']||'')}</p>
+  </div>
+
+  <div class="orden-grid">
+    <div class="orden-section">
+      <h3>Responsable asignado</h3>
+      <p style="font-size:16px;font-weight:bold">${esc(t['Responsable asignado']||'Sin asignar')}</p>
+      <p>Grupo: ${esc(t['Grupo responsable']||'—')}</p>
+    </div>
+    <div class="orden-section">
+      <h3>Fechas</h3>
+      <p><b>Detectado por:</b> ${esc(t['Detectado por']||'—')} (Turno ${esc(t['Turno']||'—')})</p>
+      <p><b>Fecha compromiso:</b> <span style="color:${t.vencida?'#C0392B':'inherit'};font-weight:${t.vencida?'bold':'normal'}">${esc(t['Fecha compromiso']||'—')}</span></p>
+      <p><b>Días abierta:</b> ${t.diasAbierta!==''?t.diasAbierta:'—'} días</p>
+    </div>
+  </div>
+
+  <div class="orden-section">
+    <h3>Foto</h3>
+    ${foto}
+  </div>
+
+  ${t['Notas']?`<div class="orden-section"><h3>Notas</h3><p>${esc(t['Notas'])}</p></div>`:''}
+
+  ${t['Estado']==='Cerrada'?`
+  <div class="orden-section" style="background:#EAF3DE;padding:10px;border-radius:6px">
+    <h3>Acción de cierre</h3>
+    <p>${esc(t['Accion de cierre']||'')}</p>
+    <p style="font-size:11px;color:#6E7A6C">Fecha cierre: ${fmtFecha(t['Fecha cierre'])} ${t['Costo estimado']?'· Costo: USD '+esc(t['Costo estimado']):''}</p>
+  </div>`:`
+  <div class="orden-section">
+    <h3>Acción realizada (completar al resolver)</h3>
+    <div class="firma-box">
+      <div class="firma-label">Describir qué se hizo, materiales usados, tiempo empleado:</div>
+    </div>
+  </div>
+  <div class="orden-grid" style="margin-top:14px">
+    <div class="firma-box"><div class="firma-label">Firma responsable / fecha resolución</div></div>
+    <div class="firma-box"><div class="firma-label">Visto bueno supervisor</div></div>
+  </div>`}
+</div>`;
+  }
+
+  /* ── LISTA DE PENDIENTES ── */
+  function htmlLista(ts){
+    var ahora=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    var filtActivos=[];
+    ['fColor','fEstado','fGrupo','fSector','fEtapa','fArea'].forEach(function(id){
+      var el=document.getElementById(id); if(el&&el.value) filtActivos.push(el.options[el.selectedIndex].text+'='+el.value);
+    });
+    if(document.getElementById('fVencidas').checked) filtActivos.push('Solo vencidas');
+    var filas=ts.map(function(t){
+      var ubic=t['Area equipo']?esc(t['Area equipo'])+(t['Equipo']?' › '+esc(t['Equipo']):''):'—';
+      var comp=t['Componente/Ubicacion']?'<br><span style="font-size:9px;color:#6E7A6C">'+esc(t['Componente/Ubicacion'])+'</span>':'';
+      var vTag=t.vencida?'<span style="color:#C0392B;font-weight:bold"> ⚠</span>':'';
+      return `<tr style="border-bottom:1px solid #D7DECC;${t.vencida?'background:#FEF5F5':''}">
+        <td style="padding:5px 6px;font-family:monospace;font-size:8.5pt;white-space:nowrap">${esc(t['ID'])}</td>
+        <td style="padding:5px 6px"><span style="background:${colorTipo(t['Tipo'])};color:#fff;padding:2px 8px;border-radius:10px;font-size:8pt;font-weight:bold">${esc(t['Tipo'])}</span></td>
+        <td style="padding:5px 6px;font-size:9pt">${esc(t['Sector'])}</td>
+        <td style="padding:5px 6px;font-size:9pt">${ubic}${comp}</td>
+        <td style="padding:5px 6px;font-size:9pt;max-width:220px">${esc(t['Descripcion']||'').slice(0,90)}${(t['Descripcion']||'').length>90?'…':''}</td>
+        <td style="padding:5px 6px;font-size:9pt">${esc(t['Prioridad']||'—')}</td>
+        <td style="padding:5px 6px;font-size:9pt">${esc(t['Responsable asignado']||'—')}</td>
+        <td style="padding:5px 6px;font-size:9pt;white-space:nowrap;color:${t.vencida?'#C0392B':'inherit'};font-weight:${t.vencida?'bold':'normal'}">${esc(t['Fecha compromiso']||'—')}${vTag}</td>
+        <td style="padding:5px 6px;text-align:center;font-size:9pt">${t.diasAbierta!==''?t.diasAbierta:'—'}</td>
+        <td style="padding:5px 6px;min-width:80px;border-left:1px dashed #ccc"></td>
+      </tr>`;
+    }).join('');
+    return `
+<div class="lista-print">
+  <div class="lista-header">
+    <div>
+      <div style="font-size:11px;font-weight:bold;color:#3D5F26;letter-spacing:1px">LISTA DE PENDIENTES TPM — Planta Tornquist</div>
+      <div style="font-size:20px;font-weight:bold;color:#263528;margin-top:2px">Tarjetas abiertas · ${ts.length} registro${ts.length!==1?'s':''}</div>
+      ${filtActivos.length?'<div style="font-size:10px;color:#6E7A6C;margin-top:4px">Filtros: '+filtActivos.join(' · ')+'</div>':''}
+    </div>
+    <div style="text-align:right;font-size:10px;color:#6E7A6C">
+      <div>Impreso: ${ahora}</div>
+      <div style="margin-top:6px;font-size:11px"><b>Revisado por:</b> ______________________</div>
+      <div style="margin-top:4px;font-size:11px"><b>Firma:</b> ______________________</div>
+    </div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif">
+    <thead>
+      <tr style="background:#548235;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+        <th style="padding:6px;text-align:left;font-size:9pt">ID</th>
+        <th style="padding:6px;text-align:left;font-size:9pt">Color</th>
+        <th style="padding:6px;text-align:left;font-size:9pt">Sector</th>
+        <th style="padding:6px;text-align:left;font-size:9pt">Ubicación</th>
+        <th style="padding:6px;text-align:left;font-size:9pt">Descripción</th>
+        <th style="padding:6px;text-align:left;font-size:9pt">Prioridad</th>
+        <th style="padding:6px;text-align:left;font-size:9pt">Responsable</th>
+        <th style="padding:6px;text-align:left;font-size:9pt">Compromiso</th>
+        <th style="padding:6px;text-align:center;font-size:9pt">Días</th>
+        <th style="padding:6px;text-align:left;font-size:9pt;border-left:1px dashed #ccc">✓ Revisado</th>
+      </tr>
+    </thead>
+    <tbody>${filas}</tbody>
+  </table>
+  <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div style="border:1px solid #D7DECC;border-radius:6px;padding:10px">
+      <div style="font-size:10px;font-weight:bold;color:#3D5F26">NOTAS DE RECORRIDA</div>
+      <div style="min-height:80px;margin-top:6px"></div>
+    </div>
+    <div style="border:1px solid #D7DECC;border-radius:6px;padding:10px">
+      <div style="font-size:10px;font-weight:bold;color:#3D5F26">PRIORIDADES PARA EL TURNO</div>
+      <div style="min-height:80px;margin-top:6px"></div>
+    </div>
+  </div>
+  <div style="margin-top:12px;font-size:9px;color:#9aaa9c;border-top:1px solid #D7DECC;padding-top:6px">
+    Sistema de Tarjetas TPM · Planta Tornquist · Papelera del Sur — ⚠ = Vencida · Días = tiempo desde el alta
+  </div>
+</div>`;
+  }
+
+  /* ── DISPARADORES ── */
+  function imprimirContenido(html, esLista){
+    document.getElementById('printArea').innerHTML = html;
+    // ocultar tabla principal al imprimir
+    document.querySelector('.card').setAttribute('data-noprint','1');
+    window.print();
+  }
+
+  // Imprimir lista (respeta filtros activos)
+  document.getElementById('impLista').addEventListener('click', function(){
+    var f = filtradas();
+    if(!f.length){ msg('No hay tarjetas con los filtros actuales.', false); return; }
+    document.getElementById('printArea').innerHTML = htmlLista(f);
+    window.print();
+  });
+
+  // Imprimir orden individual (desde el modal)
+  document.getElementById('gGuardar').insertAdjacentHTML('afterend',
+    '<button class="btn sec sm no-print" id="impOrden" style="margin-left:8px">🖨 Imprimir orden</button>');
+  document.addEventListener('click', function(e){
+    if(e.target.id==='impOrden' && actual){
+      document.getElementById('printArea').innerHTML = htmlOrden(actual);
+      window.print();
+    }
+  });
 
   document.getElementById('exportar').addEventListener('click', function(){
     var cols=['ID','Fecha alta','Tipo','Grupo responsable','Detectado por','Turno','Sector','Area equipo','Equipo','Componente/Ubicacion','Categoria','Etapa MA','Dimension mejora','Descripcion','Prioridad','Responsable asignado','Fecha compromiso','Estado','Fecha cierre','Accion de cierre','Costo estimado'];
