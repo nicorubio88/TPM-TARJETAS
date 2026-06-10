@@ -17,6 +17,7 @@ Misma arquitectura que el sistema de seguridad (EHS): frontend HTML + backend Go
 | `Codigo.gs` | Backend. Se pega en Google Apps Script. Lee y escribe la Google Sheet. |
 | `comun.js` | Configuración, catálogos (sectores, turnos, categorías) y capa de datos del frontend. |
 | `personas.js` | Nómina de planta (nombre y sector) para los desplegables de "detectado por" y "responsable". |
+| `arbol.js` | Árbol de equipo de la máquina (23 áreas → 123 subáreas → 590 equipos) para los desplegables encadenados de ubicación. |
 | `estilos.css` | Estilos compartidos. |
 | `index.html` | Inicio con las tres secciones. |
 | `formulario.html` | Carga de tarjeta. |
@@ -54,7 +55,7 @@ En el editor de Apps Script, seleccionar la función `setup` y ejecutarla una ve
 
 ### 5. Conectar el frontend
 1. Abrir `comun.js` y pegar la URL en `CONFIG.API_URL`.
-2. Subir los 7 archivos del frontend (`comun.js`, `personas.js`, `estilos.css`, `index.html`,
+2. Subir los 8 archivos del frontend (`comun.js`, `personas.js`, `arbol.js`, `estilos.css`, `index.html`,
    `formulario.html`, `dashboard.html`, `seguimiento.html`) a un hosting estático
    (Digital Ocean App Platform + GitHub, igual que el sistema EHS, o cualquier servidor web).
 
@@ -66,6 +67,7 @@ y seguimiento permite asignar responsables y cerrar.
 - **Fotos:** el formulario permite sacar o adjuntar una foto; en el celular abre la cámara. La imagen se reduce
   en el navegador y, en producción, se guarda en una carpeta de Google Drive ("Fotos Tarjetas TPM", o la que
   indiques en `FOTOS_FOLDER_ID`); en la planilla queda el link. En modo demo la foto se guarda en el navegador.
+- **Árbol de equipo:** la ubicación se elige con 3 desplegables encadenados (Área → Subárea/Equipo → Equipo específico), sin texto libre. Para modificar el árbol, editá `arbol.js`. Si la subárea no tiene tercer nivel, el sistema lo indica y no lo exige.
 - **Nómina:** los nombres salen de `personas.js`. Para altas, bajas o cambios de personal, editá ese archivo
   (está agrupado por sector). No contiene sueldos ni datos sensibles, solo nombre y sector.
 - **Kanban:** el dashboard muestra el tablero de acciones con columnas por prioridad (Alta/Media/Baja) y filas
@@ -76,7 +78,7 @@ y seguimiento permite asignar responsables y cerrar.
 ID · Fecha alta · Tipo · Grupo responsable · Detectado por · Turno · Sector · Equipo ·
 Componente/Ubicación · Categoría · Descripción · Prioridad · Foto URL · Responsable asignado ·
 Fecha compromiso · Estado · Fecha cierre · Acción de cierre · Costo estimado · Notas ·
-Etapa MA · Dimensión mejora
+Etapa MA · Dimensión mejora · Área equipo
 
 La **Categoría** usa los 7 fuguai del Mantenimiento Autónomo agrupados: condición básica
 (limpieza/lubricación/ajuste), focos de contaminación, lugares de difícil acceso (limpieza,

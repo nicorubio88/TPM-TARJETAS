@@ -33,7 +33,7 @@ const HEADERS = [
   'Sector', 'Equipo', 'Componente/Ubicacion', 'Categoria', 'Descripcion',
   'Prioridad', 'Foto URL', 'Responsable asignado', 'Fecha compromiso',
   'Estado', 'Fecha cierre', 'Accion de cierre', 'Costo estimado', 'Notas',
-  'Etapa MA', 'Dimension mejora'
+  'Etapa MA', 'Dimension mejora', 'Area equipo'
 ];
 
 /* ============================ ROUTING ============================ */
@@ -109,7 +109,7 @@ function crear_(d) {
     d.sector, d.equipo || '', d.componente || '', d.categoria || '', d.descripcion,
     d.prioridad || 'Media', fotoUrl, d.responsable || '', d.fechaCompromiso || '',
     'Abierta', '', '', d.costo || '', d.notas || '',
-    d.etapaMa || '', d.dimensionMejora || ''
+    d.etapaMa || '', d.dimensionMejora || '', d.areaEquipo || ''
   ];
 
   getSheet_().appendRow(fila);

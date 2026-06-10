@@ -32,6 +32,7 @@
       <div><label>Estado</label><select id="fEstado"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Anulada</option></select></div>
       <div><label>Grupo</label><select id="fGrupo"><option value="">Todos</option><option>Mantenimiento</option><option>Operacion</option><option>Mejora Enfocada</option></select></div>
       <div><label>Sector</label><select id="fSector"><option value="">Todos</option></select></div>
+      <div><label>Área equipo</label><select id="fArea"><option value="">Todas</option></select></div>
       <div><label>Etapa MA</label><select id="fEtapa"><option value="">Todas</option></select></div>
       <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto..."></div>
       <div style="flex:0"><label>&nbsp;</label><label style="font-weight:normal;font-size:12px;color:var(--ink)"><input type="checkbox" id="fVencidas" style="width:auto;margin-right:6px">Solo vencidas</label></div>
@@ -84,14 +85,16 @@
   </div>
 </div>
 
+<script src="arbol.js"></script>
 <script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
-  if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">DEMO</span>';
+  /* badge demo removido a pedido */
   var TODAS = [], actual = null;
 
   document.getElementById('fSector').innerHTML = '<option value="">Todos</option>' + opciones(SECTORES);
   document.getElementById('fEtapa').innerHTML = '<option value="">Todas</option>' + opciones(ETAPAS_MA);
+  document.getElementById('fArea').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
   document.getElementById('gEstado').innerHTML = opciones(ESTADOS);
   document.getElementById('gPrioridad').innerHTML = opciones(PRIORIDADES);
   document.getElementById('gEtapaMa').innerHTML = '<option value="">—</option>' + opciones(ETAPAS_MA);
@@ -110,7 +113,7 @@
   function filtradas(){
     var c=document.getElementById('fColor').value, e=document.getElementById('fEstado').value,
         g=document.getElementById('fGrupo').value, s=document.getElementById('fSector').value,
-        et=document.getElementById('fEtapa').value,
+        et=document.getElementById('fEtapa').value, fa=document.getElementById('fArea').value,
         tx=document.getElementById('fTexto').value.toLowerCase(), v=document.getElementById('fVencidas').checked;
     return TODAS.filter(function(t){
       if(c && t['Tipo']!==c) return false;
@@ -118,6 +121,7 @@
       if(g && t['Grupo responsable']!==g) return false;
       if(s && t['Sector']!==s) return false;
       if(et && t['Etapa MA']!==et) return false;
+      if(fa && t['Area equipo']!==fa) return false;
       if(v && !t.vencida) return false;
       if(tx){ var blob=(t['ID']+' '+t['Equipo']+' '+t['Descripcion']+' '+t['Responsable asignado']+' '+t['Componente/Ubicacion']).toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
       return true;
@@ -130,7 +134,7 @@
       return '<tr class="clic" data-id="'+esc(t['ID'])+'">'+
         '<td style="font-family:monospace;font-size:12px">'+esc(t['ID'])+'</td>'+
         '<td>'+badgeTipo(t['Tipo'])+'</td>'+
-        '<td>'+esc(t['Sector'])+(t['Equipo']?'<br><span style="color:var(--muted);font-size:12px">'+esc(t['Equipo'])+'</span>':'')+'</td>'+
+        '<td>'+esc(t['Sector'])+(t['Equipo']?'<br><span style="color:var(--muted);font-size:12px">'+esc(t['Equipo'])+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</span>':'')+'</td>'+
         '<td>'+esc(String(t['Descripcion']).slice(0,70))+(String(t['Descripcion']).length>70?'…':'')+'</td>'+
         '<td>'+esc(t['Grupo responsable'])+'</td>'+
         '<td>'+esc(t['Responsable asignado']||'—')+'</td>'+
@@ -150,7 +154,8 @@
     document.getElementById('mTitulo').textContent = t['ID'];
     document.getElementById('mBadges').innerHTML = badgeTipo(t['Tipo']) + ' ' + badgeEstado(t['Estado'], t.vencida);
     document.getElementById('mDetalle').innerHTML =
-      '<div class="kv"><b>Sector:</b> '+esc(t['Sector'])+' &nbsp; <b>Equipo:</b> '+esc(t['Equipo']||'—')+' &nbsp; <b>Componente:</b> '+esc(t['Componente/Ubicacion']||'—')+'</div>'+
+      '<div class="kv"><b>Sector:</b> '+esc(t['Sector'])+'</div>'+
+      '<div class="kv"><b>Ubicación:</b> '+esc(t['Area equipo']||'—')+' › '+esc(t['Equipo']||'—')+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</div>'+
       '<div class="kv"><b>Categoria:</b> '+esc(t['Categoria']||'—')+' &nbsp; <b>Prioridad:</b> '+esc(t['Prioridad'])+'</div>'+
       '<div class="kv"><b>Etapa MA:</b> '+esc(t['Etapa MA']||'—')+(t['Dimension mejora']?' &nbsp; <b>Mejora:</b> '+esc(t['Dimension mejora']):'')+'</div>'+
       '<div class="kv"><b>Detectado por:</b> '+esc(t['Detectado por'])+' ('+esc(t['Turno']||'s/turno')+') &nbsp; <b>Alta:</b> '+esc(t['Fecha alta'])+'</div>'+
@@ -199,12 +204,12 @@
     }catch(e){ msg('Error: '+e.message, false); }
   });
 
-  ['fColor','fEstado','fGrupo','fSector','fEtapa','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
+  ['fColor','fEstado','fGrupo','fSector','fEtapa','fArea','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
   document.getElementById('fTexto').addEventListener('input', render);
   document.getElementById('recargar').addEventListener('click', cargar);
 
   document.getElementById('exportar').addEventListener('click', function(){
-    var cols=['ID','Fecha alta','Tipo','Grupo responsable','Detectado por','Turno','Sector','Equipo','Componente/Ubicacion','Categoria','Etapa MA','Dimension mejora','Descripcion','Prioridad','Responsable asignado','Fecha compromiso','Estado','Fecha cierre','Accion de cierre','Costo estimado'];
+    var cols=['ID','Fecha alta','Tipo','Grupo responsable','Detectado por','Turno','Sector','Area equipo','Equipo','Componente/Ubicacion','Categoria','Etapa MA','Dimension mejora','Descripcion','Prioridad','Responsable asignado','Fecha compromiso','Estado','Fecha cierre','Accion de cierre','Costo estimado'];
     var datos=filtradas();
     if(!datos.length){ msg('No hay tarjetas para exportar con los filtros actuales.', false); return; }
     var q=function(v){ v=String(v==null?'':v).replace(/"/g,'""'); return '"'+v+'"'; };

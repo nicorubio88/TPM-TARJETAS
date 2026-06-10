@@ -46,31 +46,39 @@
         <select id="sector"></select>
       </div>
       <div>
-        <label>Equipo / maquina</label>
-        <input id="equipo" placeholder="Ej: Leg 2, Caldera, Prensa">
+        <label>Área (equipo) *</label>
+        <select id="areaEquipo"><option value="">Elegir área...</option></select>
       </div>
     </div>
 
     <div class="grid cols-2">
       <div>
-        <label>Componente / ubicacion</label>
-        <input id="componente" placeholder="Ej: motor bomba 3, tablero TG-12">
+        <label>Subárea / equipo *</label>
+        <select id="equipo" disabled><option value="">Primero elegí el área</option></select>
       </div>
+      <div>
+        <label id="lblN3">Equipo específico</label>
+        <select id="componente" disabled><option value="">Primero elegí la subárea</option></select>
+      </div>
+    </div>
+
+    <div class="grid cols-2">
       <div>
         <label id="lblCat">Categoria de anomalia (TPM)</label>
         <select id="categoria"></select>
       </div>
-    </div>
-
-    <div class="grid cols-2">
       <div>
         <label>Etapa de Mantenimiento Autonomo</label>
         <select id="etapaMa"></select>
       </div>
-      <div id="boxDim" style="display:none">
+    </div>
+
+    <div class="grid cols-2" id="rowDim" style="display:none">
+      <div id="boxDim">
         <label>Dimension de la mejora</label>
         <select id="dimensionMejora"></select>
       </div>
+      <div></div>
     </div>
 
     <label>Descripcion de la anomalia o mejora *</label>
@@ -110,14 +118,38 @@
   </div>
 </div>
 
+<script src="arbol.js"></script>
 <script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
-  if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">DEMO</span>';
+  /* badge demo removido a pedido */
   var tipoSel = '';
 
   document.getElementById('turno').innerHTML = '<option value="">—</option>' + opciones(TURNOS);
   document.getElementById('sector').innerHTML = '<option value="">Elegir...</option>' + opciones(SECTORES);
+  document.getElementById('areaEquipo').innerHTML = '<option value="">Elegir área...</option>' + opciones(Object.keys(ARBOL_EQUIPO));
+
+  // arbol encadenado: Area -> Subarea/Equipo -> Equipo especifico
+  document.getElementById('areaEquipo').addEventListener('change', function(){
+    var eq = document.getElementById('equipo'), n3 = document.getElementById('componente');
+    n3.innerHTML = '<option value="">Primero elegí la subárea</option>'; n3.disabled = true;
+    if (!this.value) { eq.innerHTML = '<option value="">Primero elegí el área</option>'; eq.disabled = true; return; }
+    eq.innerHTML = '<option value="">Elegir subárea / equipo...</option>' + opciones(Object.keys(ARBOL_EQUIPO[this.value]));
+    eq.disabled = false;
+  });
+  document.getElementById('equipo').addEventListener('change', function(){
+    var area = document.getElementById('areaEquipo').value, n3 = document.getElementById('componente');
+    var hijos = (area && this.value) ? (ARBOL_EQUIPO[area][this.value] || []) : [];
+    if (hijos.length) {
+      n3.innerHTML = '<option value="">Elegir equipo...</option>' + opciones(hijos);
+      n3.disabled = false;
+      document.getElementById('lblN3').textContent = 'Equipo específico *';
+    } else {
+      n3.innerHTML = '<option value="">(la subárea es el equipo)</option>';
+      n3.disabled = true;
+      document.getElementById('lblN3').textContent = 'Equipo específico';
+    }
+  });
   document.getElementById('detectadoPor').innerHTML = '<option value="">Elegir persona...</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
   document.getElementById('responsable').innerHTML = '<option value="">(opcional) elegir persona...</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
   document.getElementById('prioridad').innerHTML = opciones(PRIORIDADES, 'Media');
@@ -149,7 +181,7 @@
       document.getElementById('guardar').disabled = false;
       // costo y dimension de mejora solo para verde
       document.getElementById('boxCosto').style.display = (tipoSel === 'Verde') ? 'block' : 'none';
-      document.getElementById('boxDim').style.display = (tipoSel === 'Verde') ? 'block' : 'none';
+      document.getElementById('rowDim').style.display = (tipoSel === 'Verde') ? 'grid' : 'none';
     });
   });
 
@@ -167,7 +199,10 @@
   function msg(txt, ok){ document.getElementById('msg').innerHTML = '<div class="msg '+(ok?'ok':'err')+'">'+txt+'</div>'; window.scrollTo(0,0); }
 
   function limpiarCampos(){
-    ['detectadoPor','equipo','componente','descripcion','responsable','costo'].forEach(function(id){ document.getElementById(id).value=''; });
+    ['detectadoPor','descripcion','responsable','costo','areaEquipo'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('equipo').innerHTML = '<option value="">Primero elegí el área</option>'; document.getElementById('equipo').disabled = true;
+    document.getElementById('componente').innerHTML = '<option value="">Primero elegí la subárea</option>'; document.getElementById('componente').disabled = true;
+    document.getElementById('lblN3').textContent = 'Equipo específico';
     document.getElementById('foto').value=''; document.getElementById('fotoPrev').innerHTML=''; fotoDataURL='';
   }
   document.getElementById('limpiar').addEventListener('click', function(){
@@ -182,8 +217,9 @@
       detectadoPor: document.getElementById('detectadoPor').value.trim(),
       turno: document.getElementById('turno').value,
       sector: document.getElementById('sector').value,
-      equipo: document.getElementById('equipo').value.trim(),
-      componente: document.getElementById('componente').value.trim(),
+      areaEquipo: document.getElementById('areaEquipo').value,
+      equipo: document.getElementById('equipo').value,
+      componente: document.getElementById('componente').value,
       categoria: document.getElementById('categoria').value,
       descripcion: document.getElementById('descripcion').value.trim(),
       prioridad: document.getElementById('prioridad').value,
@@ -195,6 +231,9 @@
       dimensionMejora: document.getElementById('dimensionMejora').value
     };
     if (!data.detectadoPor || !data.sector || !data.descripcion) return msg('Completa los campos obligatorios (*).', false);
+    if (!data.areaEquipo || !data.equipo) return msg('Elegi el área y la subárea/equipo del árbol.', false);
+    var hijosN3 = (ARBOL_EQUIPO[data.areaEquipo][data.equipo] || []);
+    if (hijosN3.length && !data.componente) return msg('Elegi el equipo específico (tercer nivel).', false);
     var btn = document.getElementById('guardar'); btn.disabled = true; btn.textContent = 'Guardando...';
     try {
       var r = await api('crear', { data: data });

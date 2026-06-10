@@ -124,7 +124,7 @@ function demoApi(action, p) {
       'Descripcion': d.descripcion || '', 'Prioridad': d.prioridad || 'Media', 'Foto URL': d.fotoUrl || '',
       'Responsable asignado': d.responsable || '', 'Fecha compromiso': d.fechaCompromiso || '',
       'Estado': 'Abierta', 'Fecha cierre': '', 'Accion de cierre': '', 'Costo estimado': d.costo || '', 'Notas': d.notas || '',
-      'Etapa MA': d.etapaMa || '', 'Dimension mejora': d.dimensionMejora || ''
+      'Etapa MA': d.etapaMa || '', 'Dimension mejora': d.dimensionMejora || '', 'Area equipo': d.areaEquipo || ''
     });
     // en demo, la foto (dataURL) se guarda directo como Foto URL
     if (d.fotoData) arr[arr.length - 1]['Foto URL'] = d.fotoData;
@@ -188,7 +188,7 @@ function calcularKPIs(tarjetas) {
     total: tarjetas.length, abiertas: 0, enProceso: 0, cerradas: 0, anuladas: 0,
     vencidas: 0, pctCierre: 0, antiguedadProm: 0, tiempoCierreProm: 0,
     porColor: { Roja: { t: 0, ab: 0 }, Azul: { t: 0, ab: 0 }, Verde: { t: 0, ab: 0 } },
-    porSector: {}, porGrupo: {}, porEtapa: {}, porDetector: {},
+    porSector: {}, porGrupo: {}, porEtapa: {}, porDetector: {}, porArea: {}, porEquipo: {},
     aging: { d7: 0, d30: 0, dmas: 0 }, detectoresUnicos: 0
   };
   let sumAnt = 0, nAnt = 0, sumCierre = 0, nCierre = 0;
@@ -204,6 +204,11 @@ function calcularKPIs(tarjetas) {
     const g = t['Grupo responsable'] || '—'; k.porGrupo[g] = (k.porGrupo[g] || 0) + 1;
     const et = t['Etapa MA'] || 'Sin etapa'; k.porEtapa[et] = (k.porEtapa[et] || 0) + 1;
     const det = t['Detectado por']; if (det) k.porDetector[det] = (k.porDetector[det] || 0) + 1;
+    const ar = t['Area equipo']; if (ar) k.porArea[ar] = (k.porArea[ar] || 0) + 1;
+    if (t['Equipo']) {
+      const eqK = t['Equipo'] + (t['Componente/Ubicacion'] ? ' › ' + t['Componente/Ubicacion'] : '');
+      k.porEquipo[eqK] = (k.porEquipo[eqK] || 0) + 1;
+    }
     if (est === 'Abierta' || est === 'En proceso') {
       if (t.diasAbierta !== '') {
         sumAnt += t.diasAbierta; nAnt++;

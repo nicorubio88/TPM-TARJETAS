@@ -50,6 +50,14 @@
     </div>
   </div>
   <div class="grid cols-2" style="margin-top:14px">
+    <div class="card"><h2 style="margin-top:0">Áreas con más tarjetas</h2><canvas id="chArea" height="220"></canvas></div>
+    <div class="card">
+      <h2 style="margin-top:0">Equipos con más tarjetas</h2>
+      <div id="topEquipos" style="font-size:13px;color:var(--muted);line-height:2.0"></div>
+      <p class="sub" style="margin:10px 0 0">Los equipos que se repiten son los candidatos a Mejora Enfocada.</p>
+    </div>
+  </div>
+  <div class="grid cols-2" style="margin-top:14px">
     <div class="card">
       <h2 style="margin-top:0">Participacion del equipo</h2>
       <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:30px;font-weight:bold;color:var(--verde-d)" id="partN">0</span><span style="font-size:13px;color:var(--muted)">personas cargaron tarjetas</span></div>
@@ -67,7 +75,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="comun.js"></script>
 <script>
-  if (DEMO) document.getElementById('flag').innerHTML = '<span class="demo-flag">DEMO</span>';
+  /* badge demo removido a pedido */
   var charts = {};
 
   function kpiCard(n,l,cls){ return '<div class="kpi '+(cls||'')+'"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
@@ -156,6 +164,9 @@
       var etOrden = ['Paso 1 · Restaurar condiciones','Paso 2 · Eliminar focos / facilitar acceso','Paso 3 · Estandarizar (LILA)','Sin etapa'];
       var etLabels = etOrden.filter(function(e){return k.porEtapa[e];});
       barras('chEtapa', etLabels.map(function(e){return e.split(' · ')[0];}), etLabels.map(function(e){return k.porEtapa[e];}), '#548235', false);
+
+      var ar = Object.keys(k.porArea).map(function(a){return [a,k.porArea[a]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+      barras('chArea', ar.map(function(x){return x[0];}), ar.map(function(x){return x[1];}), '#3D5F26', true);
     }catch(e){ document.getElementById('msg').innerHTML='<div class="msg err">Error de conexion: '+e.message+'</div>'; }
   }
 
@@ -164,6 +175,11 @@
     document.getElementById('etapaResumen').innerHTML = etOrden.filter(function(e){return k.porEtapa[e];}).map(function(e){
       return '<div><b style="color:var(--ink)">'+k.porEtapa[e]+'</b> &nbsp;'+e+'</div>';
     }).join('') || '<span>Sin tarjetas cargadas.</span>';
+
+    var te = Object.keys(k.porEquipo).map(function(e){return [e,k.porEquipo[e]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+    document.getElementById('topEquipos').innerHTML = te.length ? te.map(function(x){
+      return '<div><b style="color:var(--ink)">'+x[1]+'</b> &nbsp;'+esc(x[0])+'</div>';
+    }).join('') : '<span>Sin registros.</span>';
 
     document.getElementById('partN').textContent = k.detectoresUnicos;
     var top = Object.keys(k.porDetector).map(function(d){return [d,k.porDetector[d]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
