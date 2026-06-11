@@ -39,7 +39,7 @@
     <div class="card"><h2 style="margin-top:0">Por color</h2><canvas id="chColor" height="200"></canvas></div>
   </div>
   <div class="grid cols-2" style="margin-top:14px">
-    <div class="card"><h2 style="margin-top:0">Top sectores</h2><canvas id="chSector" height="220"></canvas></div>
+    <div class="card"><h2 style="margin-top:0">Áreas con más tarjetas</h2><canvas id="chArea" height="220"></canvas></div>
     <div class="card"><h2 style="margin-top:0">Por grupo responsable</h2><canvas id="chGrupo" height="220"></canvas></div>
   </div>
   <div class="grid cols-2" style="margin-top:14px">
@@ -49,13 +49,10 @@
       <div id="etapaResumen" style="font-size:13px;color:var(--muted);line-height:1.9"></div>
     </div>
   </div>
-  <div class="grid cols-2" style="margin-top:14px">
-    <div class="card"><h2 style="margin-top:0">Áreas con más tarjetas</h2><canvas id="chArea" height="220"></canvas></div>
-    <div class="card">
-      <h2 style="margin-top:0">Equipos con más tarjetas</h2>
-      <div id="topEquipos" style="font-size:13px;color:var(--muted);line-height:2.0"></div>
-      <p class="sub" style="margin:10px 0 0">Los equipos que se repiten son los candidatos a Mejora Enfocada.</p>
-    </div>
+  <div class="card" style="margin-top:14px">
+    <h2 style="margin-top:0">Equipos con más tarjetas</h2>
+    <div id="topEquipos" style="font-size:13px;color:var(--muted);line-height:2.0"></div>
+    <p class="sub" style="margin:10px 0 0">Los equipos que se repiten son los candidatos a Mejora Enfocada.</p>
   </div>
   <div class="grid cols-2" style="margin-top:14px">
     <div class="card">
@@ -83,7 +80,7 @@
   function kTarjeta(t){
     return '<div class="ktarjeta'+(t.vencida?' venc':'')+'" style="border-left-color:'+colorTipo(t['Tipo'])+'">'+
       '<div class="kid">'+esc(t['ID'])+'</div>'+
-      '<div class="ktxt">'+esc(t['Sector'])+(t['Equipo']?' · '+esc(t['Equipo']):'')+'</div>'+
+      '<div class="ktxt">'+esc(t['Area equipo']||'—')+(t['Equipo']?' · '+esc(t['Equipo']):'')+'</div>'+
       '<div class="kresp">'+esc(t['Responsable asignado']||'sin asignar')+(t.diasAbierta!==''?' · '+t.diasAbierta+'d':'')+'</div></div>';
   }
   function pintarKanban(ts){
@@ -153,10 +150,6 @@
         [k.abiertas,k.enProceso,k.cerradas,k.anuladas], ['#378ADD','#EF9F27','#639922','#B4B2A9']);
       doughnut('chColor', ['Roja','Azul','Verde'],
         [k.porColor.Roja.t,k.porColor.Azul.t,k.porColor.Verde.t], ['#C0392B','#2D6CB5','#4E9A2F']);
-
-      var sec = Object.keys(k.porSector).map(function(s){return [s,k.porSector[s]];})
-        .sort(function(a,b){return b[1]-a[1];}).slice(0,8);
-      barras('chSector', sec.map(function(x){return x[0];}), sec.map(function(x){return x[1];}), '#548235', true);
 
       var gr = Object.keys(k.porGrupo);
       barras('chGrupo', gr, gr.map(function(g){return k.porGrupo[g];}), '#3D5F26', false);

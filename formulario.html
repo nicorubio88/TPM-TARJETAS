@@ -42,43 +42,35 @@
 
     <div class="grid cols-2">
       <div>
-        <label>Sector *</label>
-        <select id="sector"></select>
-      </div>
-      <div>
         <label>Área (equipo) *</label>
         <select id="areaEquipo"><option value="">Elegir área...</option></select>
       </div>
-    </div>
-
-    <div class="grid cols-2">
       <div>
         <label>Subárea / equipo *</label>
         <select id="equipo" disabled><option value="">Primero elegí el área</option></select>
       </div>
+    </div>
+
+    <div class="grid cols-2">
       <div>
         <label id="lblN3">Equipo específico</label>
         <select id="componente" disabled><option value="">Primero elegí la subárea</option></select>
+      </div>
+      <div>
+        <label id="lblCat">Categoria de anomalia (TPM)</label>
+        <select id="categoria"></select>
       </div>
     </div>
 
     <div class="grid cols-2">
       <div>
-        <label id="lblCat">Categoria de anomalia (TPM)</label>
-        <select id="categoria"></select>
-      </div>
-      <div>
         <label>Etapa de Mantenimiento Autonomo</label>
         <select id="etapaMa"></select>
       </div>
-    </div>
-
-    <div class="grid cols-2" id="rowDim" style="display:none">
-      <div id="boxDim">
+      <div id="boxDim" style="display:none">
         <label>Dimension de la mejora</label>
         <select id="dimensionMejora"></select>
       </div>
-      <div></div>
     </div>
 
     <label>Descripcion de la anomalia o mejora *</label>
@@ -126,7 +118,6 @@
   var tipoSel = '';
 
   document.getElementById('turno').innerHTML = '<option value="">—</option>' + opciones(TURNOS);
-  document.getElementById('sector').innerHTML = '<option value="">Elegir...</option>' + opciones(SECTORES);
   document.getElementById('areaEquipo').innerHTML = '<option value="">Elegir área...</option>' + opciones(Object.keys(ARBOL_EQUIPO));
 
   // arbol encadenado: Area -> Subarea/Equipo -> Equipo especifico
@@ -181,7 +172,7 @@
       document.getElementById('guardar').disabled = false;
       // costo y dimension de mejora solo para verde
       document.getElementById('boxCosto').style.display = (tipoSel === 'Verde') ? 'block' : 'none';
-      document.getElementById('rowDim').style.display = (tipoSel === 'Verde') ? 'grid' : 'none';
+      document.getElementById('boxDim').style.display = (tipoSel === 'Verde') ? 'block' : 'none';
     });
   });
 
@@ -216,7 +207,6 @@
       tipo: tipoSel,
       detectadoPor: document.getElementById('detectadoPor').value.trim(),
       turno: document.getElementById('turno').value,
-      sector: document.getElementById('sector').value,
       areaEquipo: document.getElementById('areaEquipo').value,
       equipo: document.getElementById('equipo').value,
       componente: document.getElementById('componente').value,
@@ -230,7 +220,7 @@
       etapaMa: document.getElementById('etapaMa').value,
       dimensionMejora: document.getElementById('dimensionMejora').value
     };
-    if (!data.detectadoPor || !data.sector || !data.descripcion) return msg('Completa los campos obligatorios (*).', false);
+    if (!data.detectadoPor || !data.descripcion) return msg('Completa los campos obligatorios (*).', false);
     if (!data.areaEquipo || !data.equipo) return msg('Elegi el área y la subárea/equipo del árbol.', false);
     var hijosN3 = (ARBOL_EQUIPO[data.areaEquipo][data.equipo] || []);
     if (hijosN3.length && !data.componente) return msg('Elegi el equipo específico (tercer nivel).', false);

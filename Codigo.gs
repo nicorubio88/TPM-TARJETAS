@@ -94,7 +94,7 @@ function crear_(d) {
   var tipo = (d.tipo || '').trim();
   if (['Roja', 'Azul', 'Verde'].indexOf(tipo) === -1) throw new Error('Tipo de tarjeta invalido (Roja/Azul/Verde).');
   if (!d.detectadoPor) throw new Error('Falta "Detectado por".');
-  if (!d.sector)       throw new Error('Falta el sector.');
+  if (!d.areaEquipo)   throw new Error('Falta el área del equipo.');
   if (!d.descripcion)  throw new Error('Falta la descripcion.');
 
   var grupo = GRUPO_POR_COLOR[tipo];
@@ -104,9 +104,12 @@ function crear_(d) {
   var fotoUrl = d.fotoUrl || '';
   if (d.fotoData) { try { fotoUrl = guardarFoto_(d.fotoData, id); } catch (err) {} }
 
+  // La columna "Sector" se conserva por compatibilidad y se llena con el Area del arbol.
+  var sectorCompat = d.sector || d.areaEquipo || '';
+
   var fila = [
     id, ahora, tipo, grupo, d.detectadoPor, d.turno || '',
-    d.sector, d.equipo || '', d.componente || '', d.categoria || '', d.descripcion,
+    sectorCompat, d.equipo || '', d.componente || '', d.categoria || '', d.descripcion,
     d.prioridad || 'Media', fotoUrl, d.responsable || '', d.fechaCompromiso || '',
     'Abierta', '', '', d.costo || '', d.notas || '',
     d.etapaMa || '', d.dimensionMejora || '', d.areaEquipo || ''
@@ -212,10 +215,10 @@ function cerrar_(id, accion, costo) {
 function notificar_(grupo, id, tipo, d) {
   var dest = NOTIF[grupo];
   if (!dest) return;
-  var asunto = '[Tarjeta TPM ' + tipo + '] ' + id + ' - ' + (d.sector || '') + (d.equipo ? ' / ' + d.equipo : '');
+  var asunto = '[Tarjeta TPM ' + tipo + '] ' + id + ' - ' + (d.areaEquipo || '') + (d.equipo ? ' / ' + d.equipo : '');
   var cuerpo =
     'Nueva tarjeta ' + tipo + ' asignada a ' + grupo + '.\n\n' +
-    'ID: ' + id + '\nSector: ' + (d.sector || '') + '\nEquipo: ' + (d.equipo || '') +
+    'ID: ' + id + '\nArea: ' + (d.areaEquipo || '') + '\nEquipo: ' + (d.equipo || '') +
     '\nComponente: ' + (d.componente || '') + '\nCategoria: ' + (d.categoria || '') +
     '\nPrioridad: ' + (d.prioridad || 'Media') + '\nDetectado por: ' + (d.detectadoPor || '') +
     '\n\nDescripcion:\n' + (d.descripcion || '');

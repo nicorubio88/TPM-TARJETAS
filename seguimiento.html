@@ -8,19 +8,18 @@
 <style>
 /* ─── ESTILOS DE IMPRESIÓN ─── */
 @media print {
-  .topbar,.filtros,.btn,.modal-bg,#msgPrint { display:none!important }
-  .no-print { display:none!important }
-  body { background:#fff!important; font-size:11pt }
-  .wrap { padding:0!important; max-width:100%!important }
-  .card { border:none!important; box-shadow:none!important; padding:0!important }
-  table { font-size:9.5pt }
-  th { background:#548235!important; color:#fff!important; -webkit-print-color-adjust:exact; print-color-adjust:exact }
-  .badge,.estado { -webkit-print-color-adjust:exact; print-color-adjust:exact }
-  .print-solo { display:block!important }
-  .print-header { display:flex!important }
+  body { background:#fff!important; margin:0; font-size:11pt }
+  /* ocultar TODA la pantalla (barra, titulo, filtros, tabla, modal) */
+  .topbar, .wrap, .modal-bg { display:none!important }
+  /* mostrar solo la hoja a imprimir */
+  #printArea { display:block!important; padding:0!important }
+  #printArea table { font-size:9.5pt }
+  #printArea th { background:#548235!important; color:#fff!important }
+  /* respetar colores de badges, encabezados y celdas marcadas */
+  #printArea * { -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  @page { margin:14mm }
 }
 .print-solo { display:none }
-.print-header { display:none }
 /* hoja de reporte individual */
 .orden-print { font-family:Arial,sans-serif; max-width:780px; margin:0 auto }
 .orden-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #548235; padding-bottom:12px; margin-bottom:16px }
@@ -67,7 +66,6 @@
       <div><label>Color</label><select id="fColor"><option value="">Todos</option><option>Roja</option><option>Azul</option><option>Verde</option></select></div>
       <div><label>Estado</label><select id="fEstado"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Anulada</option></select></div>
       <div><label>Grupo</label><select id="fGrupo"><option value="">Todos</option><option>Mantenimiento</option><option>Operacion</option><option>Mejora Enfocada</option></select></div>
-      <div><label>Sector</label><select id="fSector"><option value="">Todos</option></select></div>
       <div><label>Área equipo</label><select id="fArea"><option value="">Todas</option></select></div>
       <div><label>Etapa MA</label><select id="fEtapa"><option value="">Todas</option></select></div>
       <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto..."></div>
@@ -76,7 +74,7 @@
     <div style="overflow:auto;max-height:62vh">
       <table>
         <thead><tr>
-          <th>ID</th><th>Color</th><th>Sector / equipo</th><th>Descripcion</th>
+          <th>ID</th><th>Color</th><th>Ubicación</th><th>Descripcion</th>
           <th>Grupo</th><th>Responsable</th><th>Dias</th><th>Estado</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -131,7 +129,6 @@
   /* badge demo removido a pedido */
   var TODAS = [], actual = null;
 
-  document.getElementById('fSector').innerHTML = '<option value="">Todos</option>' + opciones(SECTORES);
   document.getElementById('fEtapa').innerHTML = '<option value="">Todas</option>' + opciones(ETAPAS_MA);
   document.getElementById('fArea').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
   document.getElementById('gEstado').innerHTML = opciones(ESTADOS);
@@ -151,14 +148,13 @@
 
   function filtradas(){
     var c=document.getElementById('fColor').value, e=document.getElementById('fEstado').value,
-        g=document.getElementById('fGrupo').value, s=document.getElementById('fSector').value,
+        g=document.getElementById('fGrupo').value,
         et=document.getElementById('fEtapa').value, fa=document.getElementById('fArea').value,
         tx=document.getElementById('fTexto').value.toLowerCase(), v=document.getElementById('fVencidas').checked;
     return TODAS.filter(function(t){
       if(c && t['Tipo']!==c) return false;
       if(e && t['Estado']!==e) return false;
       if(g && t['Grupo responsable']!==g) return false;
-      if(s && t['Sector']!==s) return false;
       if(et && t['Etapa MA']!==et) return false;
       if(fa && t['Area equipo']!==fa) return false;
       if(v && !t.vencida) return false;
@@ -173,7 +169,7 @@
       return '<tr class="clic" data-id="'+esc(t['ID'])+'">'+
         '<td style="font-family:monospace;font-size:12px">'+esc(t['ID'])+'</td>'+
         '<td>'+badgeTipo(t['Tipo'])+'</td>'+
-        '<td>'+esc(t['Sector'])+(t['Equipo']?'<br><span style="color:var(--muted);font-size:12px">'+esc(t['Equipo'])+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</span>':'')+'</td>'+
+        '<td>'+esc(t['Area equipo']||'—')+(t['Equipo']?'<br><span style="color:var(--muted);font-size:12px">'+esc(t['Equipo'])+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</span>':'')+'</td>'+
         '<td>'+esc(String(t['Descripcion']).slice(0,70))+(String(t['Descripcion']).length>70?'…':'')+'</td>'+
         '<td>'+esc(t['Grupo responsable'])+'</td>'+
         '<td>'+esc(t['Responsable asignado']||'—')+'</td>'+
@@ -193,7 +189,6 @@
     document.getElementById('mTitulo').textContent = t['ID'];
     document.getElementById('mBadges').innerHTML = badgeTipo(t['Tipo']) + ' ' + badgeEstado(t['Estado'], t.vencida);
     document.getElementById('mDetalle').innerHTML =
-      '<div class="kv"><b>Sector:</b> '+esc(t['Sector'])+'</div>'+
       '<div class="kv"><b>Ubicación:</b> '+esc(t['Area equipo']||'—')+' › '+esc(t['Equipo']||'—')+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</div>'+
       '<div class="kv"><b>Categoria:</b> '+esc(t['Categoria']||'—')+' &nbsp; <b>Prioridad:</b> '+esc(t['Prioridad'])+'</div>'+
       '<div class="kv"><b>Etapa MA:</b> '+esc(t['Etapa MA']||'—')+(t['Dimension mejora']?' &nbsp; <b>Mejora:</b> '+esc(t['Dimension mejora']):'')+'</div>'+
@@ -243,7 +238,7 @@
     }catch(e){ msg('Error: '+e.message, false); }
   });
 
-  ['fColor','fEstado','fGrupo','fSector','fEtapa','fArea','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
+  ['fColor','fEstado','fGrupo','fEtapa','fArea','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
   document.getElementById('fTexto').addEventListener('input', render);
   document.getElementById('recargar').addEventListener('click', cargar);
 
@@ -286,7 +281,6 @@
     <div class="orden-section">
       <h3>Ubicación del equipo</h3>
       <p style="font-weight:bold">${ubicacion(t)}</p>
-      <p>Sector organizativo: ${esc(t['Sector']||'—')}</p>
     </div>
     <div class="orden-section">
       <h3>Categoría y etapa</h3>
@@ -345,7 +339,7 @@
   function htmlLista(ts){
     var ahora=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
     var filtActivos=[];
-    ['fColor','fEstado','fGrupo','fSector','fEtapa','fArea'].forEach(function(id){
+    ['fColor','fEstado','fGrupo','fEtapa','fArea'].forEach(function(id){
       var el=document.getElementById(id); if(el&&el.value) filtActivos.push(el.options[el.selectedIndex].text+'='+el.value);
     });
     if(document.getElementById('fVencidas').checked) filtActivos.push('Solo vencidas');
@@ -356,7 +350,7 @@
       return `<tr style="border-bottom:1px solid #D7DECC;${t.vencida?'background:#FEF5F5':''}">
         <td style="padding:5px 6px;font-family:monospace;font-size:8.5pt;white-space:nowrap">${esc(t['ID'])}</td>
         <td style="padding:5px 6px"><span style="background:${colorTipo(t['Tipo'])};color:#fff;padding:2px 8px;border-radius:10px;font-size:8pt;font-weight:bold">${esc(t['Tipo'])}</span></td>
-        <td style="padding:5px 6px;font-size:9pt">${esc(t['Sector'])}</td>
+        <td style="padding:5px 6px;font-size:9pt">${esc(t['Area equipo']||'—')}</td>
         <td style="padding:5px 6px;font-size:9pt">${ubic}${comp}</td>
         <td style="padding:5px 6px;font-size:9pt;max-width:220px">${esc(t['Descripcion']||'').slice(0,90)}${(t['Descripcion']||'').length>90?'…':''}</td>
         <td style="padding:5px 6px;font-size:9pt">${esc(t['Prioridad']||'—')}</td>
@@ -385,7 +379,7 @@
       <tr style="background:#548235;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact">
         <th style="padding:6px;text-align:left;font-size:9pt">ID</th>
         <th style="padding:6px;text-align:left;font-size:9pt">Color</th>
-        <th style="padding:6px;text-align:left;font-size:9pt">Sector</th>
+        <th style="padding:6px;text-align:left;font-size:9pt">Área</th>
         <th style="padding:6px;text-align:left;font-size:9pt">Ubicación</th>
         <th style="padding:6px;text-align:left;font-size:9pt">Descripción</th>
         <th style="padding:6px;text-align:left;font-size:9pt">Prioridad</th>
@@ -414,12 +408,6 @@
   }
 
   /* ── DISPARADORES ── */
-  function imprimirContenido(html, esLista){
-    document.getElementById('printArea').innerHTML = html;
-    // ocultar tabla principal al imprimir
-    document.querySelector('.card').setAttribute('data-noprint','1');
-    window.print();
-  }
 
   // Imprimir lista (respeta filtros activos)
   document.getElementById('impLista').addEventListener('click', function(){
@@ -440,7 +428,7 @@
   });
 
   document.getElementById('exportar').addEventListener('click', function(){
-    var cols=['ID','Fecha alta','Tipo','Grupo responsable','Detectado por','Turno','Sector','Area equipo','Equipo','Componente/Ubicacion','Categoria','Etapa MA','Dimension mejora','Descripcion','Prioridad','Responsable asignado','Fecha compromiso','Estado','Fecha cierre','Accion de cierre','Costo estimado'];
+    var cols=['ID','Fecha alta','Tipo','Grupo responsable','Detectado por','Turno','Area equipo','Equipo','Componente/Ubicacion','Categoria','Etapa MA','Dimension mejora','Descripcion','Prioridad','Responsable asignado','Fecha compromiso','Estado','Fecha cierre','Accion de cierre','Costo estimado'];
     var datos=filtradas();
     if(!datos.length){ msg('No hay tarjetas para exportar con los filtros actuales.', false); return; }
     var q=function(v){ v=String(v==null?'':v).replace(/"/g,'""'); return '"'+v+'"'; };
