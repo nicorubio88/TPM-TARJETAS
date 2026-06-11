@@ -5,15 +5,16 @@
    ============================================================ */
 
 const CONFIG = {
-  /* Pega aca la URL /exec de tu Apps Script para usar Google Sheet.
-     Si la dejas vacia, la app funciona en MODO DEMO con datos locales
-     del navegador (localStorage), ideal para probar antes de publicar. */
-  API_URL: '',
+  /* ╔══════════════════════════════════════════════════════════════╗
+     ║  PEGÁ AQUÍ LA URL /exec DE TU APPS SCRIPT (entre las comillas) ║
+     ║  Ej: 'https://script.google.com/macros/s/AKfy.../exec'        ║
+     ╚══════════════════════════════════════════════════════════════╝
+     Esta versión guarda SIEMPRE en la nube (Google Sheet); se ve desde
+     cualquier dispositivo. Si esta URL queda vacía, la app avisa que
+     falta configurarla (ya no usa datos locales). */
+  API_URL: 'https://script.google.com/macros/s/AKfycbxUYpbmGe-T0Rc-jD0dxkzdAnwOzop9ikIvajMgxDRa5gj33a5ErLSkbNTar4kNkJkN/exec',
   PLANTA: 'Tornquist'
 };
-
-const DEMO = !CONFIG.API_URL;
-const DEMO_KEY = 'tarjetasTPM_demo';
 
 /* -------------------- Catalogos -------------------- */
 
@@ -93,92 +94,18 @@ const DIMENSIONES_MEJORA = [
   'Ergonomia', 'Medio Ambiente', 'Facilidad de operacion / limpieza'
 ];
 
-/* -------------------- Capa de datos -------------------- */
+/* -------------------- Capa de datos (nube) -------------------- */
 
 async function api(action, body) {
-  if (DEMO) return demoApi(action, body || {});
+  if (!CONFIG.API_URL) {
+    throw new Error('Falta configurar CONFIG.API_URL en comun.js (URL /exec del Apps Script).');
+  }
   const res = await fetch(CONFIG.API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ action: action }, body || {}))
   });
   return res.json();
-}
-
-/* Modo demo: replica la logica del backend usando localStorage */
-function demoLeer_() { try { return JSON.parse(localStorage.getItem(DEMO_KEY)) || []; } catch (e) { return []; } }
-function demoGuardar_(arr) { localStorage.setItem(DEMO_KEY, JSON.stringify(arr)); }
-
-function demoApi(action, p) {
-  let arr = demoLeer_();
-  const hoy = new Date();
-  if (action === 'crear') {
-    const d = p.data || p;
-    if (['Roja', 'Azul', 'Verde'].indexOf(d.tipo) === -1) return { ok: false, error: 'Tipo invalido' };
-    const grupo = TIPOS[d.tipo].grupo;
-    const id = demoId_(d.tipo);
-    arr.push({
-      'ID': id, 'Fecha alta': fmtNow_(), 'Tipo': d.tipo, 'Grupo responsable': grupo,
-      'Detectado por': d.detectadoPor || '', 'Turno': d.turno || '', 'Sector': d.sector || '',
-      'Equipo': d.equipo || '', 'Componente/Ubicacion': d.componente || '', 'Categoria': d.categoria || '',
-      'Descripcion': d.descripcion || '', 'Prioridad': d.prioridad || 'Media', 'Foto URL': d.fotoUrl || '',
-      'Responsable asignado': d.responsable || '', 'Fecha compromiso': d.fechaCompromiso || '',
-      'Estado': 'Abierta', 'Fecha cierre': '', 'Accion de cierre': '', 'Costo estimado': d.costo || '', 'Notas': d.notas || '',
-      'Etapa MA': d.etapaMa || '', 'Dimension mejora': d.dimensionMejora || '', 'Area equipo': d.areaEquipo || ''
-    });
-    // en demo, la foto (dataURL) se guarda directo como Foto URL
-    if (d.fotoData) arr[arr.length - 1]['Foto URL'] = d.fotoData;
-    demoGuardar_(arr);
-    return { ok: true, id: id, grupo: grupo };
-  }
-  if (action === 'listar') {
-    return { ok: true, tarjetas: arr.map(function (o) { return demoCalc_(o, hoy); }) };
-  }
-  if (action === 'actualizar') {
-    const t = arr.find(function (x) { return x['ID'] === p.id; });
-    if (!t) return { ok: false, error: 'No encontrada' };
-    const mapa = { responsable: 'Responsable asignado', fechaCompromiso: 'Fecha compromiso', estado: 'Estado', prioridad: 'Prioridad', notas: 'Notas', categoria: 'Categoria', etapaMa: 'Etapa MA' };
-    Object.keys(p.cambios || {}).forEach(function (k) { if (mapa[k]) t[mapa[k]] = p.cambios[k]; });
-    demoGuardar_(arr);
-    return { ok: true, id: p.id };
-  }
-  if (action === 'cerrar') {
-    const t = arr.find(function (x) { return x['ID'] === p.id; });
-    if (!t) return { ok: false, error: 'No encontrada' };
-    if (!p.accion) return { ok: false, error: 'Falta accion de cierre' };
-    t['Estado'] = 'Cerrada'; t['Fecha cierre'] = fmtNow_(); t['Accion de cierre'] = p.accion;
-    if (p.costo) t['Costo estimado'] = p.costo;
-    demoGuardar_(arr);
-    return { ok: true, id: p.id };
-  }
-  return { ok: true };
-}
-
-function demoCalc_(o, hoy) {
-  const r = Object.assign({}, o);
-  const alta = new Date(String(o['Fecha alta']).replace(' ', 'T'));
-  const cierre = o['Fecha cierre'] ? new Date(String(o['Fecha cierre']).replace(' ', 'T')) : null;
-  const fin = cierre || hoy;
-  r.diasAbierta = isNaN(alta) ? '' : Math.max(0, Math.round((fin - alta) / 86400000));
-  const comp = o['Fecha compromiso'] ? new Date(String(o['Fecha compromiso']).replace(' ', 'T')) : null;
-  r.vencida = !!(comp && o['Estado'] !== 'Cerrada' && o['Estado'] !== 'Anulada' && comp < hoy);
-  return r;
-}
-
-function demoId_(tipo) {
-  const pref = { Roja: 'ROJ', Azul: 'AZU', Verde: 'VER' }[tipo];
-  const f = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  const fecha = String(f.getFullYear()).slice(2) + p(f.getMonth() + 1) + p(f.getDate()) + '-' + p(f.getHours()) + p(f.getMinutes());
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let rnd = ''; for (let i = 0; i < 3; i++) rnd += chars.charAt(Math.floor(Math.random() * chars.length));
-  return pref + '-' + fecha + '-' + rnd;
-}
-
-function fmtNow_() {
-  const f = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return f.getFullYear() + '-' + p(f.getMonth() + 1) + '-' + p(f.getDate()) + ' ' + p(f.getHours()) + ':' + p(f.getMinutes());
 }
 
 /* -------------------- KPIs (calculo en cliente) -------------------- */
