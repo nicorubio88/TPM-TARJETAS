@@ -1,4 +1,24 @@
-/* Nomina de Planta Tornquist — Papelera del Sur. Generado de la nomina oficial (solo nombre y sector). */
+/* ============================================================
+   MAESTRO DE PERSONAS · Planta Tornquist — Papelera del Sur
+   ============================================================
+   Fuente unica compartida por Tarjetas TPM, EHS y Causa Raiz.
+   Generado desde la nomina oficial (personas.js del sistema TPM).
+
+   16 sectores | 157 personas
+
+   Sectores normalizados con acentos y unificados con EHS:
+     "I+d"                  -> "I+D"
+     "Produccion"           -> "Produccion" (con acento)
+     "Mantenimiento Electrico" -> "Mantenimiento Electrico" (con acento)
+     "Mantenimiento Mecanico"  -> "Mantenimiento Mecanico" (con acento)
+     "Seguridad E Higiene"  -> "Seguridad e Higiene"
+     "Relaciones Humanas"   -> "Recursos Humanos"   (asi lo llama EHS)
+     "Icopro"               -> "ICOPRO"
+
+   Si alguien entra o sale de la planta, se actualiza ACA
+   y se copia el archivo a las tres aplicaciones.
+   ============================================================ */
+
 const PERSONAS_POR_SECTOR = {
   "Alistamiento": [
     "Bolletta, Franco",
@@ -11,11 +31,11 @@ const PERSONAS_POR_SECTOR = {
     "Bilbao, Sofia",
     "Pieroni, Adrian"
   ],
-  "I+d": [
+  "I+D": [
     "Gamero, Luciano",
     "Manfredi, Juan Martin"
   ],
-  "Icopro": [
+  "ICOPRO": [
     "Batstoc, Jonatan Braian",
     "Colli Y Ockier, Maximiliano",
     "Iommi, Juan Pablo",
@@ -36,12 +56,12 @@ const PERSONAS_POR_SECTOR = {
   "Mantenimiento": [
     "Wendorff, Pablo Juan"
   ],
-  "Mantenimiento Electrico": [
+  "Mantenimiento Eléctrico": [
     "Goni, Santiago Luis",
     "Marconi, Jorge",
     "Urriaga, Martin"
   ],
-  "Mantenimiento Mecanico": [
+  "Mantenimiento Mecánico": [
     "Bender, Lucas",
     "Garcia, Luis Agustin",
     "Garciarena Serain, Joaquin",
@@ -170,7 +190,7 @@ const PERSONAS_POR_SECTOR = {
     "Codutti, Cristian",
     "Lopez, Diego Martin Dario"
   ],
-  "Produccion": [
+  "Producción": [
     "Abarzua, Osvaldo Daniel",
     "Cabrera, Claudio Marcelo",
     "Callava, Sebastian",
@@ -182,11 +202,43 @@ const PERSONAS_POR_SECTOR = {
     "Schwab, Dario Hernan",
     "Uribe, Sebastian"
   ],
-  "Relaciones Humanas": [
+  "Recursos Humanos": [
     "Martinez, Cintia Daniela",
     "Stoessel, Silvana Karen"
   ],
-  "Seguridad E Higiene": [
+  "Seguridad e Higiene": [
     "Zanotto, Agustin"
   ]
 };
+
+/* Lista plana ordenada alfabeticamente (para buscadores) */
+const PERSONAS = Object.values(PERSONAS_POR_SECTOR)
+  .flat()
+  .sort(function(a,b){ return a.localeCompare(b,'es'); });
+
+/* Sectores organizacionales (a que area pertenece la persona).
+   OJO: es distinto del AREA FISICA del arbol de equipos. */
+const SECTORES_ORG = Object.keys(PERSONAS_POR_SECTOR).sort(function(a,b){
+  return a.localeCompare(b,'es');
+});
+
+/* Devuelve el sector de una persona, o '' si no esta en la nomina. */
+function sectorDe(nombre){
+  for (var s in PERSONAS_POR_SECTOR){
+    if (PERSONAS_POR_SECTOR[s].indexOf(nombre) > -1) return s;
+  }
+  return '';
+}
+
+/* Options agrupadas por sector, para <select> */
+function opcionesPersonasAgrupadas(placeholder){
+  var html = '<option value="">' + (placeholder || 'Elegir persona...') + '</option>';
+  SECTORES_ORG.forEach(function(s){
+    html += '<optgroup label="' + s + '">';
+    PERSONAS_POR_SECTOR[s].forEach(function(p){
+      html += '<option value="' + p + '">' + p + '</option>';
+    });
+    html += '</optgroup>';
+  });
+  return html;
+}

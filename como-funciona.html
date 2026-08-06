@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cómo funciona · Tarjetas TPM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .diagrama-frame{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px;margin-bottom:16px;overflow-x:auto}
+  .diagrama-frame img{display:block;width:100%;max-width:860px;margin:0 auto;height:auto}
+  .diagrama-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+  .pasos-rapidos{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  @media(max-width:760px){.pasos-rapidos{grid-template-columns:1fr 1fr}}
+  .paso-mini{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px}
+  .paso-mini .pn{width:24px;height:24px;border-radius:50%;background:var(--verde-soft);color:var(--verde-d);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-bottom:8px}
+  .paso-mini .pt{font-size:12.8px;font-weight:800;margin-bottom:3px}
+  .paso-mini .pd{font-size:11.5px;color:var(--muted);line-height:1.45}
+  .colores-tabla{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+  .colores-tabla th{background:var(--verde);color:#fff;text-align:left;padding:11px 12px;font-size:11.5px;
+    font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+  .colores-tabla th:first-child{border-top-left-radius:10px}
+  .colores-tabla th:last-child{border-top-right-radius:10px}
+  .colores-tabla td{padding:11px 12px;border-bottom:1px solid var(--line);line-height:1.5}
+  .colores-tabla tr:last-child td{border-bottom:none}
+  .cpill{font-size:10.5px;font-weight:800;padding:4px 11px;border-radius:20px;color:#fff;white-space:nowrap}
+  .cpill.r{background:var(--roja)} .cpill.a{background:var(--azul)} .cpill.v{background:var(--verde)}
+  .cierre{display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:13px}
+  @media(max-width:700px){.cierre{grid-template-columns:1fr}}
+  .cierre b{display:block;font-size:13.5px;margin-bottom:3px}
+  .cierre p{margin:0;color:var(--muted);line-height:1.55}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Tarjetas TPM · Tornquist</div>
+  <nav>
+    <a href="index.html">Inicio</a>
+    <a href="formulario.html">Cargar</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="seguimiento.html">Seguimiento</a>
+    <a href="como-funciona.html" class="activo">Cómo funciona</a>
+  </nav>
+</div>
+
+<div class="wrap">
+  <h1>Cómo funciona el sistema</h1>
+  <p class="sub">La guía completa en un solo lugar, para revisar cuando tengas dudas.
+     De "vi algo en el equipo" a "quedó resuelto y registrado".</p>
+
+  <div class="pasos-rapidos">
+    <div class="paso-mini"><div class="pn">1</div><div class="pt">Detectás algo</div>
+      <div class="pd">Un ruido, una fuga, algo flojo, suciedad, una idea de mejora</div></div>
+    <div class="paso-mini"><div class="pn">2</div><div class="pt">Elegís el color</div>
+      <div class="pd">Según quién lo puede resolver: roja, azul o verde</div></div>
+    <div class="paso-mini"><div class="pn">3</div><div class="pt">Cargás la tarjeta</div>
+      <div class="pd">Dónde, qué encontraste, foto y prioridad</div></div>
+    <div class="paso-mini"><div class="pn">4</div><div class="pt">Seguimiento y cierre</div>
+      <div class="pd">Se asigna sola por color, se sigue y se cierra</div></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Lo único que tenés que decidir: el color</h2>
+    <p class="sub" style="margin-bottom:6px">El color no describe qué tan grave es. Describe <b>quién la resuelve</b>.
+       Es lo primero que elegís al cargar, y de ahí en más el sistema se encarga.</p>
+    <table class="colores-tabla">
+      <tr><th>Si...</th><th>Color</th><th>La resuelve</th><th>Ejemplos</th></tr>
+      <tr>
+        <td>Para resolverlo hace falta un técnico</td>
+        <td><span class="cpill r">ROJA</span></td>
+        <td>Mantenimiento</td>
+        <td>Rodamiento ruidoso, falla eléctrica, fuga que necesita soldadura</td>
+      </tr>
+      <tr>
+        <td>Lo podés resolver vos en el turno</td>
+        <td><span class="cpill a">AZUL</span></td>
+        <td>Operación</td>
+        <td>Limpiar suciedad, apretar un perno flojo, completar nivel de aceite</td>
+      </tr>
+      <tr>
+        <td>No es una falla, es una idea de mejora</td>
+        <td><span class="cpill v">VERDE</span></td>
+        <td>Mejora Enfocada</td>
+        <td>Facilitar un acceso, eliminar una fuente de suciedad, reducir un tiempo</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">El diagrama completo</h2>
+    <p class="sub">El mismo flujo, de punta a punta. Podés hacer zoom (Ctrl + rueda, o pellizcar
+       en el celular) o descargarlo para imprimir y pegar en el sector.</p>
+    <div class="diagrama-frame">
+      <img src="flujo.svg" alt="Diagrama de flujo del sistema de Tarjetas TPM">
+    </div>
+    <div class="diagrama-actions">
+      <a class="btn sec sm" href="flujo.svg" download="flujo_tarjetas_tpm.svg">⬇ Descargar para imprimir</a>
+      <a class="btn sec sm" href="flujo.svg" target="_blank">↗ Abrir en pestaña completa</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Tres cosas que conviene tener claras</h2>
+    <div class="cierre">
+      <div><b>No tenés que saber a quién mandársela</b>
+        <p>Elegís el color y el sistema la asigna al grupo que corresponde. Esa es toda la decisión.</p></div>
+      <div><b>La ubicación sale del árbol de la planta</b>
+        <p>Área → subárea → equipo. Es el mismo árbol que usan EHS y Causa Raíz, así los tres sistemas hablan del mismo equipo.</p></div>
+      <div><b>Una tarjeta cerrada es historial</b>
+        <p>Queda registrado qué se encontró y qué se hizo. Con el tiempo, eso es la memoria técnica del equipo.</p></div>
+      <div><b>Si se repite, hay una causa de fondo</b>
+        <p>Cuando la misma tarjeta vuelve una y otra vez, no alcanza con resolverla. Ahí corresponde abrir un análisis de Causa Raíz.</p></div>
+    </div>
+  </div>
+
+  <div class="home" style="grid-template-columns:1fr 1fr">
+    <a href="formulario.html">
+      <div class="ic">＋</div>
+      <h3>Cargar una tarjeta</h3>
+      <p>Ya está claro. Vamos directo al formulario.</p>
+    </a>
+    <a href="guias.html">
+      <div class="ic">📖</div>
+      <h3>Material de consulta</h3>
+      <p>Las 7 categorías de anomalía y los colores, para descargar.</p>
+    </a>
+  </div>
+</div>
+
+<script src="comun.js"></script>
+<script>
+  var f = document.getElementById('flag');
+  if (f && typeof CONFIG !== 'undefined' && !CONFIG.API_URL) {
+    f.className = 'demo-flag'; f.textContent = 'FALTA CONFIGURAR API';
+  }
+</script>
+</body>
+</html>

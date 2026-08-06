@@ -24,14 +24,12 @@ const TIPOS = {
   Verde: { color: '#4E9A2F', grupo: 'Mejora Enfocada', desc: 'Es una mejora — la puede resolver cualquiera, va al pipeline de Mejora Enfocada.' }
 };
 
-const SECTORES = [
-  'Pulper', 'Planta de Pasta', 'Mesas-Prensas', 'Secado', 'Estucado', 'Pope-Sexta',
-  'Caldera', 'Efluente Primario', 'Efluente Secundario', 'Laboratorio', 'Cellier',
-  'Rebobinadora', 'Alistado', 'Cortadora', 'Despacho',
-  'MP Fibrosa', 'MP Cellier', 'MP Quimicos', 'Sector Camiones',
-  'Mantenimiento Electrico', 'Mantenimiento Icopro', 'Mantenimiento Mecanico',
-  'Administracion / Oficinas'
-];
+/* NOTA: la constante SECTORES (23 sectores de proceso) fue eliminada.
+   Era codigo muerto de una version anterior al arbol de equipos y no se
+   usaba en ninguna pantalla. La ubicacion fisica sale de ARBOL_EQUIPO
+   (arbol.js) y el sector organizacional de la persona sale de
+   PERSONAS_POR_SECTOR (personas.js). Ver AUDITORIA-DATOS.md */
+
 
 const TURNOS = ['A', 'B', 'C', 'D'];
 const PRIORIDADES = ['Alta', 'Media', 'Baja'];
