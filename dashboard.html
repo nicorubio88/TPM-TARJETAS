@@ -4,194 +4,339 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard · TPM Tornquist</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#548235">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="estilos.css">
+<style>
+  .bloque{margin-top:30px}
+  .bloque>h2{display:flex;align-items:center;gap:10px;margin:0 0 4px;font-size:19px}
+  .bloque>h2 .nro{width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:none}
+  .bloque>.sub{margin:0 0 12px}
+  .kpis.k4{grid-template-columns:repeat(4,1fr)} .kpis.k5{grid-template-columns:repeat(5,1fr)}
+  @media(max-width:900px){.kpis.k4,.kpis.k5{grid-template-columns:repeat(2,1fr)}}
+  .kpi .m{font-size:11.5px;color:var(--muted);margin-top:4px}
+  /* los graficos van de a dos por fila: ejes mas grandes para que se lean */
+  .bloque .svgchart .ax{font-size:21px}
+  @media(max-width:760px){ .bloque .svgchart .ax{font-size:26px} }
+</style>
 </head>
 <body>
 <div class="topbar">
   <div class="brand">Tarjetas TPM · Tornquist</div>
-  <nav>
-    <a href="index.html">Inicio</a>
-    <a href="formulario.html">Cargar</a>
-    <a href="dashboard.html" class="activo">Dashboard</a>
-    <a href="seguimiento.html">Seguimiento</a>
-    <a href="como-funciona.html">Cómo funciona</a>
-    <span id="flag"></span>
-  </nav>
+  <nav></nav>
 </div>
 
 <div class="wrap">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-    <div><h1>Dashboard</h1><p class="sub">Estado del sistema de tarjetas TPM.</p></div>
-    <button class="btn sec sm" id="recargar">Actualizar</button>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+    <div><h1>Dashboard</h1><p class="sub" style="margin:0;max-width:640px">Ordenado por prioridad. Los bloques 1 a 4 son el tablero de tarjetas del Autónomo (Suzuki); 5 a 8 muestran dónde actuar y cómo traccionan Planificado, Calidad y Mejora Enfocada.</p></div>
+    <div class="filtros" style="margin:0;flex:0 1 560px">
+      <div><label>Período</label><select id="fPeriodo"><option value="30">Últimos 30 días</option><option value="90" selected>Últimos 90 días</option><option value="180">Últimos 6 meses</option><option value="365">Últimos 12 meses</option></select></div>
+      <div><label>Área</label><select id="fArea"></select></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn sec sm" id="recargar">Actualizar</button></div>
+    </div>
   </div>
-
   <div id="msg"></div>
-  <div class="kpis" id="kpis"></div>
 
-  <h2>Tarjetas abiertas por color</h2>
-  <div class="grid cols-3" id="porColor"></div>
-
-  <h2>Tablero de acciones (kanban)</h2>
-  <p class="sub" style="margin-top:-4px">Columnas por prioridad · filas por estado. Las vencidas se marcan en rojo.</p>
-  <div class="card"><div class="kanban" id="kanban"></div></div>
-
-  <div class="grid cols-2" style="margin-top:18px">
-    <div class="card"><h2 style="margin-top:0">Por estado</h2><canvas id="chEstado" height="200"></canvas></div>
-    <div class="card"><h2 style="margin-top:0">Por color</h2><canvas id="chColor" height="200"></canvas></div>
-  </div>
-  <div class="grid cols-2" style="margin-top:14px">
-    <div class="card"><h2 style="margin-top:0">Áreas con más tarjetas</h2><canvas id="chArea" height="220"></canvas></div>
-    <div class="card"><h2 style="margin-top:0">Por grupo responsable</h2><canvas id="chGrupo" height="220"></canvas></div>
-  </div>
-  <div class="grid cols-2" style="margin-top:14px">
-    <div class="card"><h2 style="margin-top:0">Por etapa de Mantenimiento Autonomo</h2><canvas id="chEtapa" height="200"></canvas></div>
-    <div class="card" style="display:flex;flex-direction:column;justify-content:center">
-      <h2 style="margin-top:0">Avance del pilar</h2>
-      <div id="etapaResumen" style="font-size:13px;color:var(--muted);line-height:1.9"></div>
+  <!-- 1 -->
+  <div class="bloque">
+    <h2><span class="nro">1</span>Tarjetas colocadas vs. retiradas</h2>
+    <p class="sub">El indicador central del tablero de tarjetas. Colocada = cargada; retirada = resuelta. Si las curvas se separan, quedan tarjetas colgadas.</p>
+    <div class="kpis k5" id="k1"></div>
+    <div class="grid cols-2" style="margin-top:14px">
+      <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Acumulado del período</b>
+        <div class="leyenda"><span><i style="background:#2D6CB5"></i>Colocadas</span><span><i style="background:#548235"></i>Retiradas</span></div></div><div id="acumulado"></div></div>
+      <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Por semana</b>
+        <div class="leyenda"><span><i style="background:#8FA7D6"></i>Colocadas</span><span><i style="background:#548235"></i>Retiradas</span><span><i class="ln"></i>Colgadas al cierre</span></div></div><div id="semanal"></div></div>
     </div>
   </div>
-  <div class="card" style="margin-top:14px">
-    <h2 style="margin-top:0">Equipos con más tarjetas</h2>
-    <div id="topEquipos" style="font-size:13px;color:var(--muted);line-height:2.0"></div>
-    <p class="sub" style="margin:10px 0 0">Los equipos que se repiten son los candidatos a Mejora Enfocada.</p>
+
+  <!-- 2 -->
+  <div class="bloque">
+    <h2><span class="nro">2</span>Promedio de generación</h2>
+    <p class="sub">Cuánto se detecta y cuánta gente participa. Meta: <b id="metaTxt"></b> tarjetas por persona por mes.</p>
+    <div class="kpis k4" id="k2"></div>
+    <div class="grid cols-2" style="margin-top:14px">
+      <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Tarjetas por persona por mes</b>
+        <div class="leyenda"><span><i style="background:#548235"></i>Promedio del mes</span><span><i class="ln" style="background:#20291F"></i>Meta</span></div></div><div id="mensual"></div>
+        <p class="mini" style="margin:6px 0 0">El mes en curso se proyecta a mes completo. Sobre la nómina total de planta.</p></div>
+      <div class="card"><b>Participación por sector</b><p class="mini" style="margin:2px 0 8px">Tarjetas por persona por mes · % de personas que reportaron. Sector = el de quien reporta.</p><div id="sectores"></div></div>
+    </div>
   </div>
-  <div class="grid cols-2" style="margin-top:14px">
-    <div class="card">
-      <h2 style="margin-top:0">Participacion del equipo</h2>
-      <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:30px;font-weight:bold;color:var(--verde-d)" id="partN">0</span><span style="font-size:13px;color:var(--muted)">personas cargaron tarjetas</span></div>
-      <div style="font-size:12px;color:var(--verde-d);font-weight:bold;margin:12px 0 4px">Mas activos</div>
-      <div id="topDetectores" style="font-size:13px;color:var(--muted);line-height:1.9"></div>
+
+  <!-- 3 -->
+  <div class="bloque">
+    <h2><span class="nro">3</span>Velocidad de retiro</h2>
+    <p class="sub">Cuánto tarda una anomalía en resolverse y cuánto se cumple lo comprometido.</p>
+    <div class="kpis" id="k3"></div>
+    <div class="card" style="margin-top:14px"><b>Antigüedad de las colgadas</b><div id="aging" style="margin-top:6px"></div></div>
+  </div>
+
+  <!-- 4 -->
+  <div class="bloque">
+    <h2><span class="nro">4</span>Quién retira y cómo queda</h2>
+    <p class="sub">Madurez del Autónomo: cuánto resuelve el propio sector, y si lo resuelto quedó verificado en el equipo.</p>
+    <div class="kpis k4" id="k4"></div>
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin:0 0 10px;font-size:15px">Reconocimiento del período</h3>
+      <div class="grid cols-2" style="gap:14px">
+        <div><div class="rk-t">Los que más reportan</div><div id="topDetectores"></div></div>
+        <div><div class="rk-t">Los que más resuelven</div><div id="topResolvedores"></div></div>
+      </div>
     </div>
-    <div class="card">
-      <h2 style="margin-top:0">Antiguedad de tarjetas abiertas</h2>
-      <div id="aging"></div>
-      <p class="sub" style="margin:10px 0 0">Las tarjetas que pasan los 30 dias abiertas son las que mas atencion necesitan.</p>
+  </div>
+
+  <!-- 5 -->
+  <div class="bloque">
+    <h2><span class="nro">5</span>Qué se encuentra</h2>
+    <p class="sub">Tipos de anomalía (los 7 fuguai) y paso del Autónomo al que responde cada tarjeta.</p>
+    <div class="grid cols-2">
+      <div class="card"><b>Por tipo de anomalía</b><div id="categorias" style="margin-top:8px"></div></div>
+      <div class="card"><b>Por paso del Mantenimiento Autónomo</b><div id="etapas" style="margin-top:8px"></div></div>
     </div>
+  </div>
+
+  <!-- 6 -->
+  <div class="bloque">
+    <h2><span class="nro">6</span>Dónde: lugares críticos y repeticiones</h2>
+    <p class="sub">Dónde se concentran las anomalías y qué vuelve después de resuelto: ahí van el Planificado y la Mejora Enfocada.</p>
+    <div class="grid cols-2">
+      <div class="card"><b>Áreas</b><div id="areas" style="margin-top:8px"></div></div>
+      <div class="card"><b>Equipos</b><div id="equipos" style="margin-top:8px"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <b>Candidatos a Mejora Enfocada</b>
+      <p class="mini" style="margin:2px 0 10px">Equipos con <b id="umbralTxt"></b> o más tarjetas en 90 días, o con una falla que volvió después de resuelta (↻).</p>
+      <div id="kaizen" style="overflow-x:auto"></div>
+    </div>
+  </div>
+
+  <!-- 7 -->
+  <div class="bloque">
+    <h2><span class="nro">7</span>Tracción de los pilares</h2>
+    <p class="sub">Lo que las tarjetas aportan a cada pilar. Los indicadores de resultado (averías, MTBF, MTTR, OEE, defectos) salen del registro de producción, no de este sistema.</p>
+    <div class="grid cols-3" id="pilares"></div>
+  </div>
+
+  <!-- 8 -->
+  <div class="bloque">
+    <h2><span class="nro">8</span>Planificación</h2>
+    <p class="sub">Qué se puede resolver con la máquina en marcha y qué hay que llevar a la parada. <a href="planificacion.html"><b>Ir a Planificación →</b></a></p>
+    <div class="grid cols-3" id="porCondicion"></div>
+    <div class="card" style="margin-top:14px;overflow-x:auto"><b>Tablero de acciones abiertas</b><div class="kanban" id="kanban" style="min-width:640px;margin-top:10px"></div></div>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="arbol.js"></script>
+<script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
-  /* badge demo removido a pedido */
-  var charts = {};
+  var $ = function(id){ return document.getElementById(id); };
+  var TODAS = [];
+  $('fArea').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
+  $('metaTxt').textContent = CONFIG.META_TARJETAS_PERSONA_MES;
+  $('umbralTxt').textContent = CONFIG.UMBRAL_KAIZEN;
 
-  function kpiCard(n,l,cls){ return '<div class="kpi '+(cls||'')+'"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>'; }
+  function kpi(n, l, cls, m, tip){ return '<div class="kpi '+(cls||'')+'"'+(tip?' title="'+esc(tip)+'"':'')+'><div class="n">'+n+'</div><div class="l">'+l+'</div>'+(m?'<div class="m">'+m+'</div>':'')+'</div>'; }
+  function f1(x){ return (Math.round(x * 10) / 10).toLocaleString('es-AR'); }
+  function topN(obj, n){ return Object.keys(obj).map(function(k){ return [k, obj[k]]; }).sort(function(a,b){ return b[1]-a[1]; }).slice(0, n); }
+
+  function hbars(filas, opt){
+    opt = opt || {};
+    if (!filas.length) return '<p class="mini">Sin datos en el período.</p>';
+    var max = Math.max.apply(null, filas.map(function(f){ return Math.max(f.v, f.v2 || 0); }).concat([1]));
+    return filas.map(function(f){
+      var w = Math.round(f.v / max * 100), w2 = f.v2 !== undefined ? Math.round(f.v2 / max * 100) : 0;
+      return '<div class="hb"><div class="hb-l" title="'+esc(f.l)+'">'+esc(f.l)+'</div>'+
+        '<div class="hb-b"><div style="width:'+w+'%;background:'+(f.c || opt.color || '#548235')+'"></div>'+
+        (f.v2 !== undefined ? '<div class="hb-b2" style="width:'+w2+'%"></div>' : '')+'</div>'+
+        '<div class="hb-v">'+(f.txt !== undefined ? f.txt : f.v)+'</div></div>';
+    }).join('');
+  }
+
+  /* Curvas acumuladas colocadas / retiradas */
+  function graficoAcumulado(serie){
+    var W = 900, H = 260, pl = 58, pr = 44, pt = 16, pb = 40;
+    var max = Math.max.apply(null, serie.map(function(s){ return Math.max(s.colocadas, s.retiradas); }).concat([1]));
+    var x = function(i){ return pl + (W - pl - pr) * (serie.length > 1 ? i / (serie.length - 1) : 0.5); };
+    var y = function(v){ return pt + (H - pt - pb) * (1 - v / max); };
+    var s = '<svg viewBox="0 0 '+W+' '+H+'" class="svgchart" role="img" aria-label="Tarjetas colocadas y retiradas acumuladas">';
+    [0, .5, 1].forEach(function(f){ var v = Math.round(max * f); s += '<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(v)+'" y2="'+y(v)+'" class="grid"/><text x="'+(pl-6)+'" y="'+(y(v)+4)+'" text-anchor="end" class="ax">'+v+'</text>'; });
+    var pc = serie.map(function(w,i){ return x(i)+','+y(w.colocadas); }), pr2 = serie.map(function(w,i){ return x(i)+','+y(w.retiradas); });
+    s += '<polygon points="'+pc.join(' ')+' '+pr2.slice().reverse().join(' ')+'" fill="#2D6CB5" opacity=".10"/>';
+    s += '<polyline fill="none" stroke="#2D6CB5" stroke-width="3" points="'+pc.join(' ')+'"/>';
+    s += '<polyline fill="none" stroke="#548235" stroke-width="3" points="'+pr2.join(' ')+'"/>';
+    serie.forEach(function(w,i){
+      s += '<circle cx="'+x(i)+'" cy="'+y(w.colocadas)+'" r="3.5" fill="#2D6CB5"><title>Al '+fmtCorto(new Date(w.hasta - 86400000))+': '+w.colocadas+' colocadas</title></circle>';
+      s += '<circle cx="'+x(i)+'" cy="'+y(w.retiradas)+'" r="3.5" fill="#548235"><title>Al '+fmtCorto(new Date(w.hasta - 86400000))+': '+w.retiradas+' retiradas</title></circle>';
+      if (serie.length <= 14 || i % Math.ceil(serie.length / 12) === 0) s += '<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="middle" class="ax">'+w.label+'</text>';
+    });
+    var u = serie[serie.length - 1];
+    if (u) s += '<text x="'+(W-pr-4)+'" y="'+(y(u.colocadas)-8)+'" text-anchor="end" class="ax" fill="#2D6CB5">'+u.colocadas+'</text><text x="'+(W-pr-4)+'" y="'+(y(u.retiradas)+16)+'" text-anchor="end" class="ax" fill="#3D5F26">'+u.retiradas+'</text>';
+    return s + '</svg>';
+  }
+
+  /* Barras mensuales de tarjetas por persona con linea de meta */
+  function graficoMensual(serie, meta){
+    var W = 900, H = 250, pl = 58, pr = 20, pt = 16, pb = 40;
+    var max = Math.max.apply(null, serie.map(function(m){ return m.porPersona; }).concat([meta * 1.25, 0.1]));
+    var iw = (W - pl - pr) / serie.length, bw = Math.min(46, iw * 0.6);
+    var y = function(v){ return pt + (H - pt - pb) * (1 - v / max); };
+    var s = '<svg viewBox="0 0 '+W+' '+H+'" class="svgchart" role="img" aria-label="Tarjetas por persona por mes">';
+    [0, max / 2, max].forEach(function(v){ s += '<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(v)+'" y2="'+y(v)+'" class="grid"/><text x="'+(pl-6)+'" y="'+(y(v)+4)+'" text-anchor="end" class="ax">'+f1(v)+'</text>'; });
+    serie.forEach(function(m, i){
+      var cx = pl + iw * i + iw / 2, ok = m.porPersona >= meta;
+      s += '<rect x="'+(cx-bw/2)+'" y="'+y(m.porPersona)+'" width="'+bw+'" height="'+(H-pb-y(m.porPersona))+'" rx="3" fill="'+(ok?'#548235':'#9DBF7E')+'"'+(m.parcial?' opacity=".6"':'')+'><title>'+m.label+': '+f1(m.porPersona)+' por persona · '+m.n+' tarjetas · '+m.personas+' personas'+(m.parcial?' (proyectado)':'')+'</title></rect>';
+      s += '<text x="'+cx+'" y="'+(H-8)+'" text-anchor="middle" class="ax">'+m.label+'</text>';
+    });
+    s += '<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(meta)+'" y2="'+y(meta)+'" stroke="#20291F" stroke-width="2" stroke-dasharray="6 4"/>';
+    return s + '</svg>';
+  }
 
   function kTarjeta(t){
-    return '<div class="ktarjeta'+(t.vencida?' venc':'')+'" style="border-left-color:'+colorTipo(t['Tipo'])+'">'+
-      '<div class="kid">'+esc(t['ID'])+'</div>'+
+    return '<a href="seguimiento.html?id='+encodeURIComponent(t['ID'])+'" class="ktarjeta'+(t.vencida?' venc':'')+'" style="border-left-color:'+colorTipo(t['Tipo'])+'">'+
+      '<div class="kid">'+esc(t['ID'])+' '+badgeCondicion(condicionDe(t), false)+(t.repetidaDe?' ↻':'')+'</div>'+
       '<div class="ktxt">'+esc(t['Area equipo']||'—')+(t['Equipo']?' · '+esc(t['Equipo']):'')+'</div>'+
-      '<div class="kresp">'+esc(t['Responsable asignado']||'sin asignar')+(t.diasAbierta!==''?' · '+t.diasAbierta+'d':'')+'</div></div>';
+      '<div class="kresp">'+esc(t['Responsable asignado']||'sin asignar')+' · '+t.diasAbierta+'d</div></a>';
   }
   function pintarKanban(ts){
-    var filas = [['Pendiente', ['Abierta']], ['En proceso', ['En proceso']], ['Cerradas', ['Cerrada']]];
-    var prios = ['Alta','Media','Baja'];
+    var filas = [['Abierta', 'Abierta'], ['En proceso', 'En proceso'], ['A verificar', 'Cerrada']], prios = ['Alta','Media','Baja'];
     var html = '<div></div>' + prios.map(function(p){ return '<div class="kh '+p.toLowerCase()+'">'+p+'</div>'; }).join('');
     filas.forEach(function(f){
       html += '<div class="rowlbl">'+f[0]+'</div>';
       prios.forEach(function(p){
-        var cards = ts.filter(function(t){ return f[1].indexOf(t['Estado'])>-1 && (t['Prioridad']||'Media')===p; });
-        html += '<div class="cell">' + (cards.length? cards.map(kTarjeta).join('') : '<div class="kvacio">—</div>') + '</div>';
+        var cards = ts.filter(function(t){ return t['Estado']===f[1] && (t['Prioridad']||'Media')===p; })
+          .sort(function(a,b){ return (b.vencida-a.vencida) || (b.diasAbierta-a.diasAbierta); });
+        var mas = cards.length > 12 ? '<div class="kvacio">+ '+(cards.length-12)+' más</div>' : '';
+        html += '<div class="cell">' + (cards.length ? cards.slice(0,12).map(kTarjeta).join('') + mas : '<div class="kvacio">—</div>') + '</div>';
       });
     });
-    document.getElementById('kanban').innerHTML = html;
+    $('kanban').innerHTML = html;
   }
 
-  function pintarKPIs(k){
-    document.getElementById('kpis').innerHTML =
-      kpiCard(k.total,'Total tarjetas') +
-      kpiCard(k.abiertas + k.enProceso,'Abiertas') +
-      kpiCard(k.cerradas,'Cerradas') +
-      kpiCard(k.pctCierre + '%','% cierre') +
-      kpiCard(k.vencidas,'Vencidas', k.vencidas ? 'rojo':'') +
-      kpiCard(k.tiempoCierreProm + ' d','Tiempo medio cierre', 'amber');
+  function render(){
+    var dias = +$('fPeriodo').value, area = $('fArea').value;
+    var ts = TODAS.filter(function(t){ return !area || t['Area equipo'] === area; });
+    var desde = new Date(Date.now() - dias * 86400000);
+    var k = calcularKPIs(ts, desde), it = indicadoresTarjetas(ts, desde, dias), meta = CONFIG.META_TARJETAS_PERSONA_MES;
+    var sem = Math.max(6, Math.min(52, Math.round(dias / 7)));
 
-    document.getElementById('porColor').innerHTML = Object.keys(k.porColor).map(function(c){
-      var v = k.porColor[c];
-      return '<div class="card" style="border-top:5px solid '+colorTipo(c)+'">'+
-        '<div style="font-size:26px;font-weight:bold;color:'+colorTipo(c)+'">'+v.ab+'</div>'+
-        '<div class="l" style="color:var(--muted);font-size:13px">'+c+' abiertas · '+v.t+' en total</div></div>';
+    /* 1 */
+    $('k1').innerHTML =
+      kpi(it.colocadas, 'Colocadas', '', f1(it.porSemana) + ' por semana') +
+      kpi(it.retiradas, 'Retiradas', '', f1(it.retiradasSemana) + ' por semana') +
+      kpi(it.pctRetiro + '%', '% de retiro', it.pctRetiro < 80 ? 'amber' : '', 'retiradas ÷ colocadas', 'Más de 100% = se está bajando el atraso') +
+      kpi(k.abiertas + k.enProceso, 'Colgadas hoy', '', 'abiertas + en proceso') +
+      kpi(k.pendVerificar, 'Resueltas a verificar', k.pendVerificar ? 'amber' : '');
+    $('acumulado').innerHTML = graficoAcumulado(serieAcumulada(ts, sem));
+    $('semanal').innerHTML = graficoSemanal(serieSemanal(ts, sem));
+
+    /* 2 */
+    $('k2').innerHTML =
+      kpi(f1(it.porPersonaMes), 'Tarjetas por persona por mes', it.porPersonaMes >= meta ? '' : 'amber', 'meta ' + meta + ' · nómina ' + it.nomina) +
+      kpi(f1(it.porSemana), 'Generación promedio semanal', '', it.colocadas + ' en ' + dias + ' días') +
+      kpi(it.participacion + '%', 'Participación', it.participacion < 50 ? 'amber' : '', it.reportaron + ' de ' + it.nomina + ' personas reportaron') +
+      kpi(it.detOperacion + '%', 'Detectadas por operación', '', 'operarios y producción');
+    $('mensual').innerHTML = graficoMensual(serieMensual(ts, dias >= 180 ? 12 : 6), meta);
+    var meses = dias / 30.4;
+    var sect = Object.keys(PERSONAS_POR_SECTOR).map(function(s){
+      var d = k.porSectorDetector[s] || { n: 0, personas: {} }, np = personasDelSector(s) || 1;
+      return { s: s, n: d.n, np: np, rep: Object.keys(d.personas).length, tasa: d.n / np / meses };
+    }).sort(function(a,b){ return b.tasa - a.tasa; });
+    var maxT = Math.max(meta * 1.25, Math.max.apply(null, sect.map(function(x){ return x.tasa; })));
+    $('sectores').innerHTML = sect.map(function(x){
+      var ok = x.tasa >= meta;
+      return '<div class="hb"><div class="hb-l" title="'+esc(x.s)+'">'+esc(x.s)+'</div>'+
+        '<div class="hb-b"><div style="width:'+Math.min(100, x.tasa/maxT*100)+'%;background:'+(ok?'#548235':x.tasa>=meta/2?'#E8871A':'#B8402A')+'"></div>'+
+        '<span class="meta" style="left:'+(meta/maxT*100)+'%"></span></div>'+
+        '<div class="hb-v" style="width:120px" title="'+x.n+' tarjetas · '+x.rep+' de '+x.np+' personas">'+f1(x.tasa)+' · '+Math.round(x.rep/x.np*100)+'%</div></div>';
     }).join('');
-  }
 
-  function doughnut(id, labels, data, colors){
-    if (charts[id]) charts[id].destroy();
-    charts[id] = new Chart(document.getElementById(id), {
-      type:'doughnut',
-      data:{ labels:labels, datasets:[{ data:data, backgroundColor:colors, borderWidth:1, borderColor:'#fff' }] },
-      options:{ plugins:{ legend:{ position:'bottom', labels:{ font:{ size:12 } } } } }
-    });
-  }
-  function barras(id, labels, data, color, horizontal){
-    if (charts[id]) charts[id].destroy();
-    charts[id] = new Chart(document.getElementById(id), {
-      type:'bar',
-      data:{ labels:labels, datasets:[{ data:data, backgroundColor:color }] },
-      options:{ indexAxis: horizontal?'y':'x', plugins:{ legend:{ display:false } },
-        scales:{ x:{ ticks:{ font:{ size:11 } } }, y:{ ticks:{ font:{ size:11 } } } } }
-    });
+    /* 3 */
+    $('k3').innerHTML =
+      kpi(f1(it.tiempoMedio) + ' d', 'Tiempo medio de retiro', 'amber') +
+      kpi(f1(it.mediana) + ' d', 'Mediana de retiro', '', 'la mitad se resuelve en menos') +
+      kpi(it.enPlazo === null ? '—' : it.enPlazo + '%', 'Resueltas en plazo', it.enPlazo !== null && it.enPlazo < 80 ? 'amber' : '', it.conCompromiso + ' con fecha compromiso') +
+      kpi(k.vencidas, 'Vencidas hoy', k.vencidas ? 'rojo' : '') +
+      kpi(k.aging.dmas, 'Colgadas más de 30 días', k.aging.dmas ? 'rojo' : '') +
+      kpi(k.reprogramadas, 'Reprogramadas', '', 'fecha compromiso cambiada');
+    var ag = k.aging;
+    $('aging').innerHTML = hbars([{ l: '0 a 7 días', v: ag.d7, c: '#639922' }, { l: '8 a 30 días', v: ag.d30, c: '#E8871A' }, { l: 'más de 30 días', v: ag.dmas, c: '#B8402A' }]);
+
+    /* 4 */
+    $('k4').innerHTML =
+      kpi(k.autonomia + '%', 'Autonomía', '', 'azules ÷ (azules + rojas)', 'Qué parte de las anomalías resuelve el propio operador') +
+      kpi(it.retOperacion + '%', 'Retiradas por operación', '', 'cerradas por operarios y producción') +
+      kpi(it.pctVerificadas + '%', 'Verificadas en el equipo', it.pctVerificadas < 70 ? 'amber' : '', it.verificadas + ' de ' + it.verificables + ' resueltas') +
+      kpi(k.reaperturas, 'Reaperturas', k.reaperturas ? 'amber' : '', 'no quedaron bien al verificar');
+    var medalla = function(i){ return ['🥇','🥈','🥉'][i] || (i+1)+'.'; };
+    var rk = function(obj){ var t = topN(obj, 8); return t.length ? t.map(function(x,i){ return '<div class="rk"><span>'+medalla(i)+' '+esc(x[0])+'</span><b>'+x[1]+'</b></div>'; }).join('') : '<p class="mini">Sin datos.</p>'; };
+    $('topDetectores').innerHTML = rk(k.porDetector);
+    $('topResolvedores').innerHTML = rk(k.porResolvedor);
+
+    /* 5 */
+    $('categorias').innerHTML = hbars(Object.keys(CATEGORIAS_TPM).concat(['Sin categoria']).filter(function(g){ return k.porCategoria[g]; })
+      .map(function(g){ return { l: g, v: k.porCategoria[g] }; }).sort(function(a,b){ return b.v - a.v; }), { color: '#7BC142' });
+    $('etapas').innerHTML = hbars(ETAPAS_MA.concat(['Sin etapa']).filter(function(e){ return k.porEtapa[e]; })
+      .map(function(e){ return { l: e, v: k.porEtapa[e], c: e === 'Sin etapa' ? '#A9B6A0' : '#2D6CB5' }; }));
+
+    /* 6 */
+    $('areas').innerHTML = hbars(topN(k.porArea, 10).map(function(x){
+      var ab = k.porAreaAbiertas[x[0]] || 0; return { l: x[0], v: x[1], v2: ab, txt: x[1] + ' <span class="mini">(' + ab + ' col.)</span>' };
+    })) + '<p class="mini" style="margin-top:6px">Barra verde = colocadas en el período · marca oscura = colgadas hoy (pueden venir de antes del período).</p>';
+    $('equipos').innerHTML = hbars(topN(k.porEquipo, 10).map(function(x){ return { l: x[0], v: x[1] }; }), { color: '#3D5F26' });
+    var cand = candidatosKaizen(ts);
+    $('kaizen').innerHTML = cand.length ? '<table><thead><tr><th>Equipo</th><th>Tarjetas 90 d</th><th>Repetidas</th><th>Colgadas</th><th>Qué se repite</th><th></th></tr></thead><tbody>' +
+      cand.slice(0, 12).map(function(e){
+        var catsTxt = Object.keys(e.cats).sort(function(a,b){ return e.cats[b]-e.cats[a]; }).map(function(c){ return c.replace(/^\d · /,'')+' ('+e.cats[c]+')'; }).join(', ');
+        var u = [e.area, e.equipo, e.comp].join('|').replace(/\|$/, '');
+        var desc = 'Kaizen: ' + e.n + ' tarjetas en 90 días en ' + e.clave + ' (' + catsTxt + '). Analizar causa raíz y eliminar la fuente.';
+        return '<tr><td><b>'+esc(e.equipo)+'</b>'+(e.comp?' › '+esc(e.comp):'')+'<br><span class="mini">'+esc(e.area)+'</span></td><td style="text-align:center">'+e.n+'</td>'+
+          '<td style="text-align:center;'+(e.rep?'color:#8A5A0A;font-weight:800':'')+'">'+(e.rep?'↻ '+e.rep:'—')+'</td><td style="text-align:center">'+e.abiertas+'</td><td class="mini">'+esc(catsTxt)+'</td>'+
+          '<td><a class="btn sec sm" style="white-space:nowrap" href="formulario.html?tipo=Verde&u='+encodeURIComponent(u)+'&desc='+encodeURIComponent(desc)+'">+ Tarjeta Kaizen</a></td></tr>';
+      }).join('') + '</tbody></table>' : '<p class="mini">Sin equipos que superen el umbral en los últimos 90 días.</p>';
+
+    /* 7 */
+    var abiertasCal = ts.filter(function(t){ return esAbierta(t) && grupoCategoria(t['Categoria']).indexOf('5 ')===0; }).length;
+    var pil = [
+      ['Mantenimiento Autónomo', '#2D6CB5', k.pilares.maAzules, 'azules resueltas por operación', 'Autonomía ' + k.autonomia + '% · ' + ETAPAS_MA.map(function(e){ return (k.porEtapa[e]||0) + ' ' + e.split(' · ')[0].replace('Paso ','P'); }).join(' · ')],
+      ['Mantenimiento Planificado', '#C0392B', k.porColor.Roja.ab, 'rojas colgadas', k.pilares.mpDerivadas + ' cierres pasaron al preventivo · ' + k.porCondicion['Maquina parada'].h.toFixed(0) + ' HH para parada'],
+      ['Calidad', '#8A5A0A', k.pilares.calidad, 'tarjetas de defecto de calidad', abiertasCal + ' colgadas'],
+      ['Mejora Enfocada', '#4E9A2F', k.pilares.verdes, 'verdes (mejoras)', 'Ahorro estimado USD ' + Math.round(k.pilares.ahorroUSD).toLocaleString('es-AR') + ' · ' + cand.length + ' candidatos Kaizen'],
+      ['Estandarización', '#548235', k.pilares.estandares, 'cierres que actualizan estándar / LUP', 'Paso 3 del Autónomo'],
+      ['Seguridad', '#B8402A', k.pilares.seguridad, 'condiciones inseguras', 'Se derivan a Seguridad e Higiene']
+    ];
+    $('pilares').innerHTML = pil.map(function(p){
+      return '<div class="card pilar" style="border-left:5px solid '+p[1]+'"><div class="mini" style="font-weight:800;color:'+p[1]+';text-transform:uppercase;letter-spacing:.04em">'+p[0]+'</div>'+
+        '<div style="font-size:26px;font-weight:800;margin:4px 0 0">'+p[2]+'</div><div style="font-size:12.5px">'+p[3]+'</div><div class="mini" style="margin-top:6px">'+p[4]+'</div></div>';
+    }).join('');
+
+    /* 8 */
+    $('porCondicion').innerHTML = Object.keys(CONDICIONES).map(function(c){
+      var d = CONDICIONES[c], v = k.porCondicion[c];
+      var det = c === 'A definir' ? 'para clasificar' : f1(v.h) + ' HH estimadas' + (v.sinH ? ' · ' + v.sinH + ' sin estimar' : '');
+      return '<a class="card" href="planificacion.html" style="border-top:5px solid '+d.color+'">'+
+        '<div style="font-size:26px;font-weight:800;color:'+d.color+'">'+d.icono+' '+v.n+'</div>'+
+        '<div style="font-size:13px;font-weight:700">'+d.corto+'</div><div class="mini">'+det+'</div></a>';
+    }).join('');
+    pintarKanban(ts.filter(function(t){ return esAbierta(t) || t['Estado'] === 'Cerrada'; }));
   }
 
   async function cargar(){
-    document.getElementById('msg').innerHTML='';
-    try{
-      var r = await api('listar');
-      if(!r.ok){ document.getElementById('msg').innerHTML='<div class="msg err">'+(r.error||'error')+'</div>'; return; }
-      var ts = r.tarjetas; var k = calcularKPIs(ts);
-      pintarKPIs(k);
-      pintarKanban(ts);
-      pintarPaneles(k);
-
-      if (typeof Chart === 'undefined') {
-        document.getElementById('msg').innerHTML = '<div class="msg err">No se pudieron cargar los graficos (sin conexion al CDN). Los indicadores de arriba si estan actualizados.</div>';
-        return;
-      }
-      doughnut('chEstado', ['Abierta','En proceso','Cerrada','Anulada'],
-        [k.abiertas,k.enProceso,k.cerradas,k.anuladas], ['#378ADD','#EF9F27','#639922','#B4B2A9']);
-      doughnut('chColor', ['Roja','Azul','Verde'],
-        [k.porColor.Roja.t,k.porColor.Azul.t,k.porColor.Verde.t], ['#C0392B','#2D6CB5','#4E9A2F']);
-
-      var gr = Object.keys(k.porGrupo);
-      barras('chGrupo', gr, gr.map(function(g){return k.porGrupo[g];}), '#3D5F26', false);
-
-      var etOrden = ['Paso 1 · Restaurar condiciones','Paso 2 · Eliminar focos / facilitar acceso','Paso 3 · Estandarizar (LILA)','Sin etapa'];
-      var etLabels = etOrden.filter(function(e){return k.porEtapa[e];});
-      barras('chEtapa', etLabels.map(function(e){return e.split(' · ')[0];}), etLabels.map(function(e){return k.porEtapa[e];}), '#548235', false);
-
-      var ar = Object.keys(k.porArea).map(function(a){return [a,k.porArea[a]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
-      barras('chArea', ar.map(function(x){return x[0];}), ar.map(function(x){return x[1];}), '#3D5F26', true);
-    }catch(e){ document.getElementById('msg').innerHTML='<div class="msg err">Error de conexion: '+e.message+'</div>'; }
+    $('msg').innerHTML = '';
+    try {
+      // margen: 6 o 12 meses para la serie mensual, + 97 dias para las curvas y las repeticiones (90 dias)
+      var dias = +$('fPeriodo').value;
+      var r = await api('listar', { desde: desdeISO(Math.max(dias, dias >= 180 ? 365 : 183) + 97) });
+      if (!r.ok) { $('msg').innerHTML = '<div class="msg err">'+esc(r.error||'error')+'</div>'; return; }
+      TODAS = marcarRepeticiones(r.tarjetas);
+      render();
+    } catch(e) { $('msg').innerHTML = '<div class="msg err">Error de conexión: '+esc(e.message)+'</div>'; }
   }
-
-  function pintarPaneles(k){
-    var etOrden = ['Paso 1 · Restaurar condiciones','Paso 2 · Eliminar focos / facilitar acceso','Paso 3 · Estandarizar (LILA)','Sin etapa'];
-    document.getElementById('etapaResumen').innerHTML = etOrden.filter(function(e){return k.porEtapa[e];}).map(function(e){
-      return '<div><b style="color:var(--ink)">'+k.porEtapa[e]+'</b> &nbsp;'+e+'</div>';
-    }).join('') || '<span>Sin tarjetas cargadas.</span>';
-
-    var te = Object.keys(k.porEquipo).map(function(e){return [e,k.porEquipo[e]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
-    document.getElementById('topEquipos').innerHTML = te.length ? te.map(function(x){
-      return '<div><b style="color:var(--ink)">'+x[1]+'</b> &nbsp;'+esc(x[0])+'</div>';
-    }).join('') : '<span>Sin registros.</span>';
-
-    document.getElementById('partN').textContent = k.detectoresUnicos;
-    var top = Object.keys(k.porDetector).map(function(d){return [d,k.porDetector[d]];}).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
-    document.getElementById('topDetectores').innerHTML = top.length ? top.map(function(x){
-      return '<div><b style="color:var(--ink)">'+x[1]+'</b> &nbsp;'+esc(x[0])+'</div>';
-    }).join('') : '<span>Sin registros.</span>';
-
-    var ag=k.aging, agMax=Math.max(ag.d7,ag.d30,ag.dmas,1);
-    var agRows=[['0 a 7 dias',ag.d7,'#639922'],['8 a 30 dias',ag.d30,'#C77D11'],['mas de 30 dias',ag.dmas,'#C0392B']];
-    document.getElementById('aging').innerHTML = agRows.map(function(r){
-      return '<div style="margin:8px 0"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ink)"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>'+
-        '<div style="background:var(--soft);border-radius:5px;height:14px;margin-top:3px"><div style="background:'+r[2]+';height:14px;border-radius:5px;width:'+Math.round(r[1]/agMax*100)+'%"></div></div></div>';
-    }).join('');
-  }
-
-  document.getElementById('recargar').addEventListener('click', cargar);
+  $('fPeriodo').addEventListener('change', cargar);
+  $('fArea').addEventListener('change', render);
+  $('recargar').addEventListener('click', cargar);
   cargar();
 </script>
 </body>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etiquetas QR · TPM Tornquist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .etiquetas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+  .et{border:1.5px dashed #9FB38F;border-radius:10px;padding:10px;display:flex;gap:10px;align-items:center;background:#fff;break-inside:avoid;page-break-inside:avoid}
+  .et svg{width:30mm;height:30mm;flex:none}
+  .et .t1{font-size:9pt;font-weight:800;color:#20291F;line-height:1.2}
+  .et .t2{font-size:7.5pt;color:#6C7A67;margin-top:3px;line-height:1.25}
+  .et .t3{font-size:7pt;color:#548235;font-weight:800;margin-top:5px;letter-spacing:.03em}
+  @media print{ .topbar,.no-print{display:none!important} body{background:#fff} .wrap{padding:0;max-width:none} .etiquetas{gap:4mm} @page{margin:8mm} }
+</style>
+</head>
+<body>
+<div class="topbar"><div class="brand">Tarjetas TPM · Tornquist</div><nav></nav></div>
+<div class="wrap">
+  <div class="no-print">
+    <h1>Etiquetas QR por equipo</h1>
+    <p class="sub">Pegá la etiqueta en el equipo. Al escanearla con el celular se abre la carga con la ubicación ya elegida.</p>
+    <div class="card">
+      <div class="filtros">
+        <div><label>Área</label><select id="area"></select></div>
+        <div><label>Subárea / equipo</label><select id="sub"><option value="">Todas</option></select></div>
+        <div style="flex:2"><label>Dirección de la app (se completa sola)</label><input id="base"></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn" id="generar">Generar etiquetas</button>
+        <button class="btn sec" id="imprimir">🖨 Imprimir</button>
+        <span class="mini" id="info"></span>
+      </div>
+    </div>
+  </div>
+  <div class="etiquetas" id="etiquetas"></div>
+</div>
+<script src="qrcode.js"></script>
+<script src="arbol.js"></script>
+<script src="personas.js"></script>
+<script src="comun.js"></script>
+<script>
+  var $ = function(id){ return document.getElementById(id); };
+  $('area').innerHTML = '<option value="">Todas las áreas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
+  $('base').value = location.href.replace(/[^\/]*(\?.*)?$/, '') + 'formulario.html';
+  $('area').addEventListener('change', function(){
+    $('sub').innerHTML = '<option value="">Todas</option>' + (this.value ? opciones(Object.keys(ARBOL_EQUIPO[this.value])) : '');
+  });
+  function svgQR(texto){
+    var qr = qrcode(0, 'M'); qr.addData(texto); qr.make();
+    return qr.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+  }
+  $('generar').addEventListener('click', function(){
+    var a = $('area').value, s = $('sub').value, base = $('base').value.trim();
+    var items = listaEquipos().filter(function(e){ return (!a || e.area === a) && (!s || e.sub === s); });
+    if (items.length > 300 && !confirmado) { $('info').textContent = items.length + ' etiquetas: elegí un área para no generar todas juntas, o tocá de nuevo para generarlas igual.'; confirmado = true; return; }
+    confirmado = false;
+    $('etiquetas').innerHTML = items.map(function(e){
+      var u = [e.area, e.sub, e.eq].filter(String).join('|');
+      var url = base + '?u=' + encodeURIComponent(u);
+      return '<div class="et">'+svgQR(url)+'<div><div class="t1">'+esc(e.eq || e.sub)+'</div><div class="t2">'+esc(e.area)+(e.eq ? ' › '+esc(e.sub) : '')+'</div>'+
+        '<div class="t3">¿VES UNA ANOMALÍA?<br>ESCANEÁ Y CARGÁ LA TARJETA</div></div></div>';
+    }).join('');
+    $('info').textContent = items.length + ' etiquetas generadas.';
+  });
+  var confirmado = false;
+  $('imprimir').addEventListener('click', function(){ window.print(); });
+</script>
+</body>
+</html>

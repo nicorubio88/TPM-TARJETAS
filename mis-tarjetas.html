@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mis tarjetas · TPM Tornquist</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#548235">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .mt{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .tj{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;border-left:5px solid #ccc;position:relative}
+  .tj .nuevo{position:absolute;top:10px;right:10px;background:var(--amber);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:10px}
+  .tj .fotos img{max-height:120px}
+  .tj .acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .yo-res{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media(max-width:700px){.yo-res{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Tarjetas TPM · Tornquist</div>
+  <nav></nav>
+</div>
+<div class="wrap">
+  <h1 id="titulo">Mis tarjetas</h1>
+  <p class="sub">Lo que reportaste, qué pasó con cada una y lo que tenés asignado.</p>
+  <div id="msg"></div>
+  <div id="sinYo" class="card" style="display:none;text-align:center">
+    <p>Para ver tus tarjetas, decinos quién sos.</p>
+    <button class="btn" onclick="abrirQuienSoy()">Identificarme</button>
+  </div>
+  <div id="contenido" style="display:none">
+    <div class="yo-res" id="resumen"></div>
+
+    <h2>✔ Resueltas: verificalas en el equipo</h2>
+    <p class="sub" style="margin-top:-6px">Mirá si realmente quedó bien. Si no, se vuelve a abrir.</p>
+    <div class="mt" id="aVerificar"></div>
+
+    <h2>Asignadas a mí</h2>
+    <div class="mt" id="asignadas"></div>
+
+    <h2>Mis tarjetas abiertas</h2>
+    <div class="mt" id="abiertas"></div>
+
+    <h2>Cerradas en los últimos 60 días</h2>
+    <div class="mt" id="cerradas"></div>
+  </div>
+</div>
+
+<script src="arbol.js"></script>
+<script src="personas.js"></script>
+<script src="comun.js"></script>
+<script>
+  var $ = function(id){ return document.getElementById(id); };
+  var TODAS = [], visto = LS.get('tpm_visto_' + getYo(), '');
+
+  function tarjeta(t, modo){
+    var nuevo = modo === 'verif' && visto && String(t['Fecha cierre']) > visto;
+    var fotos = (t['Foto URL'] ? '<div class="foto"><div class="mini">Antes</div><img src="'+esc(fotoSrc(t['Foto URL']))+'"></div>' : '') +
+                (t['Foto cierre URL'] ? '<div class="foto"><div class="mini">Después</div><img src="'+esc(fotoSrc(t['Foto cierre URL']))+'"></div>' : '');
+    var h = '<div class="tj" style="border-left-color:'+colorTipo(t['Tipo'])+'">' + (nuevo ? '<span class="nuevo">NUEVO</span>' : '') +
+      '<div class="mini" style="font-family:monospace">'+esc(t['ID'])+'</div>' +
+      '<div style="font-weight:800;font-size:13.5px;margin:3px 0">'+esc(claveEquipo(t))+'</div>' +
+      '<div style="margin:4px 0">'+badgeEstado(t['Estado'], t.vencida)+' '+badgeCondicion(condicionDe(t))+' '+badgeRepetida(t)+'</div>' +
+      '<div class="desc" style="margin:6px 0">'+esc(t['Descripcion'])+'</div>';
+    if (t['Accion de cierre']) h += '<div class="desc ok" style="margin:6px 0"><b>'+esc(t['Cerrado por'])+':</b> '+esc(t['Accion de cierre'])+'</div>';
+    if (modo === 'abierta' || modo === 'asig') h += '<div class="mini">'+(t['Responsable asignado']?'Responsable: <b>'+esc(t['Responsable asignado'])+'</b> · ':'Sin responsable asignado · ')+
+      (t['Fecha compromiso']?'compromiso '+esc(String(t['Fecha compromiso']).split('-').reverse().join('/'))+' · ':'')+
+      (t['Parada objetivo']?'parada '+esc(String(t['Parada objetivo']).split('-').reverse().join('/'))+' · ':'')+t.diasAbierta+' días</div>' +
+      (t['Fecha planificada'] ? '<div class="mini">📅 Planificada: <b>'+esc(String(t['Fecha planificada']).slice(0,10).split('-').reverse().join('/'))+' '+esc(t['Horario planificado']||'')+'</b>'+(t['Ejecutores']?' · 👷 '+esc(t['Ejecutores']):'')+'</div>' : '');
+    if (fotos) h += '<div class="fotos">'+fotos+'</div>';
+    if (modo === 'verif') h += '<input class="com" placeholder="Si no quedó bien, contá qué falta" style="margin-top:10px">' +
+      '<div class="acc"><button class="btn sm" data-ok="'+esc(t['ID'])+'">✔ Quedó bien</button><button class="btn sec sm" data-no="'+esc(t['ID'])+'">✖ No quedó bien</button></div>';
+    if (modo === 'asig') h += '<div class="acc"><a class="btn sm" href="seguimiento.html?id='+encodeURIComponent(t['ID'])+'">Resolver / gestionar</a></div>';
+    return h + '</div>';
+  }
+  function lista(id, ts, modo, vacio){ $(id).innerHTML = ts.length ? ts.map(function(t){ return tarjeta(t, modo); }).join('') : '<p class="mini">'+vacio+'</p>'; }
+
+  function render(){
+    var yo = getYo();
+    $('sinYo').style.display = yo ? 'none' : 'block';
+    $('contenido').style.display = yo ? 'block' : 'none';
+    if (!yo) return;
+    $('titulo').textContent = 'Mis tarjetas · ' + yo.split(',')[0];
+    var mias = TODAS.filter(function(t){ return t['Detectado por'] === yo; });
+    var hoyD = new Date(), mesIni = new Date(hoyD.getFullYear(), hoyD.getMonth(), 1);
+    var delMes = mias.filter(function(t){ var d = fechaDe(t['Fecha alta']); return d && d >= mesIni; }).length;
+    // ranking del mes
+    var cnt = {}; TODAS.forEach(function(t){ var d = fechaDe(t['Fecha alta']); if (d && d >= mesIni && t['Detectado por']) cnt[t['Detectado por']] = (cnt[t['Detectado por']]||0)+1; });
+    var orden = Object.keys(cnt).sort(function(a,b){ return cnt[b]-cnt[a]; }), pos = orden.indexOf(yo) + 1;
+    var resueltasMias = mias.filter(esResuelta).length;
+    var meta = CONFIG.META_TARJETAS_PERSONA_MES;
+    $('resumen').innerHTML =
+      '<div class="kpi'+(delMes>=meta?'':' amber')+'"><div class="n">'+delMes+' / '+meta+'</div><div class="l">Tarjetas este mes (meta)</div></div>'+
+      '<div class="kpi"><div class="n">'+(pos ? pos+'°' : '—')+'</div><div class="l">Puesto del mes en la planta</div></div>'+
+      '<div class="kpi"><div class="n">'+mias.length+'</div><div class="l">Reportadas (últimos 12 meses)</div></div>'+
+      '<div class="kpi"><div class="n">'+resueltasMias+'</div><div class="l">Ya resueltas gracias a vos</div></div>';
+
+    lista('aVerificar', mias.filter(function(t){ return t['Estado'] === 'Cerrada'; }), 'verif', 'Nada pendiente de verificar.');
+    lista('asignadas', TODAS.filter(function(t){ return esAbierta(t) && (t['Responsable asignado'] === yo || listaNombres(t['Ejecutores']).indexOf(yo) > -1); })
+      .sort(function(a,b){ return String(a['Fecha planificada']||'9').localeCompare(String(b['Fecha planificada']||'9')); }), 'asig', 'No tenés tarjetas asignadas.');
+    lista('abiertas', mias.filter(esAbierta).sort(function(a,b){ return b.diasAbierta - a.diasAbierta; }), 'abierta', 'No tenés tarjetas abiertas.');
+    var lim = desdeISO(60);
+    lista('cerradas', mias.filter(function(t){ return t['Estado'] === 'Verificada' && String(t['Fecha cierre']).slice(0,10) >= lim; }), 'cerrada', 'Sin cierres recientes.');
+
+    document.querySelectorAll('[data-ok]').forEach(function(b){ b.onclick = function(){ verificar(b.dataset.ok, true, b); }; });
+    document.querySelectorAll('[data-no]').forEach(function(b){ b.onclick = function(){ verificar(b.dataset.no, false, b); }; });
+    LS.set('tpm_visto_' + yo, (function(){ var d=new Date(),p=function(n){return String(n).padStart(2,'0');}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); })());
+  }
+
+  async function verificar(id, ok, btn){
+    var com = btn.closest('.tj').querySelector('.com').value.trim();
+    if (!ok && !com) { $('msg').innerHTML = '<div class="msg err">Contá qué falta para que quede bien.</div>'; window.scrollTo(0,0); return; }
+    btn.disabled = true;
+    try { var r = await api('verificar', { id: id, ok: ok, verificadoPor: getYo(), comentario: com });
+      $('msg').innerHTML = r.ok ? '<div class="msg ok">'+(ok ? 'Gracias, tarjeta '+esc(id)+' verificada ✔' : 'Tarjeta '+esc(id)+' reabierta: se avisó al responsable.')+'</div>' : '<div class="msg err">'+esc(r.error)+'</div>';
+      window.scrollTo(0,0); cargar();
+    } catch(e) { btn.disabled = false; $('msg').innerHTML = '<div class="msg err">Sin conexión. Probá de nuevo.</div>'; }
+  }
+
+  async function cargar(){
+    if (!getYo()) { render(); return; }
+    try { var r = await api('listar', { desde: desdeISO(365) });
+      if (r.ok) { TODAS = marcarRepeticiones(r.tarjetas); render(); }
+      else $('msg').innerHTML = '<div class="msg err">'+esc(r.error)+'</div>';
+    } catch(e) { $('msg').innerHTML = '<div class="msg err">Sin conexión.</div>'; }
+  }
+  document.addEventListener('tpm-yo', function(){ visto = LS.get('tpm_visto_' + getYo(), ''); cargar(); });
+  cargar();
+</script>
+</body>
+</html>

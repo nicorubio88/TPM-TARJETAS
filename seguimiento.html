@@ -4,31 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Seguimiento · TPM Tornquist</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#548235">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="estilos.css">
 <style>
-/* ─── ESTILOS DE IMPRESIÓN ─── */
 @media print {
   body { background:#fff!important; margin:0; font-size:11pt }
-  /* ocultar TODA la pantalla (barra, titulo, filtros, tabla, modal) */
   .topbar, .wrap, .modal-bg { display:none!important }
-  /* mostrar solo la hoja a imprimir */
   #printArea { display:block!important; padding:0!important }
   #printArea table { font-size:9.5pt }
   #printArea th { background:#548235!important; color:#fff!important }
-  /* respetar colores de badges, encabezados y celdas marcadas */
   #printArea * { -webkit-print-color-adjust:exact; print-color-adjust:exact }
-  @page { margin:14mm }
+  @page { margin:12mm }
 }
 .print-solo { display:none }
-/* hoja de reporte individual */
 .orden-print { font-family:Arial,sans-serif; max-width:780px; margin:0 auto }
 .orden-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #548235; padding-bottom:12px; margin-bottom:16px }
 .orden-brand { font-size:13px; color:#3D5F26; font-weight:bold }
-.orden-id { font-size:28px; font-weight:bold; font-family:monospace; color:#263528 }
+.orden-id { font-size:26px; font-weight:bold; font-family:monospace; color:#263528 }
 .orden-badge { display:inline-block; color:#fff; font-weight:bold; font-size:13px; padding:5px 14px; border-radius:20px; margin:4px 4px 0 0 }
-.orden-section { margin:14px 0 }
+.orden-section { margin:12px 0 }
 .orden-section h3 { font-size:11px; font-weight:bold; color:#3D5F26; letter-spacing:1px; text-transform:uppercase; margin:0 0 4px; border-bottom:1px solid #D7DECC; padding-bottom:3px }
 .orden-section p { margin:4px 0; font-size:13px; color:#2B362C; line-height:1.5 }
 .orden-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px }
@@ -37,91 +34,177 @@
 .firma-label { font-size:10px; color:#6E7A6C; margin-bottom:6px }
 .lista-print { font-family:Arial,sans-serif }
 .lista-header { display:flex; justify-content:space-between; border-bottom:3px solid #548235; padding-bottom:10px; margin-bottom:14px }
+.plan-grupo{margin:14px 0 4px;font-size:12px;font-weight:bold;color:#263528;border-bottom:2px solid #548235;padding-bottom:3px;display:flex;justify-content:space-between}
 </style>
 </head>
 <body>
 <div class="topbar">
   <div class="brand">Tarjetas TPM · Tornquist</div>
-  <nav>
-    <a href="index.html">Inicio</a>
-    <a href="formulario.html">Cargar</a>
-    <a href="dashboard.html">Dashboard</a>
-    <a href="seguimiento.html" class="activo">Seguimiento</a>
-    <a href="como-funciona.html">Cómo funciona</a>
-    <span id="flag"></span>
-  </nav>
+  <nav></nav>
 </div>
-
 <div class="wrap">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-    <div><h1>Seguimiento</h1><p class="sub">Filtra, asigna responsables y cierra cada tarjeta.</p></div>
+    <div><h1>Seguimiento</h1><p class="sub">Planificá, asigná, resolvé y verificá cada tarjeta.</p></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn sec sm no-print" id="impLista">🖨 Imprimir lista</button>
-      <button class="btn sec sm no-print" id="exportar">Exportar CSV</button>
-      <button class="btn sec sm no-print" id="recargar">Actualizar</button>
+      <button class="btn sm" id="impParada">■ Plan de parada</button>
+      <button class="btn sec sm" id="btnParadas">📅 Paradas</button>
+      <button class="btn sec sm" id="impLista">🖨 Lista</button>
+      <button class="btn sec sm" id="exportar">CSV</button>
+      <button class="btn sec sm" id="recargar">↻</button>
     </div>
   </div>
-
   <div id="msg"></div>
-
   <div class="card">
     <div class="filtros">
+      <div><label>Período</label><select id="fPeriodo"><option value="90">Últimos 90 días</option><option value="180">Últimos 6 meses</option><option value="365" selected>Últimos 12 meses</option><option value="0">Todo</option></select></div>
+      <div><label>Estado</label><select id="fEstado"><option value="_abiertas">Abiertas + en proceso</option><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="Anulada">Anuladas</option><option value="">Todas</option></select></div>
       <div><label>Color</label><select id="fColor"><option value="">Todos</option><option>Roja</option><option>Azul</option><option>Verde</option></select></div>
-      <div><label>Estado</label><select id="fEstado"><option value="">Todos</option><option>Abierta</option><option>En proceso</option><option>Cerrada</option><option>Anulada</option></select></div>
-      <div><label>Grupo</label><select id="fGrupo"><option value="">Todos</option><option>Mantenimiento</option><option>Operacion</option><option>Mejora Enfocada</option></select></div>
-      <div><label>Área equipo</label><select id="fArea"><option value="">Todas</option></select></div>
-      <div><label>Etapa MA</label><select id="fEtapa"><option value="">Todas</option></select></div>
-      <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto..."></div>
-      <div style="flex:0"><label>&nbsp;</label><label style="font-weight:normal;font-size:12px;color:var(--ink)"><input type="checkbox" id="fVencidas" style="width:auto;margin-right:6px">Solo vencidas</label></div>
+      <div><label>Condición máquina</label><select id="fCond"></select></div>
+      <div><label>Área equipo</label><select id="fArea"></select></div>
+      <div><label>Parada objetivo</label><select id="fParada"></select></div>
+      <div><label>Especialidad</label><select id="fEsp"></select></div>
+      <div><label>Etapa MA</label><select id="fEtapa"></select></div>
+      <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto, OT..."></div>
     </div>
-    <div style="overflow:auto;max-height:62vh">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin:-4px 0 12px;font-size:12.5px">
+      <label class="chk"><input type="checkbox" id="fVencidas"> Solo vencidas</label>
+      <label class="chk"><input type="checkbox" id="fRepetidas"> Solo repetidas ↻</label>
+      <label class="chk"><input type="checkbox" id="fSeguridad"> Solo seguridad</label>
+      <label class="chk"><input type="checkbox" id="fMias"> Asignadas a mí</label>
+    </div>
+    <div id="bulk" class="bulk" style="display:none">
+      <b id="bulkN"></b>
+      <select id="bParada"></select>
+      <select id="bResp"></select>
+      <select id="bCond"></select>
+      <button class="btn sm" id="bAplicar">Aplicar a seleccionadas</button>
+    </div>
+    <div style="overflow:auto;max-height:64vh">
       <table>
         <thead><tr>
-          <th>ID</th><th>Color</th><th>Ubicación</th><th>Descripcion</th>
-          <th>Grupo</th><th>Responsable</th><th>Dias</th><th>Estado</th>
+          <th style="width:28px"><input type="checkbox" id="selTodas" title="Seleccionar todas"></th>
+          <th title="Puntaje de prioridad para planificar">Pts</th><th>ID</th><th>Color</th><th>Cond.</th><th>Ubicación</th><th>Descripción</th>
+          <th>Responsable</th><th>Parada</th><th>Días</th><th>Estado</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
     <p class="sub" id="conteo" style="margin-top:10px"></p>
   </div>
-</div><!-- end wrap -->
+</div>
 
-<!-- ═══════════ ÁREA DE IMPRESIÓN (oculta en pantalla) ═══════════ -->
 <div id="printArea" class="print-solo" style="padding:20px"></div>
 
+<!-- ============ MODAL TARJETA ============ -->
 <div class="modal-bg" id="modal">
-  <div class="modal">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+  <div class="modal" style="max-width:760px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
       <div><h3 id="mTitulo"></h3><div id="mBadges" style="margin:6px 0"></div></div>
       <button class="btn sec sm" id="mCerrarX">✕</button>
     </div>
     <div id="mDetalle"></div>
 
-    <h2 style="font-size:14px">Gestion</h2>
-    <div class="grid cols-2">
-      <div><label>Responsable asignado</label><select id="gResponsable"></select></div>
-      <div><label>Fecha compromiso</label><input id="gCompromiso" type="date"></div>
-    </div>
-    <div class="grid cols-2">
-      <div><label>Estado</label><select id="gEstado"></select></div>
-      <div><label>Prioridad</label><select id="gPrioridad"></select></div>
-    </div>
-    <label>Etapa de Mantenimiento Autonomo</label>
-    <select id="gEtapaMa"></select>
-    <label>Nota</label>
-    <textarea id="gNotas"></textarea>
-    <div style="display:flex;gap:10px;margin-top:10px">
-      <button class="btn" id="gGuardar">Guardar cambios</button>
+    <!-- VERIFICAR -->
+    <div id="secVerificar" class="seccion verif">
+      <h2>✔ Verificación en el equipo</h2>
+      <p class="sub" style="margin:0 0 6px">Quien detectó o el operador del sector confirma que quedó bien. Si no, vuelve a abrirse.</p>
+      <div class="grid cols-2">
+        <div><label>Verifica</label><input id="vQuien"></div>
+        <div><label>Comentario (obligatorio si no quedó bien)</label><input id="vCom"></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" id="vOk">✔ Quedó resuelta</button>
+        <button class="btn sec" id="vNo" style="border-color:var(--roja);color:var(--roja)">✖ No quedó bien — reabrir</button>
+      </div>
     </div>
 
-    <h2 style="font-size:14px">Cerrar tarjeta</h2>
-    <label>Accion de cierre (que se hizo)</label>
-    <textarea id="gAccionCierre" placeholder="Como se resolvio."></textarea>
-    <div class="grid cols-2">
-      <div><label>Costo / ahorro (USD)</label><input id="gCosto" type="number"></div>
-      <div style="display:flex;align-items:flex-end"><button class="btn" id="gCerrar" style="width:100%">Marcar como cerrada</button></div>
+    <!-- PLANIFICACION -->
+    <div id="secGestion" class="seccion">
+      <h2>Planificación y gestión</h2>
+      <div class="grid cols-3">
+        <div><label>Color</label><select id="gTipo"></select></div>
+        <div><label>Estado</label><select id="gEstado"></select></div>
+        <div><label>Prioridad</label><select id="gPrioridad"></select></div>
+      </div>
+      <div id="boxMotivo" style="display:none"><label>Motivo de anulación *</label><input id="gMotivo" placeholder="Duplicada, no corresponde, ya resuelta en otra tarjeta..."></div>
+      <div class="grid cols-3">
+        <div><label>Responsable asignado</label><select id="gResponsable"></select></div>
+        <div><label>Fecha compromiso</label><input id="gCompromiso" type="date"></div>
+        <div><label>Parada objetivo</label><select id="gParada"></select></div>
+      </div>
+      <div class="grid cols-2">
+        <div><label>Condición de máquina</label><select id="gCondicion"></select></div>
+        <div><label>Especialidad</label><select id="gEspecialidad"></select></div>
+      </div>
+      <div class="grid cols-3">
+        <div><label>Duración estimada (h)</label><input id="gHoras" type="number" min="0" step="0.25" placeholder="ej: 1.5"></div>
+        <div><label>Personas necesarias</label><input id="gPersonas" type="number" min="1" step="1" placeholder="ej: 2"></div>
+        <div><label>Fecha planificada</label><input id="gFechaPlan" type="date"></div>
+      </div>
+      <div class="grid cols-2">
+        <div><label>Ejecutores (separados por ;)</label><input id="gEjecutores" placeholder="Apellido, Nombre; Apellido, Nombre"></div>
+        <div><label>Horario planificado</label><input id="gHorario" placeholder="ej: 08:00-10:30"></div>
+      </div>
+      <div id="ptsInfo" class="kv" style="margin-top:8px"></div>
+      <div class="grid cols-3">
+        <div><label>LOTO / permiso</label><select id="gLoto"></select></div>
+        <div><label>N° OT (mantenimiento)</label><input id="gOT" placeholder="ej: 450123"></div>
+        <div><label>Repuestos / materiales</label><input id="gRepuestos" placeholder="rodamiento 6205, junta..."></div>
+      </div>
+      <div class="grid cols-2">
+        <div><label>Categoría de anomalía *</label><select id="gCategoria"></select></div>
+        <div><label>Etapa de Mantenimiento Autónomo</label><select id="gEtapaMa"></select></div>
+      </div>
+      <label>Nota</label>
+      <textarea id="gNotas" style="min-height:60px"></textarea>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" id="gGuardar">Guardar cambios</button>
+        <button class="btn sec sm" id="impOrden">🖨 Orden de trabajo</button>
+        <button class="btn sec sm" id="gEHS" style="display:none">⚠ Derivar a Seguridad e Higiene</button>
+      </div>
     </div>
+
+    <!-- RESOLVER -->
+    <div id="secResolver" class="seccion">
+      <h2>Resolver la tarjeta</h2>
+      <label>Acción realizada (qué se hizo) *</label>
+      <textarea id="rAccion" placeholder="Cómo se resolvió." style="min-height:60px"></textarea>
+      <div class="grid cols-3">
+        <div><label>Resuelta por *</label><input id="rPor"></div>
+        <div><label>Causa</label><select id="rCausa"></select></div>
+        <div><label>Costo / ahorro (USD)</label><input id="rCosto" type="number"></div>
+      </div>
+      <label>Foto del después</label>
+      <input id="rFoto" type="file" accept="image/*" capture="environment"><div id="rFotoPrev"></div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:13px">
+        <label class="chk"><input type="checkbox" id="rMP"> Agregar al plan preventivo (Mant. Planificado)</label>
+        <label class="chk"><input type="checkbox" id="rEstd"> Actualizar estándar LILA / hacer LUP</label>
+      </div>
+      <button class="btn" id="rCerrar" style="width:100%;margin-top:12px">Marcar como resuelta</button>
+    </div>
+
+    <details class="mas" id="secHist"><summary>Historial de la tarjeta</summary><div id="hist" class="hist"></div></details>
+  </div>
+</div>
+
+<!-- ============ MODAL PARADAS ============ -->
+<div class="modal-bg" id="mParadas">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between"><h3>Paradas programadas</h3><button class="btn sec sm" id="pCerrarX">✕</button></div>
+    <p class="sub" style="margin:4px 0 10px">Cargá las paradas y asigná tarjetas a cada una (en la tarjeta o en lote). El plan compara horas cargadas contra horas-hombre disponibles.</p>
+    <div id="pLista" style="overflow-x:auto"></div>
+    <h2>Nueva / editar parada</h2>
+    <input type="hidden" id="pId">
+    <div class="grid cols-3">
+      <div><label>Fecha *</label><input id="pFecha" type="date"></div>
+      <div><label>Hora de inicio</label><input id="pHora" type="time" value="06:00"></div>
+      <div><label>Duración (h)</label><input id="pDur" type="number" min="1" placeholder="ej: 12"></div>
+    </div>
+    <div class="grid cols-2">
+      <div><label>Descripción</label><input id="pDesc" placeholder="Parada mensual MP1"></div>
+      <div><label>Horas-hombre disponibles (opcional)</label><input id="pHH" type="number" min="0" placeholder="ej: 120"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="pGuardar">Guardar parada</button><button class="btn sec" id="pNueva">Limpiar</button></div>
   </div>
 </div>
 
@@ -129,317 +212,437 @@
 <script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
-  /* badge demo removido a pedido */
-  var TODAS = [], actual = null;
+  var $ = function(id){ return document.getElementById(id); };
+  var TODAS = [], PARADAS = [], actual = null, fotoDespues = '', SEL = {};
 
-  document.getElementById('fEtapa').innerHTML = '<option value="">Todas</option>' + opciones(ETAPAS_MA);
-  document.getElementById('fArea').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
-  document.getElementById('gEstado').innerHTML = opciones(ESTADOS);
-  document.getElementById('gPrioridad').innerHTML = opciones(PRIORIDADES);
-  document.getElementById('gEtapaMa').innerHTML = '<option value="">—</option>' + opciones(ETAPAS_MA);
-  document.getElementById('gResponsable').innerHTML = '<option value="">(sin asignar)</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
+  /* ---------- combos ---------- */
+  var optCond = Object.keys(CONDICIONES).map(function(c){ return '<option value="'+c+'">'+CONDICIONES[c].icono+' '+CONDICIONES[c].corto+'</option>'; }).join('');
+  $('fCond').innerHTML = '<option value="">Todas</option>' + optCond;
+  $('fArea').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
+  $('fEsp').innerHTML = '<option value="">Todas</option>' + opciones(ESPECIALIDADES);
+  $('fEtapa').innerHTML = '<option value="">Todas</option>' + opciones(ETAPAS_MA);
+  $('gTipo').innerHTML = opciones(Object.keys(TIPOS));
+  $('gEstado').innerHTML = opciones(['Abierta', 'En proceso', 'Anulada']);
+  $('gPrioridad').innerHTML = opciones(PRIORIDADES);
+  $('gCondicion').innerHTML = optCond;
+  $('gEspecialidad').innerHTML = '<option value="">—</option>' + opciones(ESPECIALIDADES);
+  $('gLoto').innerHTML = '<option value="">—</option>' + opciones(LOTO_OPCIONES);
+  $('gCategoria').innerHTML = '<option value="">(sin categoría: elegir)</option>' + opcionesGrupos(CATEGORIAS_TPM);
+  $('gEtapaMa').innerHTML = '<option value="">—</option>' + opciones(ETAPAS_MA);
+  $('gResponsable').innerHTML = '<option value="">(sin asignar)</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
+  $('rCausa').innerHTML = '<option value="">—</option>' + opciones(CAUSAS);
+  $('bResp').innerHTML = '<option value="">Responsable: sin cambio</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
+  $('bCond').innerHTML = '<option value="">Condición: sin cambio</option>' + optCond;
+  montarBuscadorPersona($('rPor')); montarBuscadorPersona($('vQuien'));
 
-  function msg(t,ok){ document.getElementById('msg').innerHTML='<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
+  function pintarCombosParada(){
+    var opts = PARADAS.map(function(p){ return '<option value="'+esc(p.fecha)+'">'+esc(p.fecha.split('-').reverse().join('/'))+(p.descripcion?' · '+esc(p.descripcion):'')+'</option>'; }).join('');
+    var vf = $('fParada').value, vg = $('gParada').value;
+    $('fParada').innerHTML = '<option value="">Todas</option><option value="_sin">Sin parada asignada</option>' + opts;
+    $('gParada').innerHTML = '<option value="">— sin asignar —</option>' + opts;
+    $('bParada').innerHTML = '<option value="">Parada: sin cambio</option><option value="_quitar">Quitar parada</option>' + opts;
+    $('fParada').value = vf; $('gParada').value = vg;
+  }
 
+  function msg(t,ok){ $('msg').innerHTML='<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
+
+  /* ---------- datos ---------- */
   async function cargar(){
     try{
-      var r = await api('listar');
-      if(!r.ok){ msg(r.error||'error', false); return; }
-      TODAS = r.tarjetas; render();
-    }catch(e){ msg('Error de conexion: '+e.message, false); }
+      var p = +$('fPeriodo').value;
+      // se trae 90 dias extra para poder detectar repeticiones; la lista se recorta al periodo en filtradas()
+      var r = await api('listar', { desde: p ? desdeISO(p + CONFIG.DIAS_REPETICION) : '' });
+      if(!r.ok){ msg(esc(r.error||'error'), false); return; }
+      TODAS = marcarRepeticiones(r.tarjetas); PARADAS = r.paradas || [];
+      pintarCombosParada(); render(); pintarParadas();
+      var id = new URLSearchParams(location.search).get('id');
+      if (id && !actual) abrir(id);
+    }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
   }
 
   function filtradas(){
-    var c=document.getElementById('fColor').value, e=document.getElementById('fEstado').value,
-        g=document.getElementById('fGrupo').value,
-        et=document.getElementById('fEtapa').value, fa=document.getElementById('fArea').value,
-        tx=document.getElementById('fTexto').value.toLowerCase(), v=document.getElementById('fVencidas').checked;
+    var v = function(id){ return $(id).value; };
+    var e=v('fEstado'), c=v('fColor'), fc=v('fCond'), fa=v('fArea'), fp=v('fParada'), fe=v('fEsp'), et=v('fEtapa'),
+        tx=v('fTexto').toLowerCase(), yo=getYo();
+    var dp = +v('fPeriodo'), lim = dp ? desdeISO(dp) : '';
     return TODAS.filter(function(t){
+      if(lim && !esAbierta(t) && t['Estado']!=='Cerrada' && String(t['Fecha alta']).slice(0,10) < lim && String(t['Fecha cierre']||'').slice(0,10) < lim) return false;
+      if(e==='_abiertas' ? !esAbierta(t) : (e && t['Estado']!==e)) return false;
       if(c && t['Tipo']!==c) return false;
-      if(e && t['Estado']!==e) return false;
-      if(g && t['Grupo responsable']!==g) return false;
-      if(et && t['Etapa MA']!==et) return false;
+      if(fc && condicionDe(t)!==fc) return false;
       if(fa && t['Area equipo']!==fa) return false;
-      if(v && !t.vencida) return false;
-      if(tx){ var blob=(t['ID']+' '+t['Equipo']+' '+t['Descripcion']+' '+t['Responsable asignado']+' '+t['Componente/Ubicacion']).toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
+      if(fp==='_sin' ? !!t['Parada objetivo'] : (fp && t['Parada objetivo']!==fp)) return false;
+      if(fe && t['Especialidad']!==fe) return false;
+      if(et && t['Etapa MA']!==et) return false;
+      if($('fVencidas').checked && !t.vencida) return false;
+      if($('fRepetidas').checked && !t.repetidaDe) return false;
+      if($('fSeguridad').checked && grupoCategoria(t['Categoria']).indexOf('6 ')!==0) return false;
+      if($('fMias').checked && t['Responsable asignado']!==yo && listaNombres(t['Ejecutores']).indexOf(yo)===-1) return false;
+      if(tx){ var blob=[t['ID'],t['Equipo'],t['Descripcion'],t['Responsable asignado'],t['Componente/Ubicacion'],t['Repuestos'],t['N OT'],t['Detectado por']].join(' ').toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
       return true;
-    });
+    }).sort(function(a,b){ return String(b['Fecha alta']).localeCompare(String(a['Fecha alta'])); });
   }
 
   function render(){
     var f = filtradas();
-    document.getElementById('tbody').innerHTML = f.map(function(t){
+    $('tbody').innerHTML = f.map(function(t){
+      var d = String(t['Descripcion']||'');
       return '<tr class="clic" data-id="'+esc(t['ID'])+'">'+
+        '<td><input type="checkbox" class="sel" data-id="'+esc(t['ID'])+'"'+(SEL[t['ID']]?' checked':'')+'></td>'+
+        '<td><span class="pts-mini" title="'+esc(textoPuntaje(puntaje(t)))+'">'+(esAbierta(t)?puntaje(t).total:'')+'</span></td>'+
         '<td style="font-family:monospace;font-size:12px">'+esc(t['ID'])+'</td>'+
         '<td>'+badgeTipo(t['Tipo'])+'</td>'+
-        '<td>'+esc(t['Area equipo']||'—')+(t['Equipo']?'<br><span style="color:var(--muted);font-size:12px">'+esc(t['Equipo'])+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</span>':'')+'</td>'+
-        '<td>'+esc(String(t['Descripcion']).slice(0,70))+(String(t['Descripcion']).length>70?'…':'')+'</td>'+
-        '<td>'+esc(t['Grupo responsable'])+'</td>'+
-        '<td>'+esc(t['Responsable asignado']||'—')+'</td>'+
+        '<td>'+badgeCondicion(condicionDe(t))+'</td>'+
+        '<td>'+esc(t['Area equipo']||'—')+(t['Equipo']?'<br><span class="mini">'+esc(t['Equipo'])+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</span>':'')+'</td>'+
+        '<td>'+esc(d.slice(0,70))+(d.length>70?'…':'')+(t.repetidaDe?' '+badgeRepetida(t):'')+'</td>'+
+        '<td>'+esc(t['Responsable asignado']||'—')+(t['Ejecutores']?'<br><span class="mini">👷 '+esc(listaNombres(t['Ejecutores']).map(function(n){return n.split(',')[0];}).join(', '))+'</span>':'')+
+          (t['Horas estimadas']?'<br><span class="mini">'+esc(t['Horas estimadas'])+' h × '+esc(t['Personas necesarias']||1)+'</span>':'')+'</td>'+
+        '<td class="mini">'+(t['Parada objetivo']?'■ '+esc(String(t['Parada objetivo']).split('-').reverse().join('/')):(t['Fecha planificada']?'▶ '+esc(String(t['Fecha planificada']).slice(0,10).split('-').reverse().join('/')):'—'))+(t['Horario planificado']?'<br>'+esc(t['Horario planificado']):'')+'</td>'+
         '<td style="text-align:center">'+(t.diasAbierta===''?'—':t.diasAbierta)+'</td>'+
         '<td>'+badgeEstado(t['Estado'], t.vencida)+'</td></tr>';
     }).join('');
-    document.getElementById('conteo').textContent = f.length + ' de ' + TODAS.length + ' tarjetas';
-    Array.prototype.forEach.call(document.querySelectorAll('#tbody tr'), function(tr){
-      tr.addEventListener('click', function(){ abrir(tr.getAttribute('data-id')); });
+    $('conteo').textContent = f.length + ' tarjetas';
+    document.querySelectorAll('#tbody tr').forEach(function(tr){
+      tr.addEventListener('click', function(ev){ if(ev.target.classList.contains('sel')) return; abrir(tr.getAttribute('data-id')); });
     });
+    document.querySelectorAll('#tbody .sel').forEach(function(cb){
+      cb.addEventListener('change', function(){ if(cb.checked) SEL[cb.dataset.id]=1; else delete SEL[cb.dataset.id]; pintarBulk(); });
+    });
+    pintarBulk();
   }
 
+  /* ---------- seleccion masiva ---------- */
+  function pintarBulk(){
+    var n = Object.keys(SEL).length;
+    $('bulk').style.display = n ? 'flex' : 'none';
+    $('bulkN').textContent = n + ' seleccionada' + (n!==1?'s':'');
+  }
+  $('selTodas').addEventListener('change', function(){
+    var on = this.checked; SEL = {};
+    if (on) filtradas().forEach(function(t){ SEL[t['ID']] = 1; });
+    render();
+  });
+  $('bAplicar').addEventListener('click', async function(){
+    var cambios = {};
+    if ($('bParada').value) cambios.paradaObjetivo = $('bParada').value === '_quitar' ? '' : $('bParada').value;
+    if ($('bResp').value) cambios.responsable = $('bResp').value;
+    if ($('bCond').value) cambios.condicion = $('bCond').value;
+    if (!Object.keys(cambios).length) return msg('Elegí qué cambiar (parada, responsable o condición).', false);
+    var ids = Object.keys(SEL), ok = 0, btn = this; btn.disabled = true;
+    for (var i = 0; i < ids.length; i++) {
+      btn.textContent = 'Aplicando ' + (i+1) + '/' + ids.length + '...';
+      try { var r = await api('actualizar', { id: ids[i], cambios: cambios }); if (r.ok) ok++; } catch(e) {}
+    }
+    btn.disabled = false; btn.textContent = 'Aplicar a seleccionadas';
+    SEL = {}; $('selTodas').checked = false;
+    msg(ok + ' de ' + ids.length + ' tarjetas actualizadas.', ok === ids.length);
+    cargar();
+  });
+
+  /* ---------- modal tarjeta ---------- */
+  function foto(url, titulo){
+    return url ? '<div class="foto"><div class="mini">'+titulo+'</div><a href="'+esc(fotoSrc(url))+'" target="_blank"><img src="'+esc(fotoSrc(url))+'" alt="'+titulo+'"></a></div>' : '';
+  }
   function abrir(id){
     actual = TODAS.find(function(t){ return t['ID']===id; });
     if(!actual) return;
-    var t = actual;
-    document.getElementById('mTitulo').textContent = t['ID'];
-    document.getElementById('mBadges').innerHTML = badgeTipo(t['Tipo']) + ' ' + badgeEstado(t['Estado'], t.vencida);
-    document.getElementById('mDetalle').innerHTML =
-      '<div class="kv"><b>Ubicación:</b> '+esc(t['Area equipo']||'—')+' › '+esc(t['Equipo']||'—')+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</div>'+
-      '<div class="kv"><b>Categoria:</b> '+esc(t['Categoria']||'—')+' &nbsp; <b>Prioridad:</b> '+esc(t['Prioridad'])+'</div>'+
-      '<div class="kv"><b>Etapa MA:</b> '+esc(t['Etapa MA']||'—')+(t['Dimension mejora']?' &nbsp; <b>Mejora:</b> '+esc(t['Dimension mejora']):'')+'</div>'+
-      '<div class="kv"><b>Detectado por:</b> '+esc(t['Detectado por'])+' ('+esc(t['Turno']||'s/turno')+') &nbsp; <b>Alta:</b> '+esc(t['Fecha alta'])+'</div>'+
-      '<div class="kv"><b>Grupo responsable:</b> '+esc(t['Grupo responsable'])+'</div>'+
-      '<div class="kv" style="margin-top:6px"><b>Descripcion:</b> '+esc(t['Descripcion'])+'</div>'+
-      (t['Accion de cierre']?'<div class="kv" style="margin-top:6px"><b>Cierre:</b> '+esc(t['Accion de cierre'])+' ('+esc(t['Fecha cierre'])+')</div>':'')+
-      (t['Foto URL']?'<div style="margin-top:8px"><a href="'+esc(t['Foto URL'])+'" target="_blank"><img src="'+esc(t['Foto URL'])+'" style="max-height:140px;border-radius:8px;border:1px solid var(--line)"></a></div>':'');
-    document.getElementById('gResponsable').value = t['Responsable asignado']||'';
-    document.getElementById('gCompromiso').value = (t['Fecha compromiso']||'').slice(0,10);
-    document.getElementById('gEstado').value = t['Estado'];
-    document.getElementById('gPrioridad').value = t['Prioridad']||'Media';
-    document.getElementById('gEtapaMa').value = t['Etapa MA']||'';
-    document.getElementById('gNotas').value = t['Notas']||'';
-    document.getElementById('gAccionCierre').value = '';
-    document.getElementById('gCosto').value = t['Costo estimado']||'';
-    document.getElementById('modal').classList.add('show');
+    var t = actual, est = t['Estado'];
+    $('mTitulo').textContent = t['ID'];
+    $('mBadges').innerHTML = badgeTipo(t['Tipo']) + ' ' + badgeEstado(est, t.vencida) + ' ' + badgeCondicion(condicionDe(t)) + ' ' + badgeRepetida(t);
+    var kv = function(l, v){ return v || v === 0 ? '<b>'+l+':</b> '+esc(v)+' &nbsp; ' : ''; };
+    $('mDetalle').innerHTML =
+      '<div class="kv"><b>Ubicación:</b> '+esc(claveEquipo(t)||'—')+'</div>'+
+      '<div class="kv">'+kv('Detectado por', t['Detectado por']+(t['Sector detector']?' ('+t['Sector detector']+')':''))+kv('Turno', t['Turno'])+kv('Alta', t['Fecha alta'])+kv('Días', t.diasAbierta)+'</div>'+
+      '<div class="kv">'+kv('Categoría', t['Categoria'])+kv('Etapa MA', t['Etapa MA'])+kv('Mejora', t['Dimension mejora'])+'</div>'+
+      '<div class="kv">'+kv('Grupo', t['Grupo responsable'])+kv('OT', t['N OT'])+kv('LOTO', t['LOTO / Permiso'])+kv('Reprogramaciones', +t['Reprogramaciones']||'')+kv('Reaperturas', +t['Reaperturas']||'')+'</div>'+
+      (t.repetidaDe?'<div class="kv" style="color:#8A5A0A">↻ Repite la falla de <b>'+esc(t.repetidaDe)+'</b> resuelta hace menos de '+CONFIG.DIAS_REPETICION+' días: revisar la contramedida.</div>':'')+
+      (t['Enviado a EHS']?'<div class="kv"><b>Seguridad e Higiene:</b> '+esc(t['Enviado a EHS'])+'</div>':'')+
+      '<div class="desc">'+esc(t['Descripcion'])+'</div>'+
+      (t['Accion de cierre']?'<div class="desc ok"><b>Resuelta</b> por '+esc(t['Cerrado por'])+' el '+esc(t['Fecha cierre'])+': '+esc(t['Accion de cierre'])+(t['Causa']?' <span class="mini">· Causa: '+esc(t['Causa'])+'</span>':'')+
+        (t['Agregar a MP']==='Si'?' <span class="cond" style="background:#E6ECFA;color:#2E4470">→ Plan preventivo</span>':'')+(t['Actualizar estandar']==='Si'?' <span class="cond" style="background:#E7F2DC;color:#3D5F26">→ Estándar / LUP</span>':'')+'</div>':'')+
+      (t['Verificado por']?'<div class="kv">✔ Verificada por <b>'+esc(t['Verificado por'])+'</b> el '+esc(t['Fecha verificacion'])+'</div>':'')+
+      (t['Notas']?'<div class="kv" style="white-space:pre-line"><b>Notas:</b> '+esc(t['Notas'])+'</div>':'')+
+      '<div class="fotos">'+foto(t['Foto URL'],'Antes')+foto(t['Foto cierre URL'],'Después')+'</div>';
+
+    $('secVerificar').style.display = est === 'Cerrada' ? 'block' : 'none';
+    $('secResolver').style.display = esAbierta(t) ? 'block' : 'none';
+    $('secGestion').style.display = (est === 'Verificada') ? 'none' : 'block';
+    $('gEHS').style.display = grupoCategoria(t['Categoria']).indexOf('6 ')===0 ? 'inline-block' : 'none';
+
+    $('gTipo').value = t['Tipo'];
+    var editable = esAbierta(t) || est==='Anulada';
+    $('gEstado').innerHTML = editable ? opciones(['Abierta', 'En proceso', 'Anulada']) : '<option value="'+esc(est)+'">'+esc(ESTADO_LABEL[est]||est)+'</option>';
+    $('gEstado').value = est; $('gEstado').disabled = !editable;
+    $('gPrioridad').value = t['Prioridad']||'Media';
+    $('gResponsable').value = t['Responsable asignado']||''; $('gCompromiso').value = String(t['Fecha compromiso']||'').slice(0,10);
+    pintarCombosParada(); $('gParada').value = t['Parada objetivo']||'';
+    $('gCondicion').value = condicionDe(t); $('gEspecialidad').value = t['Especialidad']||''; $('gHoras').value = t['Horas estimadas']||'';
+    $('gPersonas').value = t['Personas necesarias']||''; $('gEjecutores').value = t['Ejecutores']||'';
+    $('gFechaPlan').value = String(t['Fecha planificada']||'').slice(0,10); $('gHorario').value = t['Horario planificado']||'';
+    var pt = puntaje(t);
+    $('ptsInfo').innerHTML = esAbierta(t) ? '<b>Puntaje de planificación: '+pt.total+'</b> <span class="mini">('+esc(textoPuntaje(pt))+')</span>' +
+      (!t['Responsable asignado'] && supervisorPara(t['Area equipo'], t['Tipo']) ? '<br><span class="mini">Supervisor por defecto del área: '+esc(supervisorPara(t['Area equipo'], t['Tipo']))+'</span>' : '') : '';
+    $('gLoto').value = t['LOTO / Permiso']||''; $('gOT').value = t['N OT']||''; $('gRepuestos').value = t['Repuestos']||'';
+    $('gCategoria').value = t['Categoria']||''; $('gEtapaMa').value = t['Etapa MA']||''; $('gNotas').value = t['Notas']||'';
+    $('gMotivo').value = ''; $('boxMotivo').style.display = 'none';
+    $('rAccion').value = ''; $('rPor').value = getYo(); $('rCausa').value = ''; $('rCosto').value = t['Costo estimado']||'';
+    $('rFoto').value = ''; $('rFotoPrev').innerHTML = ''; fotoDespues = ''; $('rMP').checked = false; $('rEstd').checked = false;
+    $('vQuien').value = getYo(); $('vCom').value = '';
+    $('secHist').open = false; $('hist').innerHTML = '';
+    $('modal').classList.add('show');
   }
-  function cerrarModal(){ document.getElementById('modal').classList.remove('show'); }
+  function cerrarModal(){ $('modal').classList.remove('show'); actual = null; history.replaceState(null, '', location.pathname); }
+  $('mCerrarX').addEventListener('click', cerrarModal);
+  $('modal').addEventListener('click', function(e){ if(e.target.id==='modal') cerrarModal(); });
+  $('gEstado').addEventListener('change', function(){ $('boxMotivo').style.display = (this.value==='Anulada' && actual && actual['Estado']!=='Anulada') ? 'block' : 'none'; });
 
-  document.getElementById('mCerrarX').addEventListener('click', cerrarModal);
-  document.getElementById('modal').addEventListener('click', function(e){ if(e.target.id==='modal') cerrarModal(); });
+  $('secHist').addEventListener('toggle', async function(){
+    if (!this.open || !actual || $('hist').innerHTML) return;
+    $('hist').innerHTML = '<span class="mini">Cargando...</span>';
+    try { var r = await api('historial', { id: actual['ID'] });
+      $('hist').innerHTML = (r.historial||[]).length ? r.historial.slice().reverse().map(function(h){
+        return '<div><span class="mini">'+esc(h['Fecha'])+' · '+esc(h['Usuario']||'—')+'</span><br><b>'+esc(h['Accion'])+'</b> '+
+          (h['Campo']?esc(h['Campo'])+': ':'')+(h['Antes']?'<s>'+esc(h['Antes'])+'</s> → ':'')+esc(h['Despues'])+'</div>';
+      }).join('') : '<span class="mini">Sin movimientos registrados (las tarjetas anteriores a la v3 no tienen historial).</span>';
+    } catch(e) { $('hist').innerHTML = '<span class="mini">No se pudo cargar.</span>'; }
+  });
 
-  document.getElementById('gGuardar').addEventListener('click', async function(){
+  $('gGuardar').addEventListener('click', async function(){
     if(!actual) return;
+    var nuevoEstado = $('gEstado').value;
+    if (nuevoEstado === 'Anulada' && actual['Estado'] !== 'Anulada' && !$('gMotivo').value.trim()) return msg('Indicá el motivo de anulación.', false);
     var cambios = {
-      responsable: document.getElementById('gResponsable').value.trim(),
-      fechaCompromiso: document.getElementById('gCompromiso').value,
-      estado: document.getElementById('gEstado').value,
-      prioridad: document.getElementById('gPrioridad').value,
-      etapaMa: document.getElementById('gEtapaMa').value,
-      notas: document.getElementById('gNotas').value.trim()
+      tipo: $('gTipo').value, prioridad: $('gPrioridad').value, responsable: $('gResponsable').value,
+      fechaCompromiso: $('gCompromiso').value, paradaObjetivo: $('gParada').value, condicion: $('gCondicion').value,
+      especialidad: $('gEspecialidad').value, horasEstimadas: $('gHoras').value, loto: $('gLoto').value,
+      personas: $('gPersonas').value, ejecutores: $('gEjecutores').value.trim(), fechaPlanificada: $('gFechaPlan').value, horario: $('gHorario').value.trim(),
+      nOT: $('gOT').value.trim(), repuestos: $('gRepuestos').value.trim(), categoria: $('gCategoria').value,
+      etapaMa: $('gEtapaMa').value, notas: $('gNotas').value.trim()
     };
+    if (!$('gEstado').disabled && nuevoEstado !== actual['Estado']) { cambios.estado = nuevoEstado; cambios.motivo = $('gMotivo').value.trim(); }
+    var btn = this; btn.disabled = true;
     try{ var r = await api('actualizar', { id: actual['ID'], cambios: cambios });
-      if(r.ok){ cerrarModal(); msg('Tarjeta '+actual['ID']+' actualizada.', true); cargar(); }
-      else msg(r.error||'error', false);
-    }catch(e){ msg('Error: '+e.message, false); }
+      if(r.ok){ var id = actual['ID']; cerrarModal(); msg('Tarjeta '+esc(id)+' actualizada.', true); cargar(); }
+      else msg(esc(r.error||'error'), false);
+    }catch(e){ msg('Error: '+esc(e.message), false); }
+    btn.disabled = false;
   });
 
-  document.getElementById('gCerrar').addEventListener('click', async function(){
+  $('gEHS').addEventListener('click', async function(){
     if(!actual) return;
-    var accion = document.getElementById('gAccionCierre').value.trim();
-    if(!accion) return msg('Indica la accion de cierre.', false);
-    try{ var r = await api('cerrar', { id: actual['ID'], accion: accion, costo: document.getElementById('gCosto').value });
-      if(r.ok){ cerrarModal(); msg('Tarjeta '+actual['ID']+' cerrada.', true); cargar(); }
-      else msg(r.error||'error', false);
-    }catch(e){ msg('Error: '+e.message, false); }
+    try { var r = await api('derivarEHS', { id: actual['ID'] });
+      msg(r.ok ? 'Derivación a Seguridad e Higiene: ' + esc(r.ehs) + (r.ehs==='Pendiente' ? ' (configurar EHS_EMAIL o EHS_API_URL en Codigo.gs)' : '') : esc(r.error), r.ok);
+      if (r.ok) { cerrarModal(); cargar(); }
+    } catch(e) { msg('Error: '+esc(e.message), false); }
   });
 
-  ['fColor','fEstado','fGrupo','fEtapa','fArea','fVencidas'].forEach(function(id){ document.getElementById(id).addEventListener('change', render); });
-  document.getElementById('fTexto').addEventListener('input', render);
-  document.getElementById('recargar').addEventListener('click', cargar);
+  $('rFoto').addEventListener('change', async function(){
+    var f = this.files[0]; if(!f){ fotoDespues=''; $('rFotoPrev').innerHTML=''; return; }
+    try { fotoDespues = await comprimirImagen(f); $('rFotoPrev').innerHTML = '<img src="'+fotoDespues+'" style="max-height:90px;margin-top:6px;border-radius:8px">'; }
+    catch(e){ fotoDespues=''; }
+  });
+
+  $('rCerrar').addEventListener('click', async function(){
+    if(!actual) return;
+    var accion = $('rAccion').value.trim(), por = $('rPor').value.trim();
+    if(!accion) return msg('Indicá la acción realizada.', false);
+    if(!personaValida(por)) return msg('Indicá quién la resolvió (elegí de la lista).', false);
+    var btn = this; btn.disabled = true; btn.textContent = 'Guardando...';
+    try{ var r = await api('cerrar', { id: actual['ID'], accion: accion, cerradoPor: por, costo: $('rCosto').value, causa: $('rCausa').value,
+          fotoCierreData: fotoDespues, agregarMP: $('rMP').checked, actualizarEstandar: $('rEstd').checked });
+      if(r.ok){ var id = actual['ID']; cerrarModal(); msg('Tarjeta '+esc(id)+' resuelta. Queda pendiente de verificación en el equipo.'+(r.fotoError?' ⚠ '+esc(r.fotoError):''), true); cargar(); }
+      else msg(esc(r.error||'error'), false);
+    }catch(e){ msg('Error: '+esc(e.message), false); }
+    btn.disabled = false; btn.textContent = 'Marcar como resuelta';
+  });
+
+  async function verificar(ok){
+    if(!actual) return;
+    var quien = $('vQuien').value.trim(), com = $('vCom').value.trim();
+    if(!personaValida(quien)) return msg('Indicá quién verifica (elegí de la lista).', false);
+    if(!ok && !com) return msg('Contá por qué no quedó bien.', false);
+    try{ var r = await api('verificar', { id: actual['ID'], ok: ok, verificadoPor: quien, comentario: com });
+      if(r.ok){ var id = actual['ID']; cerrarModal(); msg(ok ? 'Tarjeta '+esc(id)+' verificada ✔' : 'Tarjeta '+esc(id)+' reabierta.', true); cargar(); }
+      else msg(esc(r.error||'error'), false);
+    }catch(e){ msg('Error: '+esc(e.message), false); }
+  }
+  $('vOk').addEventListener('click', function(){ verificar(true); });
+  $('vNo').addEventListener('click', function(){ verificar(false); });
+
+  /* ---------- paradas ---------- */
+  function pintarParadas(){
+    var hoy = hoyISO();
+    $('pLista').innerHTML = PARADAS.length ? '<table><thead><tr><th>Fecha</th><th>Descripción</th><th>Inicio · duración</th><th>HH disp.</th><th>Tarjetas</th><th>HH cargadas</th><th></th></tr></thead><tbody>'+
+      PARADAS.map(function(p){
+        var ts = TODAS.filter(function(t){ return t['Parada objetivo']===p.fecha && esAbierta(t); });
+        var h = ts.reduce(function(s,t){ return s + hhDe(t); }, 0);
+        var sobre = p.hh && h > p.hh;
+        return '<tr style="'+(p.fecha<hoy?'opacity:.55':'')+'"><td>'+esc(p.fecha.split('-').reverse().join('/'))+'</td><td>'+esc(p.descripcion||'')+'</td><td>'+esc(p.horaInicio||'—')+' · '+esc(p.duracion||'—')+' h</td><td>'+esc(p.hh||'—')+'</td><td>'+ts.length+'</td>'+
+          '<td style="'+(sobre?'color:var(--roja);font-weight:800':'')+'">'+h.toFixed(1)+(sobre?' ⚠':'')+'</td>'+
+          '<td style="white-space:nowrap"><button class="btn sec sm" data-ed="'+esc(p.id)+'">Editar</button> <button class="btn sec sm" data-del="'+esc(p.id)+'">✕</button></td></tr>';
+      }).join('')+'</tbody></table>' : '<p class="mini">Todavía no hay paradas cargadas.</p>';
+    document.querySelectorAll('[data-ed]').forEach(function(b){ b.onclick = function(){
+      var p = PARADAS.find(function(x){ return x.id===b.dataset.ed; }); $('pId').value=p.id; $('pFecha').value=p.fecha; $('pHH').value=p.hh; $('pDesc').value=p.descripcion; $('pDur').value=p.duracion||''; $('pHora').value=p.horaInicio||''; }; });
+    document.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = async function(){
+      if (b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = '¿Borrar?'; return; }
+      await api('borrarParada', { id: b.dataset.del }); cargar(); }; });
+  }
+  $('btnParadas').addEventListener('click', function(){ pintarParadas(); $('mParadas').classList.add('show'); });
+  $('pCerrarX').addEventListener('click', function(){ $('mParadas').classList.remove('show'); });
+  $('pNueva').addEventListener('click', function(){ ['pId','pFecha','pHH','pDesc'].forEach(function(i){ $(i).value=''; }); });
+  $('pGuardar').addEventListener('click', async function(){
+    if(!$('pFecha').value) return;
+    var r = await api('guardarParada', { parada: { id: $('pId').value, fecha: $('pFecha').value, hh: $('pHH').value, descripcion: $('pDesc').value.trim(), duracion: $('pDur').value, horaInicio: $('pHora').value } });
+    if (r.ok) { ['pId','pFecha','pHH','pDesc','pDur'].forEach(function(i){ $(i).value=''; }); cargar(); }
+  });
+
+  ['fPeriodo'].forEach(function(id){ $(id).addEventListener('change', cargar); });
+  ['fColor','fEstado','fCond','fArea','fParada','fEsp','fEtapa','fVencidas','fRepetidas','fSeguridad','fMias'].forEach(function(id){ $(id).addEventListener('change', render); });
+  $('fTexto').addEventListener('input', render);
+  $('recargar').addEventListener('click', cargar);
 
   /* ═══════════════ IMPRESIÓN ═══════════════ */
-
-  function colorBadge(tipo){return '<span class="orden-badge" style="background:'+colorTipo(tipo)+'">'+esc(tipo)+'</span>';}
-  function estadoBadge(t){
-    var col=t['Estado']==='Cerrada'?'#639922':t['Estado']==='En proceso'?'#C77D11':'#2D6CB5';
-    return '<span class="orden-badge" style="background:'+col+'">'+esc(t['Estado'])+'</span>';
-  }
-  function ubicacion(t){
-    var u=esc(t['Area equipo']||'');
-    if(t['Equipo']) u+=(u?' › ':'')+esc(t['Equipo']);
-    if(t['Componente/Ubicacion']) u+=' › '+esc(t['Componente/Ubicacion']);
-    return u||'—';
-  }
   function fmtFecha(v){ return v?String(v).slice(0,16):'—'; }
+  function fechaAR(v){ return v?String(v).slice(0,10).split('-').reverse().join('/'):'—'; }
 
-  /* ── ORDEN INDIVIDUAL ── */
   function htmlOrden(t){
-    var foto=t['Foto URL']&&t['Foto URL'].startsWith('data:')?'<img class="orden-foto" src="'+t['Foto URL']+'">':
-             t['Foto URL']?'<p style="font-size:12px;color:#2D6CB5"><a href="'+esc(t['Foto URL'])+'">Ver foto adjunta</a></p>':'<p style="color:#999;font-size:12px">Sin foto</p>';
-    var ahora=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
-    return `
-<div class="orden-print">
-  <div class="orden-header">
-    <div>
+    var ahora=new Date().toLocaleDateString('es-AR');
+    var img=function(u,l){ return u?'<div><div style="font-size:10px;color:#6E7A6C">'+l+'</div><img class="orden-foto" src="'+esc(fotoSrc(u))+'"></div>':''; };
+    return `<div class="orden-print">
+  <div class="orden-header"><div>
       <div class="orden-brand">ORDEN DE TRABAJO TPM — Planta Tornquist</div>
       <div class="orden-id">${esc(t['ID'])}</div>
-      <div style="margin-top:8px">${colorBadge(t['Tipo'])} ${estadoBadge(t)}</div>
-    </div>
-    <div style="text-align:right;font-size:11px;color:#6E7A6C">
-      <div>Impreso: ${ahora}</div>
-      <div style="margin-top:4px">Alta: ${fmtFecha(t['Fecha alta'])}</div>
-      <div style="margin-top:4px;font-size:15px;font-weight:bold;color:#C0392B">${t.vencida?'⚠ VENCIDA':''}</div>
-    </div>
-  </div>
-
+      <div style="margin-top:8px"><span class="orden-badge" style="background:${colorTipo(t['Tipo'])}">${esc(t['Tipo'])}</span> ${badgeCondicion(condicionDe(t))} ${t.repetidaDe?'<b style="color:#8A5A0A">↻ REPETIDA</b>':''}</div>
+    </div><div style="text-align:right;font-size:11px;color:#6E7A6C">
+      <div>Impreso: ${ahora}</div><div>Alta: ${fmtFecha(t['Fecha alta'])}</div>${t['N OT']?'<div style="font-size:14px;color:#263528"><b>OT '+esc(t['N OT'])+'</b></div>':''}
+      <div style="font-size:15px;font-weight:bold;color:#C0392B">${t.vencida?'⚠ VENCIDA':''}</div></div></div>
   <div class="orden-grid">
-    <div class="orden-section">
-      <h3>Ubicación del equipo</h3>
-      <p style="font-weight:bold">${ubicacion(t)}</p>
-    </div>
-    <div class="orden-section">
-      <h3>Categoría y etapa</h3>
-      <p><b>Categoría:</b> ${esc(t['Categoria']||'—')}</p>
-      <p><b>Etapa MA:</b> ${esc(t['Etapa MA']||'—')}</p>
-      <p><b>Prioridad:</b> ${esc(t['Prioridad']||'—')}</p>
-    </div>
+    <div class="orden-section"><h3>Ubicación</h3><p style="font-weight:bold">${esc(claveEquipo(t)||'—')}</p></div>
+    <div class="orden-section"><h3>Categoría</h3><p>${esc(t['Categoria']||'—')} · Prioridad <b>${esc(t['Prioridad']||'—')}</b></p></div>
   </div>
-
-  <div class="orden-section">
-    <h3>Descripción de la anomalía o mejora</h3>
-    <p style="background:#F3F6EE;padding:10px;border-radius:6px;min-height:48px">${esc(t['Descripcion']||'')}</p>
-  </div>
-
+  <div class="orden-section"><h3>Descripción</h3><p style="background:#F3F6EE;padding:10px;border-radius:6px">${esc(t['Descripcion']||'')}</p></div>
+  <div class="orden-section"><h3>Planificación</h3>
+    <p><b>Especialidad:</b> ${esc(t['Especialidad']||'—')} · <b>Horas est.:</b> ${esc(t['Horas estimadas']||'—')} · <b>Parada:</b> ${fechaAR(t['Parada objetivo'])}</p>
+    <p><b>LOTO / permiso:</b> ${esc(t['LOTO / Permiso']||'—')} · <b>Repuestos:</b> ${esc(t['Repuestos']||'—')}</p>
+    <p><b>Personas:</b> ${esc(t['Personas necesarias']||'—')} · <b>Ejecutores:</b> ${esc(t['Ejecutores']||'—')} · <b>Planificada:</b> ${fechaAR(t['Fecha planificada'])} ${esc(t['Horario planificado']||'')}</p></div>
   <div class="orden-grid">
-    <div class="orden-section">
-      <h3>Responsable asignado</h3>
-      <p style="font-size:16px;font-weight:bold">${esc(t['Responsable asignado']||'Sin asignar')}</p>
-      <p>Grupo: ${esc(t['Grupo responsable']||'—')}</p>
-    </div>
-    <div class="orden-section">
-      <h3>Fechas</h3>
-      <p><b>Detectado por:</b> ${esc(t['Detectado por']||'—')} (Turno ${esc(t['Turno']||'—')})</p>
-      <p><b>Fecha compromiso:</b> <span style="color:${t.vencida?'#C0392B':'inherit'};font-weight:${t.vencida?'bold':'normal'}">${esc(t['Fecha compromiso']||'—')}</span></p>
-      <p><b>Días abierta:</b> ${t.diasAbierta!==''?t.diasAbierta:'—'} días</p>
-    </div>
+    <div class="orden-section"><h3>Responsable</h3><p style="font-size:15px;font-weight:bold">${esc(t['Responsable asignado']||'Sin asignar')}</p><p>Grupo: ${esc(t['Grupo responsable']||'—')}</p></div>
+    <div class="orden-section"><h3>Origen</h3><p>${esc(t['Detectado por']||'—')} (Turno ${esc(t['Turno']||'—')})</p><p>Compromiso: ${fechaAR(t['Fecha compromiso'])} · ${t.diasAbierta} días</p></div>
   </div>
-
-  <div class="orden-section">
-    <h3>Foto</h3>
-    ${foto}
-  </div>
-
-  ${t['Notas']?`<div class="orden-section"><h3>Notas</h3><p>${esc(t['Notas'])}</p></div>`:''}
-
-  ${t['Estado']==='Cerrada'?`
-  <div class="orden-section" style="background:#EAF3DE;padding:10px;border-radius:6px">
-    <h3>Acción de cierre</h3>
-    <p>${esc(t['Accion de cierre']||'')}</p>
-    <p style="font-size:11px;color:#6E7A6C">Fecha cierre: ${fmtFecha(t['Fecha cierre'])} ${t['Costo estimado']?'· Costo: USD '+esc(t['Costo estimado']):''}</p>
-  </div>`:`
-  <div class="orden-section">
-    <h3>Acción realizada (completar al resolver)</h3>
-    <div class="firma-box">
-      <div class="firma-label">Describir qué se hizo, materiales usados, tiempo empleado:</div>
-    </div>
-  </div>
-  <div class="orden-grid" style="margin-top:14px">
-    <div class="firma-box"><div class="firma-label">Firma responsable / fecha resolución</div></div>
-    <div class="firma-box"><div class="firma-label">Visto bueno supervisor</div></div>
-  </div>`}
+  <div class="orden-grid">${img(t['Foto URL'],'Antes')}${img(t['Foto cierre URL'],'Después')}</div>
+  ${t['Notas']?`<div class="orden-section"><h3>Notas</h3><p style="white-space:pre-line">${esc(t['Notas'])}</p></div>`:''}
+  <div class="orden-section"><h3>Acción realizada · causa · materiales · tiempo</h3><div class="firma-box" style="min-height:80px"></div></div>
+  <div style="font-size:11px;margin:6px 0">☐ Agregar al plan preventivo &nbsp;&nbsp; ☐ Actualizar estándar / LUP</div>
+  <div class="orden-grid"><div class="firma-box"><div class="firma-label">Resolvió / fecha</div></div><div class="firma-box"><div class="firma-label">Verificó en el equipo (operador)</div></div></div>
 </div>`;
   }
 
-  /* ── LISTA DE PENDIENTES ── */
   function htmlLista(ts){
-    var ahora=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    var filtActivos=[];
-    ['fColor','fEstado','fGrupo','fEtapa','fArea'].forEach(function(id){
-      var el=document.getElementById(id); if(el&&el.value) filtActivos.push(el.options[el.selectedIndex].text+'='+el.value);
-    });
-    if(document.getElementById('fVencidas').checked) filtActivos.push('Solo vencidas');
+    var ahora=new Date().toLocaleString('es-AR');
     var filas=ts.map(function(t){
-      var ubic=t['Area equipo']?esc(t['Area equipo'])+(t['Equipo']?' › '+esc(t['Equipo']):''):'—';
-      var comp=t['Componente/Ubicacion']?'<br><span style="font-size:9px;color:#6E7A6C">'+esc(t['Componente/Ubicacion'])+'</span>':'';
-      var vTag=t.vencida?'<span style="color:#C0392B;font-weight:bold"> ⚠</span>':'';
       return `<tr style="border-bottom:1px solid #D7DECC;${t.vencida?'background:#FEF5F5':''}">
-        <td style="padding:5px 6px;font-family:monospace;font-size:8.5pt;white-space:nowrap">${esc(t['ID'])}</td>
-        <td style="padding:5px 6px"><span style="background:${colorTipo(t['Tipo'])};color:#fff;padding:2px 8px;border-radius:10px;font-size:8pt;font-weight:bold">${esc(t['Tipo'])}</span></td>
-        <td style="padding:5px 6px;font-size:9pt">${esc(t['Area equipo']||'—')}</td>
-        <td style="padding:5px 6px;font-size:9pt">${ubic}${comp}</td>
-        <td style="padding:5px 6px;font-size:9pt;max-width:220px">${esc(t['Descripcion']||'').slice(0,90)}${(t['Descripcion']||'').length>90?'…':''}</td>
-        <td style="padding:5px 6px;font-size:9pt">${esc(t['Prioridad']||'—')}</td>
-        <td style="padding:5px 6px;font-size:9pt">${esc(t['Responsable asignado']||'—')}</td>
-        <td style="padding:5px 6px;font-size:9pt;white-space:nowrap;color:${t.vencida?'#C0392B':'inherit'};font-weight:${t.vencida?'bold':'normal'}">${esc(t['Fecha compromiso']||'—')}${vTag}</td>
-        <td style="padding:5px 6px;text-align:center;font-size:9pt">${t.diasAbierta!==''?t.diasAbierta:'—'}</td>
-        <td style="padding:5px 6px;min-width:80px;border-left:1px dashed #ccc"></td>
-      </tr>`;
+        <td style="padding:4px 6px;font-family:monospace;font-size:8.5pt;white-space:nowrap">${esc(t['ID'])}</td>
+        <td style="padding:4px 6px"><span style="background:${colorTipo(t['Tipo'])};color:#fff;padding:2px 8px;border-radius:10px;font-size:8pt;font-weight:bold">${esc(t['Tipo'])}</span></td>
+        <td style="padding:4px 6px">${badgeCondicion(condicionDe(t), false)}</td>
+        <td style="padding:4px 6px;font-size:9pt">${esc(claveEquipo(t))}</td>
+        <td style="padding:4px 6px;font-size:9pt;max-width:220px">${esc(String(t['Descripcion']||'').slice(0,90))}${t.repetidaDe?' ↻':''}</td>
+        <td style="padding:4px 6px;font-size:9pt">${esc(t['Prioridad']||'—')}</td>
+        <td style="padding:4px 6px;font-size:9pt">${esc(t['Responsable asignado']||'—')}</td>
+        <td style="padding:4px 6px;font-size:9pt;white-space:nowrap;color:${t.vencida?'#C0392B':'inherit'}">${fechaAR(t['Fecha compromiso'])}${t.vencida?' ⚠':''}</td>
+        <td style="padding:4px 6px;text-align:center;font-size:9pt">${t.diasAbierta}</td>
+        <td style="padding:4px 6px;min-width:70px;border-left:1px dashed #ccc"></td></tr>`;
     }).join('');
-    return `
-<div class="lista-print">
-  <div class="lista-header">
-    <div>
-      <div style="font-size:11px;font-weight:bold;color:#3D5F26;letter-spacing:1px">LISTA DE PENDIENTES TPM — Planta Tornquist</div>
-      <div style="font-size:20px;font-weight:bold;color:#263528;margin-top:2px">Tarjetas abiertas · ${ts.length} registro${ts.length!==1?'s':''}</div>
-      ${filtActivos.length?'<div style="font-size:10px;color:#6E7A6C;margin-top:4px">Filtros: '+filtActivos.join(' · ')+'</div>':''}
-    </div>
-    <div style="text-align:right;font-size:10px;color:#6E7A6C">
-      <div>Impreso: ${ahora}</div>
-      <div style="margin-top:6px;font-size:11px"><b>Revisado por:</b> ______________________</div>
-      <div style="margin-top:4px;font-size:11px"><b>Firma:</b> ______________________</div>
-    </div>
-  </div>
-  <table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif">
-    <thead>
-      <tr style="background:#548235;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact">
-        <th style="padding:6px;text-align:left;font-size:9pt">ID</th>
-        <th style="padding:6px;text-align:left;font-size:9pt">Color</th>
-        <th style="padding:6px;text-align:left;font-size:9pt">Área</th>
-        <th style="padding:6px;text-align:left;font-size:9pt">Ubicación</th>
-        <th style="padding:6px;text-align:left;font-size:9pt">Descripción</th>
-        <th style="padding:6px;text-align:left;font-size:9pt">Prioridad</th>
-        <th style="padding:6px;text-align:left;font-size:9pt">Responsable</th>
-        <th style="padding:6px;text-align:left;font-size:9pt">Compromiso</th>
-        <th style="padding:6px;text-align:center;font-size:9pt">Días</th>
-        <th style="padding:6px;text-align:left;font-size:9pt;border-left:1px dashed #ccc">✓ Revisado</th>
-      </tr>
-    </thead>
-    <tbody>${filas}</tbody>
-  </table>
-  <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
-    <div style="border:1px solid #D7DECC;border-radius:6px;padding:10px">
-      <div style="font-size:10px;font-weight:bold;color:#3D5F26">NOTAS DE RECORRIDA</div>
-      <div style="min-height:80px;margin-top:6px"></div>
-    </div>
-    <div style="border:1px solid #D7DECC;border-radius:6px;padding:10px">
-      <div style="font-size:10px;font-weight:bold;color:#3D5F26">PRIORIDADES PARA EL TURNO</div>
-      <div style="min-height:80px;margin-top:6px"></div>
-    </div>
-  </div>
-  <div style="margin-top:12px;font-size:9px;color:#9aaa9c;border-top:1px solid #D7DECC;padding-top:6px">
-    Sistema de Tarjetas TPM · Planta Tornquist · Papelera del Sur — ⚠ = Vencida · Días = tiempo desde el alta
-  </div>
-</div>`;
+    return `<div class="lista-print"><div class="lista-header"><div>
+      <div style="font-size:11px;font-weight:bold;color:#3D5F26;letter-spacing:1px">LISTA DE TARJETAS TPM — Planta Tornquist</div>
+      <div style="font-size:20px;font-weight:bold;color:#263528;margin-top:2px">${ts.length} tarjeta${ts.length!==1?'s':''}</div></div>
+      <div style="text-align:right;font-size:10px;color:#6E7A6C"><div>Impreso: ${ahora}</div><div style="margin-top:6px;font-size:11px"><b>Revisado por:</b> ____________________</div></div></div>
+      <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#548235;color:#fff">
+      <th style="padding:5px;text-align:left;font-size:8.5pt">ID</th><th style="padding:5px;font-size:8.5pt">Color</th><th style="padding:5px;font-size:8.5pt">Cond.</th>
+      <th style="padding:5px;text-align:left;font-size:8.5pt">Ubicación</th><th style="padding:5px;text-align:left;font-size:8.5pt">Descripción</th>
+      <th style="padding:5px;font-size:8.5pt">Prior.</th><th style="padding:5px;text-align:left;font-size:8.5pt">Responsable</th><th style="padding:5px;font-size:8.5pt">Compromiso</th>
+      <th style="padding:5px;font-size:8.5pt">Días</th><th style="padding:5px;font-size:8.5pt;border-left:1px dashed #ccc">✓</th></tr></thead><tbody>${filas}</tbody></table></div>`;
   }
 
-  /* ── DISPARADORES ── */
+  /* Plan de parada: si hay una parada elegida en el filtro -> tarjetas asignadas a esa parada vs HH disponibles,
+     + las que requieren parada y todavia no tienen parada asignada. Si no -> todas las abiertas que requieren parada. */
+  function htmlPlanParada(asignadas, sinAsignar, parada, sinDefinir){
+    var rankP={Alta:0,Media:1,Baja:2};
+    var hs=function(t){ return hhDe(t); };
+    function bloque(ts){
+      var porArea={}; ts.forEach(function(t){ (porArea[t['Area equipo']||'Sin área']=porArea[t['Area equipo']||'Sin área']||[]).push(t); });
+      return Object.keys(porArea).sort(function(a,b){ return porArea[b].length-porArea[a].length; }).map(function(a){
+        var l=porArea[a].sort(function(x,y){ return (rankP[x['Prioridad']]||1)-(rankP[y['Prioridad']]||1) || (y.diasAbierta||0)-(x.diasAbierta||0); });
+        var hA=l.reduce(function(s,t){return s+hs(t);},0);
+        return `<div class="plan-grupo"><span>${esc(a)} · ${l.length}</span><span>${hA.toFixed(1)} HH</span></div>
+        <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#548235;color:#fff">
+        <th style="padding:3px 5px;text-align:left;font-size:8pt">ID</th><th style="padding:3px 5px;text-align:left;font-size:8pt">Equipo</th><th style="padding:3px 5px;text-align:left;font-size:8pt">Descripción</th>
+        <th style="padding:3px 5px;font-size:8pt">Prior.</th><th style="padding:3px 5px;font-size:8pt">Espec.</th><th style="padding:3px 5px;font-size:8pt">h×pers</th>
+        <th style="padding:3px 5px;font-size:8pt">LOTO</th><th style="padding:3px 5px;text-align:left;font-size:8pt">Repuestos</th><th style="padding:3px 5px;text-align:left;font-size:8pt">Responsable</th><th style="padding:3px 5px;font-size:8pt">OT</th><th style="padding:3px 5px;font-size:8pt;border-left:1px dashed #ccc">✓</th>
+        </tr></thead><tbody>${l.map(function(t){ return `<tr style="border-bottom:1px solid #D7DECC;${t.vencida?'background:#FEF5F5':''}">
+          <td style="padding:3px 5px;font-family:monospace;font-size:8pt;white-space:nowrap"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorTipo(t['Tipo'])}"></span> ${esc(t['ID'])}</td>
+          <td style="padding:3px 5px;font-size:8.5pt">${esc(t['Equipo']||'—')}${t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):''}</td>
+          <td style="padding:3px 5px;font-size:8.5pt">${esc(String(t['Descripcion']||'').slice(0,80))}${t.repetidaDe?' ↻':''}</td>
+          <td style="padding:3px 5px;font-size:8.5pt">${esc(t['Prioridad']||'—')}${t.vencida?' ⚠':''}</td>
+          <td style="padding:3px 5px;font-size:8.5pt">${esc(t['Especialidad']||'—')}</td>
+          <td style="padding:3px 5px;font-size:8.5pt;text-align:center">${hs(t)?esc(t['Horas estimadas'])+'×'+esc(t['Personas necesarias']||1):'<span style="color:#B3261E">?</span>'}</td>
+          <td style="padding:3px 5px;font-size:8pt">${esc(t['LOTO / Permiso']&&t['LOTO / Permiso']!=='No requiere'?t['LOTO / Permiso']:'—')}</td>
+          <td style="padding:3px 5px;font-size:8.5pt">${esc(t['Repuestos']||'—')}</td>
+          <td style="padding:3px 5px;font-size:8.5pt">${esc(t['Responsable asignado']||'—')}</td>
+          <td style="padding:3px 5px;font-size:8.5pt">${esc(t['N OT']||'')}</td>
+          <td style="padding:3px 5px;border-left:1px dashed #ccc;min-width:36px"></td></tr>`; }).join('')}</tbody></table>`;
+      }).join('');
+    }
+    var todas = asignadas.concat(sinAsignar);
+    var totH = asignadas.reduce(function(s,t){return s+hs(t);},0), sinH = todas.filter(function(t){return !hs(t);}).length;
+    var porEsp = {}; asignadas.forEach(function(t){ var e=t['Especialidad']||'Sin especialidad'; porEsp[e]=(porEsp[e]||0)+hs(t); });
+    var repuestos = todas.filter(function(t){ return t['Repuestos']; }).map(function(t){ return '<li><b>'+esc(t['ID'])+'</b>: '+esc(t['Repuestos'])+'</li>'; }).join('');
+    var cap = parada && parada.hh ? `<div style="font-size:12px;margin-top:4px;color:${totH>parada.hh?'#B3261E':'#3D5F26'}"><b>Capacidad:</b> ${totH.toFixed(1)} HH cargadas de ${parada.hh} HH disponibles (${Math.round(totH/parada.hh*100)}%)${totH>parada.hh?' — SOBRECARGADA':''}</div>` : '';
+    return `<div class="lista-print"><div class="lista-header"><div>
+      <div style="font-size:11px;font-weight:bold;color:#B3261E;letter-spacing:1px">■ PLAN DE PARADA${parada?' — '+esc(parada.fecha.split('-').reverse().join('/'))+(parada.descripcion?' · '+esc(parada.descripcion):''):' — TARJETAS QUE REQUIEREN MÁQUINA PARADA'}</div>
+      <div style="font-size:20px;font-weight:bold;color:#263528;margin-top:2px">${asignadas.length} tarjetas · ${totH.toFixed(1)} HH estimadas</div>${cap}
+      <div style="font-size:10px;color:#6E7A6C;margin-top:4px">Por especialidad: ${Object.keys(porEsp).map(function(e){return '<b>'+esc(e)+'</b> '+porEsp[e].toFixed(1)+' HH';}).join(' · ')||'—'}</div>
+      ${sinH?`<div style="font-size:10px;color:#B3261E">⚠ ${sinH} tarjeta(s) sin horas estimadas.</div>`:''}
+      ${sinDefinir?`<div style="font-size:10px;color:#B3261E">⚠ ${sinDefinir} tarjeta(s) abiertas con condición "A definir" no están en el plan — clasificarlas.</div>`:''}
+      </div><div style="text-align:right;font-size:10px;color:#6E7A6C"><div>Impreso: ${new Date().toLocaleDateString('es-AR')}</div>
+      <div style="margin-top:6px;font-size:11px"><b>Aprobó:</b> ____________________</div></div></div>
+      ${bloque(asignadas)}
+      ${sinAsignar.length?`<h3 style="font-size:12px;color:#8A5A0A;margin:18px 0 0">Requieren parada y todavía no tienen parada asignada (${sinAsignar.length}) — candidatas a sumar</h3>${bloque(sinAsignar)}`:''}
+      ${repuestos?`<div style="margin-top:14px;font-size:10pt"><b>Repuestos / materiales a preparar</b><ul style="margin:4px 0;columns:2;font-size:9pt">${repuestos}</ul></div>`:''}
+      <div style="margin-top:12px;font-size:9px;color:#9aaa9c;border-top:1px solid #D7DECC;padding-top:6px">Sistema de Tarjetas TPM · Planta Tornquist — ⚠ vencida · ? sin estimar · ↻ repetida</div></div>`;
+  }
 
-  // Imprimir lista (respeta filtros activos)
-  document.getElementById('impLista').addEventListener('click', function(){
-    var f = filtradas();
-    if(!f.length){ msg('No hay tarjetas con los filtros actuales.', false); return; }
-    document.getElementById('printArea').innerHTML = htmlLista(f);
+  $('impParada').addEventListener('click', function(){
+    var base = filtradas().filter(esAbierta);
+    var todasAb = TODAS.filter(esAbierta);
+    var fp = $('fParada').value, parada = PARADAS.find(function(p){ return p.fecha===fp; });
+    var asign, sin;
+    if (parada) {
+      asign = todasAb.filter(function(t){ return t['Parada objetivo']===parada.fecha; });
+      sin = todasAb.filter(function(t){ return condicionDe(t)==='Maquina parada' && !t['Parada objetivo']; });
+    } else {
+      asign = base.filter(function(t){ return condicionDe(t)==='Maquina parada'; }); sin = [];
+    }
+    var sinDef = todasAb.filter(function(t){ return condicionDe(t)==='A definir'; }).length;
+    if(!asign.length && !sin.length){ msg('No hay tarjetas abiertas para el plan de parada con los filtros actuales.', false); return; }
+    $('printArea').innerHTML = htmlPlanParada(asign, sin, parada, sinDef);
     window.print();
   });
+  $('impLista').addEventListener('click', function(){
+    var f = filtradas(); if(!f.length){ msg('No hay tarjetas con los filtros actuales.', false); return; }
+    $('printArea').innerHTML = htmlLista(f); window.print();
+  });
+  $('impOrden').addEventListener('click', function(){ if(actual){ $('printArea').innerHTML = htmlOrden(actual); window.print(); } });
 
-  // Imprimir orden individual (desde el modal)
-  document.getElementById('gGuardar').insertAdjacentHTML('afterend',
-    '<button class="btn sec sm no-print" id="impOrden" style="margin-left:8px">🖨 Imprimir orden</button>');
-  document.addEventListener('click', function(e){
-    if(e.target.id==='impOrden' && actual){
-      document.getElementById('printArea').innerHTML = htmlOrden(actual);
-      window.print();
-    }
+  $('exportar').addEventListener('click', function(){
+    var datos = filtradas(); if(!datos.length){ msg('No hay tarjetas para exportar con los filtros actuales.', false); return; }
+    var cols = Object.keys(datos[0]).filter(function(c){ return c.charAt(0) !== '_'; });
+    var q = function(v){ v=String(v==null?'':v).replace(/"/g,'""'); return '"'+v+'"'; };
+    var csv = cols.map(q).join(';')+'\r\n'+datos.map(function(t){ return cols.map(function(c){return q(t[c]);}).join(';'); }).join('\r\n');
+    var blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'tarjetas_tpm_'+hoyISO()+'.csv'; a.click(); URL.revokeObjectURL(a.href);
   });
 
-  document.getElementById('exportar').addEventListener('click', function(){
-    var cols=['ID','Fecha alta','Tipo','Grupo responsable','Detectado por','Turno','Area equipo','Equipo','Componente/Ubicacion','Categoria','Etapa MA','Dimension mejora','Descripcion','Prioridad','Responsable asignado','Fecha compromiso','Estado','Fecha cierre','Accion de cierre','Costo estimado'];
-    var datos=filtradas();
-    if(!datos.length){ msg('No hay tarjetas para exportar con los filtros actuales.', false); return; }
-    var q=function(v){ v=String(v==null?'':v).replace(/"/g,'""'); return '"'+v+'"'; };
-    var csv=cols.map(q).join(',')+'\r\n'+datos.map(function(t){ return cols.map(function(c){return q(t[c]);}).join(','); }).join('\r\n');
-    var blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
-    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='tarjetas_tpm_'+hoyISO()+'.csv'; a.click(); URL.revokeObjectURL(a.href);
-  });
   cargar();
 </script>
 </body>
