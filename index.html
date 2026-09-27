@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tarjetas TPM · Tornquist</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#548235">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="estilos.css">
@@ -11,55 +14,67 @@
 <body>
 <div class="topbar">
   <div class="brand">Sistema de Tarjetas TPM · Planta Tornquist</div>
-  <span id="flag"></span>
+  <nav></nav>
 </div>
 <div class="wrap">
   <div class="hero">
     <div class="hero-tag">MANTENIMIENTO PRODUCTIVO TOTAL</div>
     <h1 class="hero-h">El que opera el equipo es quien mejor lo conoce</h1>
-    <p class="hero-p">Cada anomalia que detectas y registras es una parada que no va a ocurrir, un defecto menos y un paso hacia el cero averias. Tu mirada cuida la planta: una tarjeta a la vez.</p>
-  </div>
-  <div class="home">
-    <a href="formulario.html">
-      <div class="ic">＋</div>
-      <h3>Cargar tarjeta</h3>
-      <p>Roja, azul o verde. El responsable se asigna solo segun el color.</p>
-    </a>
-    <a href="dashboard.html">
-      <div class="ic">▦</div>
-      <h3>Dashboard</h3>
-      <p>Estado general, por color, por sector y tiempos de cierre.</p>
-    </a>
-    <a href="seguimiento.html">
-      <div class="ic">☑</div>
-      <h3>Seguimiento</h3>
-      <p>Listado, asignacion de responsable y cierre de cada tarjeta.</p>
-    </a>
-    <a href="guias.html">
-      <div class="ic">📖</div>
-      <h3>Material de consulta</h3>
-      <p>Guias para descargar: categorias de anomalia y colores de tarjeta.</p>
-    </a>
-    <a href="como-funciona.html">
-      <div class="ic">?</div>
-      <h3>Cómo funciona</h3>
-      <p>El flujo completo en un diagrama, para revisar ante cualquier duda.</p>
-    </a>
+    <p class="hero-p">Cada anomalía que detectás y registrás es una parada que no va a ocurrir, un defecto menos y un paso hacia el cero averías. Tu mirada cuida la planta: una tarjeta a la vez.</p>
   </div>
 
-  <div class="card" style="margin-top:22px">
-    <h2 style="margin-top:0">Como funciona el color</h2>
-    <div class="tipos" id="tipos"></div>
+  <div id="avisos"></div>
+
+  <div class="home">
+    <a href="formulario.html"><div class="ic">＋</div><h3>Cargar tarjeta</h3><p>Roja, azul o verde. En menos de un minuto, con foto.</p></a>
+    <a href="mis-tarjetas.html"><div class="ic">👤</div><h3>Mis tarjetas</h3><p>Qué pasó con lo que reportaste. Verificá las resueltas.</p></a>
+    <a href="seguimiento.html"><div class="ic">☑</div><h3>Seguimiento</h3><p>Gestionar, resolver y verificar cada tarjeta.</p></a>
+    <a href="planificacion.html"><div class="ic">📅</div><h3>Planificación</h3><p>Plan automático en marcha y en parada, con gente asignada.</p></a>
+    <a href="dashboard.html"><div class="ic">▦</div><h3>Dashboard</h3><p>Apertura vs. cierre, lugares críticos, participación y pilares.</p></a>
+    <a href="como-funciona.html"><div class="ic">?</div><h3>Cómo funciona</h3><p>El flujo completo, para revisar ante cualquier duda.</p></a>
+    <a href="config.html"><div class="ic">⚙</div><h3>Herramientas</h3><p>Etiquetas QR, tablero TV, guías y configuración.</p></a>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:22px">
+    <div class="card"><h2 style="margin-top:0">🏆 Destacados del mes</h2><div id="destacados" class="mini">Cargando...</div></div>
+    <div class="card"><h2 style="margin-top:0">Cómo funciona el color</h2><div id="tipos"></div></div>
   </div>
 </div>
 
+<script src="arbol.js"></script>
+<script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
-  /* badge demo removido a pedido */
-  document.getElementById('tipos').innerHTML = Object.keys(TIPOS).map(function(k){
+  var $ = function(id){ return document.getElementById(id); };
+  $('tipos').innerHTML = Object.keys(TIPOS).map(function(k){
     var t = TIPOS[k];
-    return '<div class="tipo"><div class="cab" style="background:'+t.color+'">Tarjeta '+k+'</div><div class="d">'+t.desc+'</div></div>';
+    return '<div class="kv" style="margin:8px 0"><span class="badge" style="background:'+t.color+'">'+k+'</span> '+esc(t.desc)+'</div>';
   }).join('');
+
+  async function cargar(){
+    try {
+      var r = await api('listar', { desde: desdeISO(62) });
+      if (!r.ok) return;
+      var ts = r.tarjetas, yo = getYo();
+      var mesIni = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      if (yo) {
+        var verif = ts.filter(function(t){ return t['Detectado por'] === yo && t['Estado'] === 'Cerrada'; }).length;
+        var asig = ts.filter(function(t){ return esAbierta(t) && (t['Responsable asignado'] === yo || listaNombres(t['Ejecutores']).indexOf(yo) > -1); }).length;
+        var h = '';
+        if (verif) h += '<a class="aviso" href="mis-tarjetas.html"><span class="big">✔</span><div><b>'+verif+' tarjeta'+(verif>1?'s':'')+' tuya'+(verif>1?'s':'')+' ya '+(verif>1?'fueron resueltas':'fue resuelta')+'.</b><br><span class="mini">Verificá en el equipo que haya quedado bien.</span></div></a>';
+        if (asig) h += '<a class="aviso" href="mis-tarjetas.html" style="background:var(--azul-soft);border-color:#C9D6F2"><span class="big">🔧</span><div><b>Tenés '+asig+' tarjeta'+(asig>1?'s':'')+' asignada'+(asig>1?'s':'')+'.</b><br><span class="mini">Mirá cuándo están planificadas en Mis tarjetas.</span></div></a>';
+        $('avisos').innerHTML = h;
+      }
+      var c = {}, n = 0;
+      ts.forEach(function(t){ var d = fechaDe(t['Fecha alta']); if (d && d >= mesIni) { n++; if (t['Detectado por']) c[t['Detectado por']] = (c[t['Detectado por']]||0)+1; } });
+      var top = Object.keys(c).sort(function(a,b){ return c[b]-c[a]; }).slice(0, 5), med = ['🥇','🥈','🥉','4.','5.'];
+      $('destacados').innerHTML = top.length ? '<p class="mini" style="margin:0 0 6px">'+n+' tarjetas cargadas este mes por '+Object.keys(c).length+' personas. ¡Gracias!</p>' +
+        top.map(function(p,i){ return '<div class="rk"><span>'+med[i]+' '+esc(p)+' <span class="mini">'+esc(sectorDe(p))+'</span></span><b>'+c[p]+'</b></div>'; }).join('')
+        : 'Todavía no hay tarjetas este mes. ¡Sé el primero!';
+    } catch(e) { $('destacados').textContent = 'Sin conexión.'; }
+  }
+  document.addEventListener('tpm-yo', cargar);
+  cargar();
 </script>
 </body>
 </html>

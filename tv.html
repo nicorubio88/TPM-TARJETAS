@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablero TV · TPM Tornquist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  body{background:#EEF3E7;overflow:hidden}
+  .tv{height:100vh;display:grid;grid-template-rows:auto auto 1fr;gap:1.2vh;padding:1.6vh 1.6vw}
+  .tv-head{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,var(--verde-1),var(--verde-d));color:#fff;border-radius:1.6vh;padding:1.4vh 2vw}
+  .tv-head h1{font-size:3.4vh;margin:0;color:#fff}
+  .tv-head .reloj{font-size:3.2vh;font-weight:800;text-align:right}
+  .tv-head .reloj small{display:block;font-size:1.6vh;font-weight:600;opacity:.85}
+  .tv-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:1vw}
+  .tv-k{background:#fff;border-radius:1.6vh;padding:1.4vh 1vw;border-top:.7vh solid var(--verde);text-align:center}
+  .tv-k .n{font-size:6vh;font-weight:800;line-height:1.05}
+  .tv-k .l{font-size:1.7vh;color:var(--muted);font-weight:700}
+  .tv-body{display:grid;grid-template-columns:1.35fr 1fr;gap:1vw;min-height:0}
+  .tv-col{display:grid;gap:1.2vh;min-height:0}
+  .tv-card{background:#fff;border-radius:1.6vh;padding:1.4vh 1.2vw;overflow:hidden;min-height:0}
+  .tv-card h2{font-size:2.1vh;margin:0 0 .8vh}
+  .tv-row{display:flex;justify-content:space-between;align-items:center;gap:1vw;font-size:1.9vh;padding:.6vh 0;border-bottom:1px solid var(--line)}
+  .tv-row .cond{font-size:1.4vh}
+  .tv-fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:.8vw}
+  .tv-fotos div{font-size:1.4vh;color:var(--muted)}
+  .tv-fotos img{width:100%;height:14vh;object-fit:cover;border-radius:1vh;display:block;margin-bottom:.4vh;background:var(--soft)}
+  #selArea{position:fixed;inset:0;background:rgba(20,30,15,.6);display:none;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<div class="tv">
+  <div class="tv-head">
+    <div><div style="font-size:1.6vh;font-weight:800;letter-spacing:.12em;opacity:.85">TARJETAS TPM · CUIDAMOS LA LÍNEA</div><h1 id="tvArea">Planta Tornquist</h1></div>
+    <div class="reloj" id="reloj"></div>
+  </div>
+  <div class="tv-kpis" id="kpis"></div>
+  <div class="tv-body">
+    <div class="tv-col" style="grid-template-rows:auto 1fr">
+      <div class="tv-card"><h2>Abiertas vs. resueltas por semana</h2><div id="semanal"></div></div>
+      <div class="tv-card"><h2>Las más antiguas: prioridad para el turno</h2><div id="antiguas"></div></div>
+    </div>
+    <div class="tv-col" style="grid-template-rows:auto 1fr">
+      <div class="tv-card"><h2>🏆 Destacados del mes</h2><div id="destacados"></div></div>
+      <div class="tv-card"><h2>✔ Últimas resueltas</h2><div class="tv-fotos" id="resueltas"></div></div>
+    </div>
+  </div>
+</div>
+<div id="selArea"><div class="card" style="min-width:340px"><h2 style="margin-top:0">Elegí el área de esta pantalla</h2><select id="area"></select>
+  <button class="btn" style="margin-top:12px;width:100%" id="irArea">Mostrar</button></div></div>
+
+<script src="arbol.js"></script>
+<script src="personas.js"></script>
+<script src="comun.js"></script>
+<script>
+  /* Uso: tv.html?area=PULPERS  (o tv.html?area=todas). Se actualiza sola cada 5 minutos. */
+  var $ = function(id){ return document.getElementById(id); };
+  var q = new URLSearchParams(location.search), AREA = q.get('area');
+  if (!AREA) {
+    $('area').innerHTML = '<option value="todas">Toda la planta</option>' + opciones(Object.keys(ARBOL_EQUIPO));
+    $('selArea').style.display = 'flex';
+    $('irArea').onclick = function(){ location.search = '?area=' + encodeURIComponent($('area').value); };
+  }
+  var TODA = !AREA || AREA === 'todas';
+  $('tvArea').textContent = TODA ? 'Planta Tornquist' : AREA;
+
+  function reloj(){ var d = new Date(); $('reloj').innerHTML = d.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}) + '<small>' + d.toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'}) + '</small>'; }
+  setInterval(reloj, 20000); reloj();
+
+  function k(n, l, color){ return '<div class="tv-k" style="border-top-color:'+(color||'var(--verde)')+'"><div class="n" style="color:'+(color||'var(--verde-d)')+'">'+n+'</div><div class="l">'+l+'</div></div>'; }
+
+  async function cargar(){
+    try {
+      var r = await api('listar', { desde: desdeISO(120) });
+      if (!r.ok) return;
+      var ts = marcarRepeticiones(r.tarjetas).filter(function(t){ return TODA || t['Area equipo'] === AREA; });
+      var ab = ts.filter(esAbierta);
+      var lunes = lunesDe(new Date()), mesIni = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      var resSem = ts.filter(function(t){ var d = fechaDe(t['Fecha cierre']); return esResuelta(t) && d && d >= lunes; }).length;
+      var altSem = ts.filter(function(t){ var d = fechaDe(t['Fecha alta']); return d && d >= lunes; }).length;
+      var cnt = function(c){ return ab.filter(function(t){ return t['Tipo'] === c; }).length; };
+      $('kpis').innerHTML =
+        k(cnt('Roja'), 'Rojas abiertas', '#C0392B') + k(cnt('Azul'), 'Azules abiertas', '#2D6CB5') + k(cnt('Verde'), 'Verdes abiertas', '#4E9A2F') +
+        k(ab.filter(function(t){ return t.vencida; }).length, 'Vencidas', '#B8402A') +
+        k(altSem, 'Cargadas esta semana', '#3D5F26') + k(resSem, 'Resueltas esta semana', '#548235');
+      $('semanal').innerHTML = graficoSemanal(serieSemanal(ts, 10));
+      $('antiguas').innerHTML = ab.sort(function(a,b){ return b.diasAbierta - a.diasAbierta; }).slice(0, 8).map(function(t){
+        return '<div class="tv-row"><span><b style="color:'+colorTipo(t['Tipo'])+'">●</b> '+esc(t['Equipo']||t['Area equipo'])+' — '+esc(String(t['Descripcion']).slice(0,60))+'</span>'+
+          '<span style="white-space:nowrap">'+badgeCondicion(condicionDe(t))+' <b>'+t.diasAbierta+' d</b></span></div>';
+      }).join('') || '<p class="mini">Sin tarjetas abiertas 👏</p>';
+      var c = {}; ts.forEach(function(t){ var d = fechaDe(t['Fecha alta']); if (d && d >= mesIni && t['Detectado por']) c[t['Detectado por']] = (c[t['Detectado por']]||0)+1; });
+      var rs = {}; ts.forEach(function(t){ var d = fechaDe(t['Fecha cierre']); if (esResuelta(t) && d && d >= mesIni && t['Cerrado por']) rs[t['Cerrado por']] = (rs[t['Cerrado por']]||0)+1; });
+      var top = function(o){ return Object.keys(o).sort(function(a,b){ return o[b]-o[a]; }).slice(0,3); };
+      var med = ['🥇','🥈','🥉'];
+      $('destacados').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1vw"><div><div class="mini" style="font-weight:800">MÁS REPORTARON</div>'+
+        (top(c).map(function(n,i){ return '<div class="tv-row"><span>'+med[i]+' '+esc(n)+'</span><b>'+c[n]+'</b></div>'; }).join('') || '<p class="mini">¡Todavía nadie este mes!</p>')+
+        '</div><div><div class="mini" style="font-weight:800">MÁS RESOLVIERON</div>'+
+        (top(rs).map(function(n,i){ return '<div class="tv-row"><span>'+med[i]+' '+esc(n)+'</span><b>'+rs[n]+'</b></div>'; }).join('') || '<p class="mini">—</p>')+'</div></div>';
+      var ult = ts.filter(function(t){ return esResuelta(t); }).sort(function(a,b){ return String(b['Fecha cierre']).localeCompare(String(a['Fecha cierre'])); }).slice(0, 3);
+      $('resueltas').innerHTML = ult.map(function(t){
+        var img = t['Foto cierre URL'] || t['Foto URL'];
+        return '<div>'+(img ? '<img src="'+esc(fotoSrc(img))+'">' : '<img alt="">')+'<b>'+esc(t['Equipo']||'')+'</b><br>'+esc(String(t['Accion de cierre']).slice(0,70))+'<br>— '+esc(t['Cerrado por'])+'</div>';
+      }).join('') || '<p class="mini">Sin cierres recientes.</p>';
+    } catch(e) { /* sin conexion: se mantiene lo ultimo mostrado */ }
+  }
+  if (AREA) { cargar(); setInterval(cargar, 5 * 60 * 1000); }
+</script>
+</body>
+</html>

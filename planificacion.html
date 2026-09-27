@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planificación · TPM Tornquist</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#548235">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .tabs{display:flex;gap:8px;margin:6px 0 16px;flex-wrap:wrap}
+  .tab{border:2px solid var(--line);background:#fff;border-radius:12px;padding:10px 18px;font-weight:800;cursor:pointer;font-size:14px}
+  .tab.on{border-color:var(--verde);background:var(--verde-soft);color:var(--verde-d)}
+  .pts{display:inline-block;min-width:34px;text-align:center;font-weight:800;font-size:12px;border-radius:8px;padding:3px 6px;color:#fff}
+  .dia{margin:18px 0 6px;display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--verde);padding-bottom:4px}
+  .dia b{font-size:14.5px;color:var(--verde-d)}
+  .pl td{vertical-align:top;font-size:12.5px;padding:8px 6px}
+  #carga,#fuera{overflow-x:auto}
+  .pl select{padding:4px 6px;font-size:12px;width:auto;max-width:170px;margin:1px 0}
+  .fuente{font-size:10.5px;color:var(--muted)}
+  .gantt{position:relative;height:18px;background:var(--soft);border-radius:5px;min-width:160px}
+  .gantt div{position:absolute;top:2px;bottom:2px;border-radius:4px}
+  .gantt-esc{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px}
+  th .gantt-esc{color:#EAF0E0;font-weight:700;letter-spacing:0;text-transform:none}
+  .criterio td{padding:5px 8px;font-size:12.5px}
+  @media print{ .topbar,.no-print,.tabs{display:none!important} body{background:#fff} .wrap{padding:0;max-width:none} .card{border:none;box-shadow:none;padding:0}
+    select{border:none;background:none;-webkit-appearance:none;appearance:none;padding:0} *{-webkit-print-color-adjust:exact;print-color-adjust:exact} @page{margin:10mm;size:landscape} }
+</style>
+</head>
+<body>
+<div class="topbar"><div class="brand">Tarjetas TPM · Tornquist</div><nav></nav></div>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div><h1>Planificación estimada</h1><p class="sub" style="margin:0">El sistema ordena por criterio, estima tiempos y asigna gente. Vos ajustás y aplicás.</p></div>
+    <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="aplicar">✔ Aplicar plan</button>
+      <button class="btn sec" id="imprimir">🖨 Imprimir</button>
+    </div>
+  </div>
+  <div id="msg"></div>
+
+  <div class="tabs no-print">
+    <div class="tab on" data-m="marcha">▶ Máquina en marcha</div>
+    <div class="tab" data-m="parada">■ Máquina parada</div>
+  </div>
+
+  <div class="card no-print">
+    <div class="filtros" style="margin-bottom:6px">
+      <div id="boxDias"><label>Horizonte</label><select id="dias"><option value="5">1 semana (5 días hábiles)</option><option value="10" selected>2 semanas</option><option value="15">3 semanas</option><option value="20">4 semanas</option></select></div>
+      <div id="boxParada" style="display:none"><label>Parada</label><select id="parada"></select></div>
+      <div><label>Área</label><select id="area"></select></div>
+    </div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap">
+      <label class="chk"><input type="checkbox" id="aDefinir"> Incluir las "A definir"</label>
+      <label class="chk"><input type="checkbox" id="verdes"> Incluir verdes (mejoras)</label>
+      <label class="chk" id="boxFindes"><input type="checkbox" id="findes"> Incluir fines de semana</label>
+    </div>
+    <details class="mas"><summary>¿Cómo se prioriza y se asigna?</summary><div id="criterio"></div></details>
+  </div>
+
+  <div class="kpis" id="kpis" style="margin-top:16px"></div>
+  <div id="avisos"></div>
+  <div class="card" style="margin-top:16px;overflow-x:auto"><div id="plan"></div></div>
+  <div class="grid cols-2" style="margin-top:16px">
+    <div class="card"><h2 style="margin-top:0">Carga por persona</h2><div id="carga"></div></div>
+    <div class="card"><h2 style="margin-top:0" id="tituloFuera">Sin capacidad en el horizonte</h2><div id="fuera"></div></div>
+  </div>
+</div>
+
+<script src="arbol.js"></script>
+<script src="personas.js"></script>
+<script src="comun.js"></script>
+<script src="planificador.js"></script>
+<script>
+  var $ = function(id){ return document.getElementById(id); };
+  var TODAS = [], PARADAS = [], MODO = 'marcha', FIJOS = {}, PLAN = null, confirmar = false;
+  $('area').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
+
+  function msg(t, ok){ $('msg').innerHTML = '<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
+  function colorPts(p){ return p >= 60 ? '#B8402A' : p >= 40 ? '#E8871A' : p >= 25 ? '#548235' : '#7A8A6E'; }
+  function fechaTxt(d){ return d.toLocaleDateString('es-AR', { weekday:'short', day:'2-digit', month:'2-digit' }); }
+  function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  var ICONO = { tarjeta: '✎ cargado', historial: '≈ historial', defecto: '· por defecto' };
+
+  function pintarCriterio(){
+    var P = CONFIG.PESOS;
+    $('criterio').innerHTML = '<table class="criterio" style="margin-top:8px"><tbody>' + [
+      ['Prioridad', 'Alta +' + P.prioridad.Alta + ' · Media +' + P.prioridad.Media + ' · Baja +' + P.prioridad.Baja],
+      ['Seguridad (condición insegura)', '+' + P.seguridad], ['Calidad (defecto de calidad)', '+' + P.calidad],
+      ['Criticidad del área (hoja Áreas)', 'A +' + P.criticidad.A + ' · B +' + P.criticidad.B + ' · C +' + P.criticidad.C],
+      ['Repetida ↻ (volvió en ' + CONFIG.DIAS_REPETICION + ' días)', '+' + P.repetida], ['Vencida', '+' + P.vencida],
+      ['Antigüedad', '+1 cada 3 días abierta (máx. +' + P.antiguedadMax + ')'], ['Verde (mejora)', P.verde],
+      ['Duración y personas', 'lo cargado en la tarjeta → mediana de tarjetas parecidas (mismo color y fuguai, mín. 3) → por defecto (roja ' + CONFIG.DURACION_DEFECTO.Roja + ' h × ' + CONFIG.PERSONAS_DEFECTO.Roja + ', azul ' + CONFIG.DURACION_DEFECTO.Azul + ' h × ' + CONFIG.PERSONAS_DEFECTO.Azul + ')'],
+      ['Quién la hace', 'rojas → técnicos de mantenimiento · azules → producción · verdes → ingeniería/producción. Se configura por área en Configuración. Si la tarjeta pide especialidad, se usa esa especialidad.'],
+      ['Capacidad en marcha', 'horas por persona por día para tarjetas: técnicos ' + CONFIG.HORAS_DIA_TARJETAS.Roja + ' h · operarios ' + CONFIG.HORAS_DIA_TARJETAS.Azul + ' h · otros ' + CONFIG.HORAS_DIA_TARJETAS.Verde + ' h'],
+      ['En parada', 'cada tarjeta arranca cuando sus ejecutores están libres; si no termina dentro de la duración de la parada, queda para la próxima']
+    ].map(function(r){ return '<tr><td><b>'+esc(r[0])+'</b></td><td>'+esc(r[1])+'</td></tr>'; }).join('') + '</tbody></table>';
+  }
+  pintarCriterio();
+
+  function opcionesParada(){
+    var hoy = hoyISO();
+    var fut = PARADAS.filter(function(p){ return p.fecha >= hoy; });
+    $('parada').innerHTML = fut.length ? fut.map(function(p){
+      return '<option value="'+esc(p.id)+'">'+esc(p.fecha.split('-').reverse().join('/'))+(p.descripcion?' · '+esc(p.descripcion):'')+' · '+(p.duracion||8)+' h</option>';
+    }).join('') : '<option value="">(sin paradas futuras — cargalas en Seguimiento › Paradas)</option>';
+  }
+
+  /* selects de ejecutores: cada uno permite cambiar a otra persona del pool (o de toda la nomina) */
+  function selectsEjecutores(x){
+    var pool = ejecutoresPara(x.t['Area equipo'], x.t['Tipo']);
+    return (x.ejecutores || []).map(function(p, i){
+      var otros = pool.filter(function(q){ return q !== p; });
+      return '<select data-id="'+esc(x.id)+'" data-i="'+i+'"><option value="'+esc(p)+'" selected>'+esc(p)+(especialidadDe(p)?' · '+especialidadDe(p).slice(0,4):'')+'</option>'+
+        '<optgroup label="Del área / color">'+otros.map(function(q){ return '<option value="'+esc(q)+'">'+esc(q)+'</option>'; }).join('')+'</optgroup>'+
+        '<optgroup label="Otras personas">'+todasLasPersonas().filter(function(q){ return pool.indexOf(q)===-1; }).map(function(q){ return '<option value="'+esc(q)+'">'+esc(q)+'</option>'; }).join('')+'</optgroup></select>';
+    }).join('<br>') + (x.faltan ? '<div class="fuente" style="color:#B8402A">faltan '+x.faltan+' persona(s) en el pool</div>' : '') +
+      (FIJOS[x.id] ? '<div class="fuente">fijado a mano · <a href="#" data-suelta="'+esc(x.id)+'">volver a automático</a></div>' : '');
+  }
+
+  function fila(x, extra){
+    var t = x.t;
+    return '<tr>'+
+      '<td><span class="pts" style="background:'+colorPts(x.pts)+'" title="'+esc(x.ptsTxt)+'">'+x.pts+'</span></td>'+
+      '<td><a href="seguimiento.html?id='+encodeURIComponent(x.id)+'" style="font-family:monospace;font-size:11.5px">'+esc(x.id)+'</a><br>'+badgeTipo(t['Tipo'])+' '+badgeRepetida(t)+'</td>'+
+      '<td><b>'+esc(t['Equipo']||t['Area equipo'])+'</b>'+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'<br><span class="mini">'+esc(String(t['Descripcion']).slice(0,90))+'</span>'+
+        '<div class="fuente" title="'+esc(x.ptsTxt)+'">'+esc(x.ptsTxt)+'</div></td>'+
+      '<td style="white-space:nowrap">'+x.dur+' h × '+x.n+'<div class="fuente">'+ICONO[x.durFuente]+(x.nFuente!==x.durFuente?' / '+ICONO[x.nFuente]:'')+'</div><b>'+(x.dur*Math.min(x.n,(x.ejecutores||[]).length||x.n)).toFixed(1)+' HH</b></td>'+
+      (extra || '')+
+      '<td>'+selectsEjecutores(x)+'</td></tr>';
+  }
+
+  function pintarCarga(carga){
+    var filas = Object.keys(carga).map(function(p){ return [p, carga[p]]; }).sort(function(a,b){ return b[1].usado/b[1].total - a[1].usado/a[1].total; });
+    $('carga').innerHTML = filas.length ? filas.map(function(r){
+      var pct = Math.round(r[1].usado / r[1].total * 100);
+      return '<div class="hb"><div class="hb-l" title="'+esc(r[0])+'">'+esc(r[0])+' <span class="mini">'+esc(especialidadDe(r[0]))+'</span></div>'+
+        '<div class="hb-b"><div style="width:'+Math.min(100,pct)+'%;background:'+(pct>90?'#B8402A':pct>70?'#E8871A':'#548235')+'"></div></div>'+
+        '<div class="hb-v">'+r[1].usado.toFixed(1)+' / '+r[1].total+' h</div></div>';
+    }).join('') : '<p class="mini">Nadie asignado.</p>';
+  }
+
+  function render(){
+    var opts = { area: $('area').value, incluirADefinir: $('aDefinir').checked, incluirVerdes: $('verdes').checked, findes: $('findes').checked, fijos: FIJOS };
+    $('boxDias').style.display = MODO === 'marcha' ? '' : 'none';
+    $('boxFindes').style.display = MODO === 'marcha' ? '' : 'none';
+    $('boxParada').style.display = MODO === 'parada' ? '' : 'none';
+    var avisos = '';
+    if (MODO === 'marcha') {
+      opts.dias = +$('dias').value;
+      PLAN = planificarMarcha(TODAS, opts);
+      var hh = PLAN.asignadas.reduce(function(s,x){ return s + x.hh; }, 0);
+      $('kpis').innerHTML =
+        '<div class="kpi"><div class="n">'+PLAN.asignadas.length+'</div><div class="l">Tarjetas planificadas</div></div>'+
+        '<div class="kpi"><div class="n">'+hh.toFixed(0)+'</div><div class="l">HH estimadas</div></div>'+
+        '<div class="kpi '+(PLAN.sinCapacidad.length?'rojo':'')+'"><div class="n">'+PLAN.sinCapacidad.length+'</div><div class="l">No entran en el horizonte</div></div>'+
+        '<div class="kpi"><div class="n">'+Object.keys(PLAN.carga).length+'</div><div class="l">Personas con tareas</div></div>'+
+        '<div class="kpi"><div class="n">'+(PLAN.asignadas.length ? fechaTxt(PLAN.dias[Math.max.apply(null, PLAN.asignadas.map(function(x){return x.fin;}))]) : '—')+'</div><div class="l">Última tarea termina</div></div>'+
+        '<div class="kpi '+(PLAN.aDefinir?'amber':'')+'"><div class="n">'+PLAN.aDefinir+'</div><div class="l">"A definir" para clasificar</div></div>';
+      var html = '';
+      PLAN.dias.forEach(function(d, i){
+        var xs = PLAN.asignadas.filter(function(x){ return x.dia === i; });
+        if (!xs.length) return;
+        var hd = xs.reduce(function(s,x){ return s + x.hh; }, 0);
+        html += '<div class="dia"><b>'+fechaTxt(d)+'</b><span class="mini">'+xs.length+' tarjetas · '+hd.toFixed(1)+' HH</span></div>'+
+          '<table class="pl"><thead><tr><th>Pts</th><th>Tarjeta</th><th>Equipo · qué</th><th>Tiempo</th><th>Termina</th><th>Quién</th></tr></thead><tbody>'+
+          xs.map(function(x){ return fila(x, '<td class="mini">'+(x.fin===x.dia?'mismo día':fechaTxt(x.fechaFin))+'</td>'); }).join('')+'</tbody></table>';
+      });
+      $('plan').innerHTML = html || '<p class="mini">No hay tarjetas en marcha para planificar con estos filtros.'+(PLAN.aDefinir?' Probá "Incluir las A definir".':'')+'</p>';
+      $('tituloFuera').textContent = 'No entran en el horizonte (' + PLAN.sinCapacidad.length + ')';
+      $('fuera').innerHTML = PLAN.sinCapacidad.length ? '<table class="pl"><tbody>'+PLAN.sinCapacidad.map(function(x){ return '<tr><td><span class="pts" style="background:'+colorPts(x.pts)+'">'+x.pts+'</span></td><td>'+esc(x.id)+'<br><span class="mini">'+esc(x.t['Equipo']||'')+'</span></td><td>'+x.dur+' h × '+x.n+'</td></tr>'; }).join('')+'</tbody></table><p class="mini">Ampliá el horizonte, sumá gente en Configuración o revisá las estimaciones.</p>' : '<p class="mini">Todo entra. 👍</p>';
+    } else {
+      var par = PARADAS.find(function(p){ return p.id === $('parada').value; });
+      if (!par) { $('kpis').innerHTML=''; $('plan').innerHTML = '<p class="mini">Cargá una parada futura (fecha, duración y hora de inicio) en Seguimiento › 📅 Paradas.</p>'; $('carga').innerHTML=''; $('fuera').innerHTML=''; return; }
+      PLAN = planificarParada(TODAS, par, opts); PLAN.parada = par;
+      var W = PLAN.ventana, hi = par.horaInicio || '06:00';
+      var hhP = PLAN.asignadas.reduce(function(s,x){ return s + x.hh; }, 0), finMax = PLAN.asignadas.reduce(function(m,x){ return Math.max(m, x.finH); }, 0);
+      $('kpis').innerHTML =
+        '<div class="kpi"><div class="n">'+PLAN.asignadas.length+'</div><div class="l">Tarjetas en la parada</div></div>'+
+        '<div class="kpi"><div class="n">'+hhP.toFixed(0)+(par.hh?' / '+par.hh:'')+'</div><div class="l">HH estimadas'+(par.hh?' / disponibles':'')+'</div></div>'+
+        '<div class="kpi"><div class="n">'+finMax.toFixed(1)+' / '+W+' h</div><div class="l">Duración del plan / de la parada</div></div>'+
+        '<div class="kpi '+(PLAN.noEntran.length?'rojo':'')+'"><div class="n">'+PLAN.noEntran.length+'</div><div class="l">No entran: próxima parada</div></div>'+
+        '<div class="kpi"><div class="n">'+Object.keys(PLAN.carga).length+'</div><div class="l">Personas en la parada</div></div>'+
+        '<div class="kpi"><div class="n">'+hi+' → '+horaMas(hi, finMax)+'</div><div class="l">Inicio → fin estimado</div></div>';
+      if (par.hh && hhP > par.hh) avisos += '<div class="msg err">Las HH estimadas superan las disponibles de la parada.</div>';
+      var escala = '<div class="gantt-esc"><span>'+hi+'</span><span>'+horaMas(hi, W/2)+'</span><span>'+horaMas(hi, W)+'</span></div>';
+      $('plan').innerHTML = '<table class="pl"><thead><tr><th>Pts</th><th>Tarjeta</th><th>Equipo · qué</th><th>Tiempo</th><th style="min-width:200px">Horario '+escala+'</th><th>Quién</th></tr></thead><tbody>'+
+        PLAN.asignadas.map(function(x){
+          var g = '<td><div class="gantt"><div style="left:'+(x.ini/W*100)+'%;width:'+Math.max(1.5,(x.finH-x.ini)/W*100)+'%;background:'+colorTipo(x.t['Tipo'])+'"></div></div>'+
+            '<div class="mini" style="margin-top:3px"><b>'+horaMas(hi, x.ini)+' – '+horaMas(hi, x.finH)+'</b>'+(x.t['LOTO / Permiso'] && x.t['LOTO / Permiso']!=='No requiere' ? ' · 🔒 '+esc(x.t['LOTO / Permiso']) : '')+'</div></td>';
+          return fila(x, g);
+        }).join('')+'</tbody></table>' + (PLAN.asignadas.length ? '' : '<p class="mini">No hay tarjetas que requieran parada con estos filtros.</p>');
+      $('tituloFuera').textContent = 'No entran en esta parada (' + PLAN.noEntran.length + ')';
+      $('fuera').innerHTML = PLAN.noEntran.length ? '<table class="pl"><tbody>'+PLAN.noEntran.map(function(x){ return '<tr><td><span class="pts" style="background:'+colorPts(x.pts)+'">'+x.pts+'</span></td><td>'+esc(x.id)+'<br><span class="mini">'+esc(x.t['Equipo']||'')+'</span></td><td>'+x.dur+' h × '+x.n+'</td></tr>'; }).join('')+'</tbody></table>' : '<p class="mini">Todo entra en la parada. 👍</p>';
+    }
+    if (PLAN.sinGente.length) avisos += '<div class="msg err">'+PLAN.sinGente.length+' tarjeta(s) sin ejecutores configurados para su área/color. Configuralos en Configuración › Áreas.</div>';
+    $('avisos').innerHTML = avisos;
+    pintarCarga(PLAN.carga);
+    document.querySelectorAll('select[data-id]').forEach(function(s){ s.onchange = function(){
+      var x = PLAN.asignadas.find(function(a){ return a.id === s.dataset.id; });
+      var lista = (x.ejecutores || []).slice(); lista[+s.dataset.i] = s.value;
+      FIJOS[x.id] = lista.filter(function(v, i, a){ return a.indexOf(v) === i; });
+      render();
+    }; });
+    document.querySelectorAll('[data-suelta]').forEach(function(a){ a.onclick = function(e){ e.preventDefault(); delete FIJOS[a.dataset.suelta]; render(); }; });
+    confirmar = false; $('aplicar').textContent = '✔ Aplicar plan';
+  }
+
+  document.querySelectorAll('.tab').forEach(function(tb){ tb.onclick = function(){
+    MODO = tb.dataset.m; document.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('on', x === tb); }); render();
+  }; });
+  ['dias','parada','area','aDefinir','verdes','findes'].forEach(function(id){ $(id).addEventListener('change', render); });
+  $('imprimir').onclick = function(){ window.print(); };
+
+  $('aplicar').onclick = async function(){
+    if (!PLAN || !PLAN.asignadas.length) return msg('No hay nada para aplicar.', false);
+    if (!confirmar) { confirmar = true; this.textContent = '¿Confirmar? Se actualizan ' + PLAN.asignadas.length + ' tarjetas'; return; }
+    var items = PLAN.asignadas.map(function(x){
+      var c = { ejecutores: x.ejecutores.join('; ') };
+      if (!x.t['Responsable asignado']) { var sup = supervisorPara(x.t['Area equipo'], x.t['Tipo']); if (sup) c.responsable = sup; }
+      if (PLAN.tipo === 'marcha') { c.fechaPlanificada = iso(x.fecha); c.horario = x.fin === x.dia ? '' : 'hasta ' + iso(x.fechaFin); }
+      else { c.fechaPlanificada = PLAN.parada.fecha; c.paradaObjetivo = PLAN.parada.fecha; c.horario = horaMas(PLAN.parada.horaInicio || '06:00', x.ini) + '-' + horaMas(PLAN.parada.horaInicio || '06:00', x.finH); }
+      return { id: x.id, cambios: c };
+    });
+    var b = this; b.disabled = true; b.textContent = 'Aplicando...';
+    try { var r = await api('actualizarLote', { items: items });
+      msg(r.ok ? 'Plan aplicado: ' + r.actualizadas + ' tarjetas con ejecutores y fecha planificada.' + (r.errores && r.errores.length ? ' Errores: ' + esc(r.errores.join(' · ')) : '') : esc(r.error), r.ok);
+      FIJOS = {}; await cargar();
+    } catch(e) { msg('Error: ' + esc(e.message), false); }
+    b.disabled = false; confirmar = false; b.textContent = '✔ Aplicar plan';
+  };
+
+  async function cargar(){
+    try { var r = await api('listar', { desde: desdeISO(CONFIG.DIAS_REPETICION + 30) });
+      if (!r.ok) return msg(esc(r.error), false);
+      TODAS = marcarRepeticiones(r.tarjetas); PARADAS = r.paradas || [];
+      opcionesParada(); render();
+    } catch(e) { msg('Error de conexión: ' + esc(e.message), false); }
+  }
+  cargar();
+</script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuración · TPM Tornquist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<div class="topbar"><div class="brand">Tarjetas TPM · Tornquist</div><nav></nav></div>
+<div class="wrap" style="max-width:1180px">
+  <h1>Configuración</h1>
+  <p class="sub">Herramientas de administración del sistema.</p>
+  <div id="msg"></div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Estado</h2>
+    <div id="estado" class="kv">Verificando conexión...</div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="margin-top:0">Nómina y árbol de equipos en la planilla</h2>
+    <p class="sub">Pasa <code>personas.js</code> y <code>arbol.js</code> a las hojas <b>Personas</b> y <b>Arbol</b>. Desde ahí se mantienen
+      las altas y bajas sin tocar código, y las tres apps pueden leer la misma fuente.
+      En la hoja Personas completá la columna <b>Email</b>: así cada persona recibe el aviso cuando le resuelven una tarjeta.
+      Poné <b>Activo = No</b> para dar de baja a alguien sin borrar su historial.</p>
+    <label class="chk"><input type="checkbox" id="forzar"> Reemplazar lo que ya haya en las hojas</label>
+    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn" id="sembrar">Copiar nómina y árbol a la planilla</button>
+      <button class="btn sec" id="refrescar">Releer nómina y árbol de la planilla</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="margin-top:0">Áreas: criticidad, supervisores y ejecutores</h2>
+    <p class="sub">Define quién recibe cada tarjeta y quién la ejecuta. El <b>supervisor</b> queda como responsable automático al cargarla;
+      los <b>ejecutores</b> son el equipo del que la planificación elige gente (rojas → técnicos, azules → producción).
+      La fila <b>Por defecto</b> vale para todas las áreas sin configurar. La <b>criticidad</b> (A/B/C) suma puntos al priorizar.</p>
+    <div style="overflow-x:auto"><table id="tAreas" class="areas"><thead><tr>
+      <th>Área</th><th>Crit.</th>
+      <th style="background:#C0392B">Roja · supervisor</th><th style="background:#C0392B">Roja · ejecutores</th>
+      <th style="background:#2D6CB5">Azul · supervisor</th><th style="background:#2D6CB5">Azul · ejecutores</th>
+      <th style="background:#4E9A2F">Verde · supervisor</th><th style="background:#4E9A2F">Verde · ejecutores</th>
+    </tr></thead><tbody></tbody></table></div>
+    <div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="guardarAreas">Guardar configuración de áreas</button><span class="mini" id="areasInfo"></span>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="mEjec"><div class="modal">
+    <div style="display:flex;justify-content:space-between"><h3 id="ejTitulo"></h3><button class="btn sec sm" id="ejX">✕</button></div>
+    <p class="sub" style="margin:4px 0 8px">Tildá quiénes pueden ejecutar. Sin nadie tildado se usa la fila "Por defecto".</p>
+    <input id="ejBuscar" placeholder="Filtrar por nombre o sector...">
+    <div id="ejLista" style="max-height:50vh;overflow:auto;margin-top:10px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="ejOk">Listo</button><button class="btn sec" id="ejNadie">Usar por defecto</button></div>
+  </div></div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="margin-top:0">Herramientas</h2>
+    <div class="home" style="margin-top:0">
+      <a href="qr.html"><div class="ic">▣</div><h3>Etiquetas QR</h3><p>Una por equipo, para pegar en planta.</p></a>
+      <a href="tv.html"><div class="ic">📺</div><h3>Tablero TV</h3><p>Pantalla por área, se actualiza sola.</p></a>
+      <a href="guias.html"><div class="ic">📖</div><h3>Guías</h3><p>Categorías de anomalía y colores.</p></a>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="margin-top:0">Parámetros (en <code>comun.js</code>)</h2>
+    <div id="params" class="kv"></div>
+  </div>
+</div>
+<script src="arbol.js"></script>
+<script src="personas.js"></script>
+<script src="comun.js"></script>
+<script>
+  var $ = function(id){ return document.getElementById(id); };
+  function msg(t, ok){ $('msg').innerHTML = '<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
+  $('params').innerHTML = [
+    ['Meta de tarjetas por persona por mes', CONFIG.META_TARJETAS_PERSONA_MES],
+    ['Ventana para marcar repetición (días)', CONFIG.DIAS_REPETICION],
+    ['Tarjetas en 90 días para candidato Kaizen', CONFIG.UMBRAL_KAIZEN],
+    ['Personas en la nómina actual', todasLasPersonas().length],
+    ['Equipos en el árbol actual', listaEquipos().length]
+  ].map(function(p){ return '<div><b>'+esc(p[0])+':</b> '+esc(p[1])+'</div>'; }).join('');
+
+  (async function(){
+    var cola = colaLeer().length, t0 = Date.now();
+    try { var r = await api('ping');
+      $('estado').innerHTML = (r.ok ? '✔ Backend conectado ('+(Date.now()-t0)+' ms)' : '✖ '+esc(r.error)) + ' · Tarjetas sin enviar en este dispositivo: <b>'+cola+'</b> · Operando como: <b>'+esc(getYo()||'—')+'</b>';
+    } catch(e) { $('estado').innerHTML = '✖ Sin conexión con el backend · Tarjetas sin enviar: <b>'+cola+'</b>'; }
+  })();
+
+  $('sembrar').addEventListener('click', async function(){
+    var b = this; b.disabled = true; b.textContent = 'Copiando...';
+    try { var r = await api('sembrarMaestros', { personas: PERSONAS_POR_SECTOR, arbol: ARBOL_EQUIPO, forzar: $('forzar').checked });
+      msg(r.ok ? 'Personas: ' + (r.personasMsg || r.personas + ' filas copiadas') + ' · Árbol: ' + (r.arbolMsg || r.arbol + ' filas copiadas') : esc(r.error), r.ok);
+      if (r.ok) await refrescarMaestros(true);
+    } catch(e) { msg('Error: ' + esc(e.message), false); }
+    b.disabled = false; b.textContent = 'Copiar nómina y árbol a la planilla';
+  });
+  /* ---------- Areas ---------- */
+  var COLORES = ['Roja','Azul','Verde'], FILAS = {}, EDIT = null;
+  function cargarFilas(){
+    FILAS = {};
+    ['*'].concat(Object.keys(ARBOL_EQUIPO)).forEach(function(a){
+      var f = (window.AREAS_CFG || []).find(function(x){ return x.Area === a; }) || {};
+      FILAS[a] = { Area: a, Criticidad: f.Criticidad || '' };
+      COLORES.forEach(function(c){ FILAS[a]['Supervisor '+c] = f['Supervisor '+c] || ''; FILAS[a]['Ejecutores '+c] = f['Ejecutores '+c] || ''; });
+    });
+  }
+  function optsPersonas(sel, vacio){ return '<option value="">'+vacio+'</option>' + opcionesGrupos(PERSONAS_POR_SECTOR, sel); }
+  function pintarAreas(){
+    var def = areaPorDefecto();
+    $('tAreas').querySelector('tbody').innerHTML = Object.keys(FILAS).map(function(a){
+      var f = FILAS[a], esDef = a === '*';
+      var h = '<tr'+(esDef?' style="background:var(--verde-soft)"':'')+'><td><b>'+(esDef?'Por defecto (todas)':esc(a))+'</b></td>'+
+        '<td><select data-a="'+esc(a)+'" data-k="Criticidad"><option value="">'+(esDef?'B':'—')+'</option>'+['A','B','C'].map(function(x){ return '<option'+(f.Criticidad===x?' selected':'')+'>'+x+'</option>'; }).join('')+'</select></td>';
+      COLORES.forEach(function(c){
+        var heredado = esDef ? def['Supervisor '+c] : '';
+        h += '<td><select data-a="'+esc(a)+'" data-k="Supervisor '+c+'">'+optsPersonas(f['Supervisor '+c], esDef ? (heredado ? '(auto: '+heredado.split(',')[0]+')' : '— sin supervisor —') : '(por defecto)')+'</select></td>';
+        var n = listaNombres(f['Ejecutores '+c]).length, nDef = listaNombres(esDef ? def['Ejecutores '+c] : '').length;
+        h += '<td><button class="btn sec sm" data-ej="'+esc(a)+'" data-c="'+c+'">'+(n ? '👷 '+n+' personas' : esDef ? '(auto: '+nDef+')' : '(por defecto)')+'</button></td>';
+      });
+      return h + '</tr>';
+    }).join('');
+    $('tAreas').querySelectorAll('select').forEach(function(sl){ sl.onchange = function(){ FILAS[sl.dataset.a][sl.dataset.k] = sl.value; }; });
+    $('tAreas').querySelectorAll('[data-ej]').forEach(function(b){ b.onclick = function(){ abrirEjecutores(b.dataset.ej, b.dataset.c); }; });
+  }
+  function abrirEjecutores(a, c){
+    EDIT = { a: a, c: c, sel: {} };
+    var actuales = listaNombres(FILAS[a]['Ejecutores '+c]);
+    if (!actuales.length && a === '*') actuales = listaNombres(areaPorDefecto()['Ejecutores '+c]);
+    actuales.forEach(function(n){ EDIT.sel[n] = 1; });
+    $('ejTitulo').textContent = 'Ejecutores ' + c + ' · ' + (a === '*' ? 'Por defecto' : a);
+    $('ejBuscar').value = ''; pintarEj(); $('mEjec').classList.add('show');
+  }
+  function pintarEj(){
+    var f = $('ejBuscar').value.toLowerCase();
+    $('ejLista').innerHTML = Object.keys(PERSONAS_POR_SECTOR).map(function(sec){
+      var ps = PERSONAS_POR_SECTOR[sec].filter(function(n){ return !f || (n+' '+sec).toLowerCase().indexOf(f) > -1; });
+      if (!ps.length) return '';
+      return '<div style="margin:8px 0 4px;font-weight:800;font-size:12px;color:var(--verde-d)">'+esc(sec)+' <a href="#" data-todo="'+esc(sec)+'" class="mini">(todos)</a></div>' +
+        ps.map(function(n){ return '<label class="chk" style="display:flex!important;margin:3px 0!important"><input type="checkbox" data-n="'+esc(n)+'"'+(EDIT.sel[n]?' checked':'')+'> '+esc(n)+'</label>'; }).join('');
+    }).join('');
+    $('ejLista').querySelectorAll('[data-n]').forEach(function(cb){ cb.onchange = function(){ if (cb.checked) EDIT.sel[cb.dataset.n] = 1; else delete EDIT.sel[cb.dataset.n]; }; });
+    $('ejLista').querySelectorAll('[data-todo]').forEach(function(x){ x.onclick = function(e){ e.preventDefault(); PERSONAS_POR_SECTOR[x.dataset.todo].forEach(function(n){ EDIT.sel[n] = 1; }); pintarEj(); }; });
+  }
+  $('ejBuscar').oninput = pintarEj;
+  $('ejX').onclick = function(){ $('mEjec').classList.remove('show'); };
+  $('ejOk').onclick = function(){ FILAS[EDIT.a]['Ejecutores '+EDIT.c] = Object.keys(EDIT.sel).join('; '); $('mEjec').classList.remove('show'); pintarAreas(); };
+  $('ejNadie').onclick = function(){ FILAS[EDIT.a]['Ejecutores '+EDIT.c] = ''; $('mEjec').classList.remove('show'); pintarAreas(); };
+  $('guardarAreas').onclick = async function(){
+    var filas = Object.keys(FILAS).map(function(a){ return FILAS[a]; }).filter(function(f){
+      return f.Area === '*' || Object.keys(f).some(function(k){ return k !== 'Area' && f[k]; });
+    });
+    var b = this; b.disabled = true;
+    try { var r = await api('guardarAreas', { filas: filas });
+      if (r.ok) { await refrescarMaestros(true); msg('Configuración de áreas guardada (' + r.filas + ' filas).', true); }
+      else msg(esc(r.error), false);
+    } catch(e) { msg('Error: ' + esc(e.message), false); }
+    b.disabled = false;
+  };
+  cargarFilas(); pintarAreas();
+  refrescarMaestros(true).then(function(ok){ if (ok) { cargarFilas(); pintarAreas(); $('areasInfo').textContent = 'Leído de la planilla.'; } });
+
+  $('refrescar').addEventListener('click', async function(){
+    var ok = await refrescarMaestros(true);
+    msg(ok ? 'Listo. Recargá la página para ver la nómina y el árbol actualizados.' : 'No se pudo leer la planilla.', ok);
+  });
+</script>
+</body>
+</html>

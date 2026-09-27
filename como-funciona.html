@@ -11,13 +11,14 @@
   .diagrama-frame{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px;margin-bottom:16px;overflow-x:auto}
   .diagrama-frame img{display:block;width:100%;max-width:860px;margin:0 auto;height:auto}
   .diagrama-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}
-  .pasos-rapidos{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .pasos-rapidos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
   @media(max-width:760px){.pasos-rapidos{grid-template-columns:1fr 1fr}}
   .paso-mini{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 16px}
   .paso-mini .pn{width:24px;height:24px;border-radius:50%;background:var(--verde-soft);color:var(--verde-d);
     display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;margin-bottom:8px}
   .paso-mini .pt{font-size:12.8px;font-weight:800;margin-bottom:3px}
   .paso-mini .pd{font-size:11.5px;color:var(--muted);line-height:1.45}
+  .card{overflow-x:auto}
   .colores-tabla{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
   .colores-tabla th{background:var(--verde);color:#fff;text-align:left;padding:11px 12px;font-size:11.5px;
     font-weight:700;letter-spacing:.03em;text-transform:uppercase}
@@ -36,13 +37,7 @@
 <body>
 <div class="topbar">
   <div class="brand">Tarjetas TPM · Tornquist</div>
-  <nav>
-    <a href="index.html">Inicio</a>
-    <a href="formulario.html">Cargar</a>
-    <a href="dashboard.html">Dashboard</a>
-    <a href="seguimiento.html">Seguimiento</a>
-    <a href="como-funciona.html" class="activo">Cómo funciona</a>
-  </nav>
+  <nav></nav>
 </div>
 
 <div class="wrap">
@@ -51,14 +46,28 @@
      De "vi algo en el equipo" a "quedó resuelto y registrado".</p>
 
   <div class="pasos-rapidos">
-    <div class="paso-mini"><div class="pn">1</div><div class="pt">Detectás algo</div>
-      <div class="pd">Un ruido, una fuga, algo flojo, suciedad, una idea de mejora</div></div>
-    <div class="paso-mini"><div class="pn">2</div><div class="pt">Elegís el color</div>
-      <div class="pd">Según quién lo puede resolver: roja, azul o verde</div></div>
-    <div class="paso-mini"><div class="pn">3</div><div class="pt">Cargás la tarjeta</div>
-      <div class="pd">Dónde, qué encontraste, foto y prioridad</div></div>
-    <div class="paso-mini"><div class="pn">4</div><div class="pt">Seguimiento y cierre</div>
-      <div class="pd">Se asigna sola por color, se sigue y se cierra</div></div>
+    <div class="paso-mini"><div class="pn">1</div><div class="pt">Detectás y cargás</div>
+      <div class="pd">Color, equipo (o escaneás el QR), qué ves, tipo de anomalía y prioridad (obligatorios), foto y si se resuelve en marcha o con parada.</div></div>
+    <div class="paso-mini"><div class="pn">2</div><div class="pt">Se asigna y planifica</div>
+      <div class="pd">Por color va al grupo. El supervisor completa responsable, fecha, especialidad, horas y repuestos. Las de parada van a una parada programada.</div></div>
+    <div class="paso-mini"><div class="pn">3</div><div class="pt">Se resuelve</div>
+      <div class="pd">Quien la resuelve carga qué hizo, la causa y la foto del después. Si hace falta, la pasa al plan preventivo o al estándar.</div></div>
+    <div class="paso-mini"><div class="pn">4</div><div class="pt">Te avisamos</div>
+      <div class="pd">Quien la cargó ve en "Mis tarjetas" (y por mail si está cargado) que se resolvió, con la foto del antes y el después.</div></div>
+    <div class="paso-mini"><div class="pn">5</div><div class="pt">Verificás en el equipo</div>
+      <div class="pd">Si quedó bien, se verifica y se cierra. Si no, vuelve a abrirse y se avisa al responsable.</div></div>
+    <div class="paso-mini"><div class="pn">6</div><div class="pt">Aprendemos</div>
+      <div class="pd">Si la misma falla vuelve en 90 días se marca ↻ repetida: el equipo pasa a candidato de Mejora Enfocada.</div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <h2 style="margin-top:0">¿En marcha o con la máquina parada?</h2>
+    <p class="sub" style="margin-bottom:6px">Es la pregunta que más ayuda a planificar. Si no estás seguro, marcá "No sé": lo define mantenimiento.</p>
+    <table class="colores-tabla">
+      <tr><th>Respuesta</th><th>Cuándo</th></tr>
+      <tr><td><b style="color:#2E7D32">▶ En marcha</b></td><td>Ajuste exterior, limpieza fuera de zona de riesgo, cambio de algo sin partes en movimiento ni energía peligrosa. Se hace en el turno.</td></tr>
+      <tr><td><b style="color:#B3261E">■ Requiere parada</b></td><td>Hay que abrir guardas, bloquear energía (LOTO), desarmar, cambiar piezas en movimiento o trabajar en zona de riesgo. Va al plan de la próxima parada.</td></tr>
+    </table>
   </div>
 
   <div class="card">
@@ -109,7 +118,11 @@
       <div><b>La ubicación sale del árbol de la planta</b>
         <p>Área → subárea → equipo. Es el mismo árbol que usan EHS y Causa Raíz, así los tres sistemas hablan del mismo equipo.</p></div>
       <div><b>Una tarjeta cerrada es historial</b>
-        <p>Queda registrado qué se encontró y qué se hizo. Con el tiempo, eso es la memoria técnica del equipo.</p></div>
+        <p>Queda registrado qué se encontró, qué se hizo, quién y cuándo (cada cambio va al Historial). Con el tiempo, eso es la memoria técnica del equipo.</p></div>
+      <div><b>Resuelta no es cerrada</b>
+        <p>Una tarjeta resuelta queda "a verificar" hasta que alguien del sector confirma en el equipo que quedó bien.</p></div>
+      <div><b>Sin señal también se puede</b>
+        <p>Si no hay conexión, la tarjeta queda guardada en el celular y se envía sola cuando vuelve la señal.</p></div>
       <div><b>Si se repite, hay una causa de fondo</b>
         <p>Cuando la misma tarjeta vuelve una y otra vez, no alcanza con resolverla. Ahí corresponde abrir un análisis de Causa Raíz.</p></div>
     </div>
@@ -129,6 +142,8 @@
   </div>
 </div>
 
+<script src="arbol.js"></script>
+<script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
   var f = document.getElementById('flag');
