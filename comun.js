@@ -31,7 +31,7 @@ const CONFIG = {
   // Horas por persona y por dia que se pueden dedicar a tarjetas con la maquina en marcha
   HORAS_DIA_TARJETAS: { Roja: 4, Azul: 1, Verde: 2 },
   // Si la tarjeta no tiene estimacion y no hay historial parecido
-  DURACION_DEFECTO: { Roja: 2, Azul: 0.5, Verde: 4 },
+  DURACION_DEFECTO: { Roja: 2, Azul: 1, Verde: 4 },
   PERSONAS_DEFECTO: { Roja: 2, Azul: 1, Verde: 2 }
 };
 
@@ -104,6 +104,7 @@ const LS = {
     Object.assign(PERSONAS_POR_SECTOR, m.personas);
   }
   if (m.areas) window.AREAS_CFG = m.areas;
+  if (m.responsables) window.RESP_CFG = m.responsables;
   if (m.arbol && typeof ARBOL_EQUIPO !== 'undefined') {
     Object.keys(ARBOL_EQUIPO).forEach(function (k) { delete ARBOL_EQUIPO[k]; });
     Object.assign(ARBOL_EQUIPO, m.arbol);
@@ -115,7 +116,7 @@ async function refrescarMaestros(forzar) {
   if (!forzar && m && (Date.now() - (m.ts || 0)) < 6 * 3600 * 1000) return false;
   try {
     const r = await api('maestros');
-    if (r.ok) { LS.set('tpm_maestros', { ts: Date.now(), personas: r.personas, arbol: r.arbol, areas: r.areas || [] }); window.AREAS_CFG = r.areas || []; return true; }
+    if (r.ok) { LS.set('tpm_maestros', { ts: Date.now(), personas: r.personas, arbol: r.arbol, areas: r.areas || [], responsables: r.responsables || [] }); window.AREAS_CFG = r.areas || []; window.RESP_CFG = r.responsables || []; return true; }
   } catch (e) {}
   return false;
 }
@@ -139,43 +140,71 @@ if (typeof window.sectorDe !== 'function') {
 function personasDelSector(s) { return (typeof PERSONAS_POR_SECTOR !== 'undefined' && PERSONAS_POR_SECTOR[s]) ? PERSONAS_POR_SECTOR[s].length : 0; }
 
 /* ============================================================
-   Areas: criticidad, supervisor (responsable por defecto) y ejecutores por color.
-   Fuente: hoja "Areas" de la planilla (se edita en config.html).
-   Si un area no esta configurada usa la fila '*'; si tampoco hay, estos valores por defecto:
-     Roja  -> tecnicos de los sectores Mantenimiento (Mecanico / Electrico)
-     Azul  -> Operarios
-     Verde -> Ingenieria, I+D y Produccion
-   Los nombres de ejecutores se separan con ";" (los nombres llevan coma).
+   AREAS QUE RESUELVEN (obligatorio en cada tarjeta)
+   Cada area responsable tiene: colores que atiende, su equipo (pool de personas),
+   modo de reparto y horas por persona por dia para tarjetas.
+     modo 'equipo'     -> rojas: el trabajo lo hacen N tecnicos del area (reparte entre todos).
+     modo 'supervisor' -> azules/verdes: la tarjeta se asigna a UN supervisor del area,
+                          que la hace ejecutar por su gente (reparte solo entre los supervisores).
+   Fuente: hoja "Responsables" de la planilla (config.html). Si esta vacia, valores por defecto
+   armados desde la nomina. Nombres separados por ";".
    ============================================================ */
-window.AREAS_CFG = window.AREAS_CFG || [];
+window.AREAS_CFG = window.AREAS_CFG || [];      // criticidad por area fisica (hoja Areas)
+window.RESP_CFG = window.RESP_CFG || [];        // areas responsables (hoja Responsables)
 function _personasDeSectores(re) {
   if (typeof PERSONAS_POR_SECTOR === 'undefined') return [];
   let out = [];
   Object.keys(PERSONAS_POR_SECTOR).forEach(function (s) { if (re.test(s)) out = out.concat(PERSONAS_POR_SECTOR[s]); });
   return out;
 }
-function areaPorDefecto() {
-  const jefeMant = (typeof PERSONAS_POR_SECTOR !== 'undefined' && PERSONAS_POR_SECTOR['Mantenimiento']) ? PERSONAS_POR_SECTOR['Mantenimiento'][0] : '';
-  return {
-    Area: '*', Criticidad: 'B',
-    'Supervisor Roja': jefeMant, 'Ejecutores Roja': _personasDeSectores(/^Mantenimiento/i).join('; '),
-    'Supervisor Azul': '', 'Ejecutores Azul': _personasDeSectores(/^Operari/i).join('; '),
-    'Supervisor Verde': '', 'Ejecutores Verde': _personasDeSectores(/Ingenier|I\+D|Producci/i).join('; ')
-  };
-}
-function cfgArea(area) {
-  const base = areaPorDefecto();
-  const gen = (window.AREAS_CFG || []).find(function (f) { return f.Area === '*'; }) || {};
-  const esp = (window.AREAS_CFG || []).find(function (f) { return f.Area === area; }) || {};
-  const out = {};
-  Object.keys(base).forEach(function (k) { out[k] = esp[k] || gen[k] || base[k]; });
-  out.Area = area;
-  return out;
-}
 function listaNombres(txt) { return String(txt || '').split(';').map(function (x) { return x.trim(); }).filter(String); }
-function supervisorPara(area, tipo) { return cfgArea(area)['Supervisor ' + tipo] || ''; }
-function ejecutoresPara(area, tipo) { return listaNombres(cfgArea(area)['Ejecutores ' + tipo]); }
-function criticidadArea(area) { const c = String(cfgArea(area).Criticidad || 'B').toUpperCase(); return ['A', 'B', 'C'].indexOf(c) > -1 ? c : 'B'; }
+function responsablesPorDefecto() {
+  return [
+    { Area: 'Mantenimiento Mecánico', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^Mantenimiento Mec/i).join('; '),
+      Ayuda: 'Mecánica: rodamientos, transmisiones, fugas, bombas, estructuras.' },
+    { Area: 'Mantenimiento Eléctrico', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^Mantenimiento El/i).join('; '),
+      Ayuda: 'Eléctrica e instrumentos: motores, tableros, sensores, cableado.' },
+    { Area: 'Mantenimiento (a derivar)', Colores: 'Roja', Modo: 'supervisor', HorasDia: 8, Personas: _personasDeSectores(/^Mantenimiento$/i).join('; '),
+      Ayuda: 'No sé si es mecánico o eléctrico: lo deriva el jefe de mantenimiento.' },
+    { Area: 'Producción', Colores: 'Azul', Modo: 'supervisor', HorasDia: 6, Personas: _personasDeSectores(/^Producci/i).join('; '),
+      Ayuda: 'La resuelve la gente del turno; se asigna a un supervisor de producción.' },
+    { Area: 'Mejora Enfocada', Colores: 'Verde', Modo: 'supervisor', HorasDia: 4, Personas: _personasDeSectores(/Ingenier|^I\+D/i).join('; '),
+      Ayuda: 'Ideas de mejora: la toma el equipo de Mejora Enfocada.' }
+  ];
+}
+function areasResponsables() {
+  const cfg = (window.RESP_CFG || []).filter(function (r) { return r.Area; });
+  const base = responsablesPorDefecto();
+  if (!cfg.length) return base;
+  return cfg.map(function (r) {
+    const d = base.find(function (b) { return b.Area === r.Area; }) || {};
+    return { Area: r.Area, Colores: r.Colores || d.Colores || '', Modo: r.Modo || d.Modo || 'equipo',
+      HorasDia: parseFloat(r.HorasDia) || d.HorasDia || 4, Personas: r.Personas || d.Personas || '', Ayuda: r.Ayuda || d.Ayuda || '' };
+  });
+}
+function areasRespPara(tipo) { return areasResponsables().filter(function (r) { return listaNombres(String(r.Colores).replace(/,/g, ';')).indexOf(tipo) > -1; }); }
+function cfgResp(nombre) { return areasResponsables().find(function (r) { return r.Area === nombre; }) || null; }
+function poolDe(nombre) { const r = cfgResp(nombre); return r ? listaNombres(r.Personas) : []; }
+/* Area responsable efectiva de una tarjeta (las viejas no la tienen: se toma la primera del color). */
+function areaRespDe(t) {
+  if (t['Area responsable'] && cfgResp(t['Area responsable'])) return t['Area responsable'];
+  const l = areasRespPara(t['Tipo']); return l.length ? l[0].Area : '';
+}
+function ejecutoresPara(t) { return poolDe(areaRespDe(t)); }
+function modoDe(t) { const r = cfgResp(areaRespDe(t)); return r ? r.Modo : 'equipo'; }
+/* Carga actual (tarjetas abiertas como responsable) para repartir parejo */
+function cargaAbiertas(ts) {
+  const c = {};
+  (ts || []).forEach(function (t) { if (esAbierta(t) && t['Responsable asignado']) c[t['Responsable asignado']] = (c[t['Responsable asignado']] || 0) + 1; });
+  return c;
+}
+function menosCargado(pool, carga) {
+  return pool.slice().sort(function (a, b) { return ((carga[a] || 0) - (carga[b] || 0)) || a.localeCompare(b); })[0] || '';
+}
+function criticidadArea(area) {
+  const f = (window.AREAS_CFG || []).find(function (x) { return x.Area === area; }) || (window.AREAS_CFG || []).find(function (x) { return x.Area === '*'; }) || {};
+  const c = String(f.Criticidad || 'B').toUpperCase(); return ['A', 'B', 'C'].indexOf(c) > -1 ? c : 'B';
+}
 function especialidadDe(nombre) {
   const s = sectorDe(nombre);
   if (/el[eé]ctric/i.test(s)) return 'Electrica';
@@ -193,7 +222,8 @@ function estadisticasEstimacion(ts) {
   const st = {};
   ts.forEach(function (t) {
     const k = t['Tipo'] + '|' + grupoCategoria(t['Categoria']);
-    const h = parseFloat(t['Horas estimadas']), p = parseFloat(t['Personas necesarias']);
+    // lo real (al cerrar) ensena mas que lo estimado
+    const h = parseFloat(t['Horas reales']) || parseFloat(t['Horas estimadas']), p = parseFloat(t['Personas reales']) || parseFloat(t['Personas necesarias']);
     st[k] = st[k] || { h: [], p: [] };
     if (h > 0) st[k].h.push(h); if (p > 0) st[k].p.push(p);
   });
@@ -203,7 +233,7 @@ function duracionDe(t, st) {
   const h = parseFloat(t['Horas estimadas']);
   if (h > 0) return { v: h, fuente: 'tarjeta' };
   const e = st && st[t['Tipo'] + '|' + grupoCategoria(t['Categoria'])];
-  if (e && e.h.length >= 3) return { v: _mediana(e.h), fuente: 'historial' };
+  if (e && e.h.length >= 3) return { v: Math.max(1, Math.ceil(_mediana(e.h))), fuente: 'historial' };
   return { v: CONFIG.DURACION_DEFECTO[t['Tipo']] || 1, fuente: 'defecto' };
 }
 function personasDe(t, st) {

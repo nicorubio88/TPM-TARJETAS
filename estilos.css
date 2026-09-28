@@ -226,3 +226,22 @@ table.areas .btn{white-space:nowrap}
 .prisel .op .a{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
 .prisel .op.sel{box-shadow:0 0 0 3px var(--verde-soft)}
 @media (max-width:600px){ .prisel .op .a{display:none} }
+/* v6: formulario por bloques */
+.bloque-t{margin:26px 0 -4px;padding-top:14px;border-top:2px solid var(--line);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.bloque-t:first-of-type{border-top:none;margin-top:10px;padding-top:0}
+.avance{position:sticky;top:0;z-index:5;background:#fff;padding:6px 0 10px;margin:-6px 0 4px}
+.avance-bar{height:6px;background:var(--soft);border-radius:4px;overflow:hidden}
+.avance-bar div{height:6px;background:var(--verde);transition:.2s}
+.avance-t{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--muted);margin-top:5px}
+.avance-t .ok{color:var(--verde-d);font-weight:700}
+.sug{font-size:12.5px;color:var(--amber-ink);margin-top:6px}
+.sug:empty{display:none}
+.sug a{font-weight:800;text-decoration:underline}
+.foto-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.foto-btn{cursor:pointer;display:inline-block}
+.resumen{margin-top:18px;background:var(--verde-soft);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6}
+.resumen:empty{display:none}
+@media (max-width:600px){ #areasel{grid-template-columns:1fr!important} }
+.crit{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px 18px}
+.crit-f{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px;border-bottom:1px solid var(--line);padding:4px 0}
+.crit-f select{width:120px;padding:5px 8px;font-size:12.5px}

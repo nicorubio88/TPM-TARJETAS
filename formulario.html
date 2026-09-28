@@ -18,51 +18,72 @@
 
 <div class="wrap" style="max-width:820px">
   <h1>Cargar tarjeta</h1>
-  <p class="sub">Menos de un minuto. Detectar a tiempo es mantener: cada tarjeta cuenta.</p>
+  <p class="sub">Tres bloques: qué pasa, quién lo resuelve y cómo planificarlo. Lo que el sistema puede deducir, lo sugiere solo.</p>
 
   <div id="msg"></div>
 
   <div class="card" id="cardForm">
+    <div id="avance" class="avance"></div>
+
+    <!-- ============ BLOQUE A ============ -->
+    <div class="bloque-t">A · Qué pasa y dónde</div>
+
     <div class="paso"><span class="pn">1</span>¿Quién sos?</div>
     <input id="detectadoPor" placeholder="Escribí tu apellido y elegí de la lista">
     <div class="ayuda">Queda recordado en este dispositivo.</div>
 
-    <div class="paso"><span class="pn">2</span>Color: ¿quién lo resuelve?</div>
-    <div class="tipos" id="tipos"></div>
-    <div id="grupoInfo" class="kv"></div>
-
-    <div class="paso"><span class="pn">3</span>¿Dónde?</div>
+    <div class="paso"><span class="pn">2</span>¿Dónde?</div>
     <div id="qrInfo"></div>
     <input id="buscaEquipo" placeholder="🔎 Buscá el equipo: pulper, bomba 505, compresor...">
-    <div class="ayuda">O elegilo por área:</div>
+    <div class="ayuda">O elegilo por área (o escaneá el QR pegado en el equipo):</div>
     <div class="grid cols-3" style="gap:10px">
       <select id="areaEquipo"><option value="">Área...</option></select>
       <select id="equipo" disabled><option value="">Subárea / equipo...</option></select>
       <select id="componente" disabled><option value="">Equipo específico...</option></select>
     </div>
 
-    <div class="paso"><span class="pn">4</span>¿Qué ves?</div>
+    <div class="paso"><span class="pn">3</span>¿Qué ves?</div>
     <textarea id="descripcion" placeholder="Qué ves, oís o sentís (ruido, temperatura, pérdida, suciedad), en qué parte exacta y desde cuándo."></textarea>
+    <div class="foto-row">
+      <label class="btn sec sm foto-btn">📷 Sacar / adjuntar foto<input id="foto" type="file" accept="image/*" capture="environment" hidden></label>
+      <span class="ayuda" style="margin:0">Una foto ahorra una visita: quien la resuelve ve exactamente qué y dónde.</span>
+    </div>
+    <div id="fotoPrev"></div>
 
-    <div class="paso"><span class="pn">5</span>¿Qué tipo de anomalía es? <span class="oblig">obligatorio</span></div>
+    <div class="paso"><span class="pn">4</span>¿Qué tipo de anomalía es? <span class="oblig">obligatorio</span></div>
     <select id="categoria"></select>
     <div class="ayuda">Los 7 tipos de anomalía del Mantenimiento Autónomo. ¿Dudas? <a href="guias.html#doc-categorias" target="_blank"><b>Ver la guía con ejemplos</b></a></div>
 
-    <div class="paso"><span class="pn">6</span>¿Qué prioridad tiene? <span class="oblig">obligatorio</span></div>
+    <!-- ============ BLOQUE B ============ -->
+    <div class="bloque-t">B · Quién lo resuelve</div>
+
+    <div class="paso"><span class="pn">5</span>Color <span class="oblig">obligatorio</span></div>
+    <div class="tipos" id="tipos"></div>
+    <div id="sugColor" class="sug"></div>
+
+    <div class="paso"><span class="pn">6</span>¿Qué área lo resuelve? <span class="oblig">obligatorio</span></div>
+    <div class="prisel" id="areasel"><div class="ayuda">Primero elegí el color.</div></div>
+    <div id="sugArea" class="sug"></div>
+
+    <div class="paso"><span class="pn">7</span>Responsable</div>
+    <select id="responsable"></select>
+    <div id="respInfo" class="ayuda"></div>
+
+    <!-- ============ BLOQUE C ============ -->
+    <div class="bloque-t">C · Para planificar</div>
+
+    <div class="paso"><span class="pn">8</span>¿Qué prioridad tiene? <span class="oblig">obligatorio</span></div>
     <div class="prisel" id="prisel"></div>
     <input type="hidden" id="prioridad">
+    <div id="sugPrio" class="sug"></div>
 
-    <div class="paso"><span class="pn">7</span>Foto</div>
-    <input id="foto" type="file" accept="image/*" capture="environment">
-    <div id="fotoPrev"></div>
-
-    <div class="paso"><span class="pn">8</span>¿Se puede resolver con la máquina en marcha?</div>
+    <div class="paso"><span class="pn">9</span>¿Se puede resolver con la máquina en marcha?</div>
     <div class="condsel" id="condsel"></div>
 
-    <div class="paso"><span class="pn">9</span>¿Cuánto lleva resolverlo y cuántas personas? <span class="mini" style="font-weight:600">(si lo sabés)</span></div>
+    <div class="paso"><span class="pn">10</span>¿Cuánto lleva resolverlo y cuántas personas? <span class="mini" style="font-weight:600">(si lo sabés)</span></div>
     <div class="chips" id="chTiempo"></div>
-    <div class="chips" id="chPersonas" style="margin-top:8px"></div>
-    <div id="respAuto" class="kv" style="margin-top:10px"></div>
+    <div id="boxMasHoras" style="display:none;margin-top:8px"><input id="masHoras" type="number" min="9" step="1" placeholder="¿Cuántas horas? (9 o más)" style="max-width:260px"></div>
+    <div class="chips" id="chPersonas" style="margin-top:10px"></div>
 
     <details id="masDatos" class="mas">
       <summary>Más datos (opcional — si no los sabés, los completa el supervisor)</summary>
@@ -71,8 +92,8 @@
         <div><label>Etapa de Mantenimiento Autónomo</label><select id="etapaMa"></select></div>
       </div>
       <div class="grid cols-2">
-        <div><label>Responsable asignado</label><select id="responsable"></select></div>
         <div><label>Fecha compromiso</label><input id="fechaCompromiso" type="date"></div>
+        <div></div>
       </div>
       <div class="grid cols-2" id="boxVerde" style="display:none">
         <div><label>Dimensión de la mejora</label><select id="dimensionMejora"></select></div>
@@ -80,7 +101,8 @@
       </div>
     </details>
 
-    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
+    <div id="resumen" class="resumen"></div>
+    <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn" id="guardar" style="flex:1;min-width:200px">Guardar tarjeta</button>
       <button class="btn sec" id="limpiar">Limpiar</button>
     </div>
@@ -102,31 +124,19 @@
 <script src="personas.js"></script>
 <script src="comun.js"></script>
 <script>
-  var tipoSel = '', condSel = 'A definir', fotoDataURL = '';
+  var tipoSel = '', areaRespSel = '', condSel = 'A definir', fotoDataURL = '', tiempoSel = '', personasSel = '';
   var $ = function(id){ return document.getElementById(id); };
   var EQUIPOS = listaEquipos();
+  var CARGA = {};   // tarjetas abiertas por responsable (para mostrar a quien le toca)
 
   /* ---------- combos ---------- */
   $('turno').innerHTML = '<option value="">—</option>' + opciones(TURNOS);
   $('areaEquipo').innerHTML = '<option value="">Área...</option>' + opciones(Object.keys(ARBOL_EQUIPO));
   $('categoria').innerHTML = '<option value="">Elegí el tipo de anomalía...</option>' + opcionesGrupos(CATEGORIAS_TPM);
-  /* prioridad: se elige siempre (no hay valor por defecto) */
-  var PRIO_AYUDA = { Alta: 'Riesgo de parada, de seguridad o de calidad: hay que atenderla ya.', Media: 'Hay que resolverla pronto, dentro de la semana.', Baja: 'Puede esperar a la planificación normal.' };
-  var PRIO_COLOR = { Alta: '#B8402A', Media: '#C77D11', Baja: '#5E6B5A' };
-  function pintarPrioridad(){
-    var sel = $('prioridad').value;
-    $('prisel').innerHTML = PRIORIDADES.map(function(p){
-      var on = p === sel;
-      return '<div class="op'+(on?' sel':'')+'" data-p="'+p+'" style="'+(on?'border-color:'+PRIO_COLOR[p]+';background:#FBFCF8':'')+'"><div class="t" style="color:'+PRIO_COLOR[p]+'">'+p+'</div><div class="a">'+PRIO_AYUDA[p]+'</div></div>';
-    }).join('');
-    document.querySelectorAll('#prisel .op').forEach(function(el){ el.addEventListener('click', function(){ $('prioridad').value = el.getAttribute('data-p'); pintarPrioridad(); }); });
-  }
-  pintarPrioridad();
   $('etapaMa').innerHTML = '<option value="">—</option>' + opciones(ETAPAS_MA);
   $('dimensionMejora').innerHTML = '<option value="">—</option>' + opciones(DIMENSIONES_MEJORA);
-  $('responsable').innerHTML = '<option value="">(opcional) elegir persona...</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
   montarBuscadorPersona($('detectadoPor'), getYo());
-  document.addEventListener('tpm-yo', function(e){ if(!$('detectadoPor').value) $('detectadoPor').value = e.detail; });
+  document.addEventListener('tpm-yo', function(e){ if(!$('detectadoPor').value) $('detectadoPor').value = e.detail; actualizar(); });
 
   var dl = document.createElement('datalist'); dl.id = 'dl-equipos';
   dl.innerHTML = EQUIPOS.map(function(e){ return '<option value="'+esc(e.label)+'">'; }).join('');
@@ -147,15 +157,40 @@
     if (hijos.length) { n3.innerHTML = '<option value="">Equipo específico...</option>' + opciones(hijos, sel); n3.disabled = false; }
     else { n3.innerHTML = '<option value="">(la subárea es el equipo)</option>'; n3.disabled = true; }
   }
-  function fijarUbicacion(area, sub, eq){
-    $('areaEquipo').value = area; llenarSub(area, sub); llenarN3(area, sub, eq);
-  }
-  $('areaEquipo').addEventListener('change', function(){ llenarSub(this.value); $('buscaEquipo').value=''; });
-  $('equipo').addEventListener('change', function(){ llenarN3($('areaEquipo').value, this.value); $('buscaEquipo').value=''; });
+  function fijarUbicacion(area, sub, eq){ $('areaEquipo').value = area; llenarSub(area, sub); llenarN3(area, sub, eq); }
+  $('areaEquipo').addEventListener('change', function(){ llenarSub(this.value); $('buscaEquipo').value=''; actualizar(); });
+  $('equipo').addEventListener('change', function(){ llenarN3($('areaEquipo').value, this.value); $('buscaEquipo').value=''; actualizar(); });
+  $('componente').addEventListener('change', actualizar);
   $('buscaEquipo').addEventListener('change', function(){
     var v = this.value.trim(), e = EQUIPOS.find(function(x){ return x.label === v; });
     if (e) fijarUbicacion(e.area, e.sub, e.eq);
+    actualizar();
   });
+
+  /* ---------- sugerencias segun la categoria (nunca se imponen) ---------- */
+  function grupoCat(){ return grupoCategoria($('categoria').value); }
+  function colorSugerido(){
+    var c = $('categoria').value, g = grupoCat();
+    if (!c) return '';
+    if (/electrica|instrumentacion|Desgaste|Ruido|Grieta|Fuga/i.test(c)) return 'Roja';
+    if (g.indexOf('3 ') === 0) return 'Verde';
+    if (g.indexOf('1 ') === 0 || g.indexOf('7 ') === 0) return 'Azul';
+    return '';
+  }
+  function areaSugerida(){
+    var c = $('categoria').value;
+    if (tipoSel !== 'Roja' || !c) return '';
+    if (/electrica|instrumentacion/i.test(c)) return 'Mantenimiento Eléctrico';
+    if (/Desgaste|Ruido|Grieta|Fuga|Lubricacion|Ajuste/i.test(c)) return 'Mantenimiento Mecánico';
+    return '';
+  }
+  function prioridadSugerida(){
+    var g = grupoCat();
+    if (g.indexOf('6 ') === 0) return ['Alta', 'es una condición insegura'];
+    if (g.indexOf('5 ') === 0) return ['Alta', 'afecta la calidad del producto'];
+    if (g.indexOf('4 ') === 0) return ['Media', 'el deterioro avanza si no se corrige'];
+    return null;
+  }
 
   /* ---------- color ---------- */
   $('tipos').innerHTML = Object.keys(TIPOS).map(function(k){
@@ -163,12 +198,57 @@
     return '<div class="tipo" data-t="'+k+'"><div class="cab" style="background:'+t.color+'">'+k+'</div><div class="d">'+t.desc+'</div></div>';
   }).join('');
   function elegirTipo(k){
+    if (k !== tipoSel) areaRespSel = '';
     tipoSel = k;
     document.querySelectorAll('.tipo').forEach(function(x){ x.classList.toggle('sel', x.getAttribute('data-t')===k); });
-    $('grupoInfo').innerHTML = k ? 'La resuelve: <b>' + TIPOS[k].grupo + '</b>' : '';
     $('boxVerde').style.display = (k === 'Verde') ? 'grid' : 'none';
+    var areas = k ? areasRespPara(k) : [];
+    if (areas.length === 1) areaRespSel = areas[0].Area;     // una sola opcion: se elige sola
+    pintarAreas(); actualizar();
   }
   document.querySelectorAll('.tipo').forEach(function(el){ el.addEventListener('click', function(){ elegirTipo(el.getAttribute('data-t')); }); });
+
+  /* ---------- area que resuelve ---------- */
+  function pintarAreas(){
+    if (!tipoSel) { $('areasel').innerHTML = '<div class="ayuda">Primero elegí el color.</div>'; return; }
+    var areas = areasRespPara(tipoSel);
+    if (!areas.length) { $('areasel').innerHTML = '<div class="ayuda" style="color:#8A2E1C">No hay áreas configuradas para este color (Configuración).</div>'; return; }
+    $('areasel').innerHTML = areas.map(function(a){
+      var on = a.Area === areaRespSel, n = listaNombres(a.Personas).length;
+      return '<div class="op'+(on?' sel':'')+'" data-a="'+esc(a.Area)+'" style="'+(on?'border-color:'+colorTipo(tipoSel)+';background:#FBFCF8':'')+'">'+
+        '<div class="t" style="color:'+colorTipo(tipoSel)+'">'+esc(a.Area)+'</div><div class="a">'+esc(a.Ayuda||'')+' · '+n+' persona'+(n!==1?'s':'')+'</div></div>';
+    }).join('');
+    $('areasel').style.gridTemplateColumns = 'repeat(' + Math.min(3, areas.length) + ',1fr)';
+    document.querySelectorAll('#areasel .op').forEach(function(el){ el.addEventListener('click', function(){ areaRespSel = el.getAttribute('data-a'); pintarAreas(); actualizar(); }); });
+  }
+
+  /* ---------- responsable: automatico (el menos cargado del area) o elegido ---------- */
+  function pintarResponsables(){
+    var sel = $('responsable').value;
+    if (!areaRespSel) { $('responsable').innerHTML = '<option value="">Primero elegí el área</option>'; $('responsable').disabled = true; $('respInfo').innerHTML = ''; return; }
+    var pool = poolDe(areaRespSel), cfg = cfgResp(areaRespSel);
+    var auto = menosCargado(pool, CARGA);
+    $('responsable').disabled = false;
+    $('responsable').innerHTML = '<option value="">Automático: '+(auto ? esc(auto) + ' (el menos cargado)' : 'el menos cargado del área')+'</option>' +
+      '<optgroup label="Equipo de '+esc(areaRespSel)+'">' + pool.map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+' · '+(CARGA[p]||0)+' abiertas</option>'; }).join('') + '</optgroup>' +
+      '<optgroup label="Otra persona">' + todasLasPersonas().filter(function(p){ return pool.indexOf(p) === -1; }).map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+'</option>'; }).join('') + '</optgroup>';
+    if (sel && Array.prototype.some.call($('responsable').options, function(o){ return o.value === sel; })) $('responsable').value = sel;
+    $('respInfo').innerHTML = cfg && cfg.Modo === 'supervisor' ? 'Se reparte entre los ' + pool.length + ' responsables de ' + esc(areaRespSel) + '; cada uno la hace ejecutar por su gente.' :
+      'Se reparte entre los ' + pool.length + ' técnicos de ' + esc(areaRespSel) + '.';
+  }
+  $('responsable').addEventListener('change', actualizar);
+
+  /* ---------- prioridad ---------- */
+  var PRIO_AYUDA = { Alta: 'Riesgo de parada, de seguridad o de calidad: hay que atenderla ya.', Media: 'Hay que resolverla pronto, dentro de la semana.', Baja: 'Puede esperar a la planificación normal.' };
+  var PRIO_COLOR = { Alta: '#B8402A', Media: '#C77D11', Baja: '#5E6B5A' };
+  function pintarPrioridad(){
+    var sel = $('prioridad').value;
+    $('prisel').innerHTML = PRIORIDADES.map(function(p){
+      var on = p === sel;
+      return '<div class="op'+(on?' sel':'')+'" data-p="'+p+'" style="'+(on?'border-color:'+PRIO_COLOR[p]+';background:#FBFCF8':'')+'"><div class="t" style="color:'+PRIO_COLOR[p]+'">'+p+'</div><div class="a">'+PRIO_AYUDA[p]+'</div></div>';
+    }).join('');
+    document.querySelectorAll('#prisel .op').forEach(function(el){ el.addEventListener('click', function(){ $('prioridad').value = el.getAttribute('data-p'); pintarPrioridad(); actualizar(); }); });
+  }
 
   /* ---------- marcha / parada ---------- */
   function pintarCondicion(){
@@ -178,56 +258,80 @@
       return '<div class="op'+(sel?' sel':'')+'" data-c="'+k+'" style="'+(sel?'border-color:'+c.color+';background:'+c.soft:'')+'">'+
         '<div class="t" style="color:'+c.color+'">'+titulo+'</div><div class="a">'+c.ayuda+'</div></div>';
     }).join('');
-    document.querySelectorAll('#condsel .op').forEach(function(el){
-      el.addEventListener('click', function(){ condSel = el.getAttribute('data-c'); pintarCondicion(); });
-    });
+    document.querySelectorAll('#condsel .op').forEach(function(el){ el.addEventListener('click', function(){ condSel = el.getAttribute('data-c'); pintarCondicion(); actualizar(); }); });
   }
-  pintarCondicion();
 
-  /* ---------- paso 7: tiempo y personas (opcional) ---------- */
-  var TIEMPOS = [['15 min',0.25],['30 min',0.5],['1 h',1],['2 h',2],['4 h',4],['1 turno (8 h)',8],['Más de 1 turno',16]];
+  /* ---------- tiempo (de a 1 hora) y personas ---------- */
+  var TIEMPOS = [1,2,3,4,5,6,7,8].map(function(h){ return [h + ' h', h]; }).concat([['Más de 8 h', 'mas']]);
   var PERSONAS_OP = [['1 persona',1],['2 personas',2],['3 personas',3],['4 o más',4]];
-  var tiempoSel = '', personasSel = '';
   function chips(id, lista, sel, set){
     $(id).innerHTML = lista.map(function(o){ return '<span class="chipsel'+(String(o[1])===String(sel)?' on':'')+'" data-v="'+o[1]+'">'+o[0]+'</span>'; }).join('') +
       '<span class="chipsel'+(sel===''?' on':'')+'" data-v="">No sé</span>';
     $(id).querySelectorAll('.chipsel').forEach(function(c){ c.onclick = function(){ set(c.dataset.v); }; });
   }
   function pintarChips(){
-    chips('chTiempo', TIEMPOS, tiempoSel, function(v){ tiempoSel = v; pintarChips(); });
-    chips('chPersonas', PERSONAS_OP, personasSel, function(v){ personasSel = v; pintarChips(); });
+    chips('chTiempo', TIEMPOS, tiempoSel, function(v){ tiempoSel = v; $('boxMasHoras').style.display = v === 'mas' ? 'block' : 'none'; pintarChips(); actualizar(); });
+    chips('chPersonas', PERSONAS_OP, personasSel, function(v){ personasSel = v; pintarChips(); actualizar(); });
   }
-  pintarChips();
-  /* responsable que se asigna solo (supervisor del area y color, hoja Areas) */
-  function pintarRespAuto(){
-    var a = $('areaEquipo').value;
-    if (!a || !tipoSel || $('responsable').value) { $('respAuto').innerHTML = ''; return; }
-    var s = supervisorPara(a, tipoSel);
-    $('respAuto').innerHTML = s ? 'Se asigna automáticamente a <b>' + esc(s) + '</b> (supervisor ' + esc(TIPOS[tipoSel].grupo) + ' · ' + esc(a) + ')' : '';
+  function horasElegidas(){
+    if (tiempoSel === 'mas') { var h = Math.round(parseFloat($('masHoras').value)); return h >= 9 ? h : ''; }
+    return tiempoSel;
   }
-  ['areaEquipo','responsable'].forEach(function(id){ $(id).addEventListener('change', pintarRespAuto); });
-  document.querySelectorAll('.tipo').forEach(function(el){ el.addEventListener('click', pintarRespAuto); });
-  $('buscaEquipo').addEventListener('change', pintarRespAuto);
+  $('masHoras').addEventListener('input', actualizar);
 
-  /* ---------- categoria -> etapa sugerida ---------- */
+  /* ---------- sugerencias, avance y resumen ---------- */
+  function actualizar(){
+    var sc = colorSugerido();
+    $('sugColor').innerHTML = sc && sc !== tipoSel ? '💡 Por el tipo de anomalía suele ser <b>'+sc+'</b>. <a href="#" data-sc="'+sc+'">Usar '+sc+'</a>' : '';
+    var sa = areaSugerida();
+    $('sugArea').innerHTML = sa && sa !== areaRespSel && cfgResp(sa) ? '💡 Por el tipo de anomalía suele ser <b>'+esc(sa)+'</b>. <a href="#" data-sa="'+esc(sa)+'">Elegir</a>' : '';
+    var sp = prioridadSugerida();
+    $('sugPrio').innerHTML = sp && sp[0] !== $('prioridad').value ? '💡 Sugerida: <b>'+sp[0]+'</b> ('+sp[1]+'). <a href="#" data-sp="'+sp[0]+'">Usar '+sp[0]+'</a>' : '';
+    document.querySelectorAll('[data-sc]').forEach(function(a){ a.onclick = function(e){ e.preventDefault(); elegirTipo(a.dataset.sc); }; });
+    document.querySelectorAll('[data-sa]').forEach(function(a){ a.onclick = function(e){ e.preventDefault(); areaRespSel = a.dataset.sa; pintarAreas(); actualizar(); }; });
+    document.querySelectorAll('[data-sp]').forEach(function(a){ a.onclick = function(e){ e.preventDefault(); $('prioridad').value = a.dataset.sp; pintarPrioridad(); actualizar(); }; });
+    pintarResponsables();
+
+    var area = $('areaEquipo').value, sub = $('equipo').value;
+    var dondeOk = !!(area && sub && (!(ARBOL_EQUIPO[area] && (ARBOL_EQUIPO[area][sub]||[]).length) || $('componente').value));
+    var req = [
+      ['Quién', personaValida($('detectadoPor').value.trim())], ['Dónde', dondeOk], ['Qué', !!$('descripcion').value.trim()],
+      ['Tipo', !!$('categoria').value], ['Color', !!tipoSel], ['Área', !!areaRespSel], ['Prioridad', !!$('prioridad').value]
+    ];
+    var hechos = req.filter(function(r){ return r[1]; }).length;
+    $('avance').innerHTML = '<div class="avance-bar"><div style="width:'+Math.round(hechos/req.length*100)+'%"></div></div>' +
+      '<div class="avance-t">'+req.map(function(r){ return '<span class="'+(r[1]?'ok':'')+'">'+(r[1]?'✓ ':'')+r[0]+'</span>'; }).join('')+'</div>';
+
+    var resp = $('responsable').value || (areaRespSel ? menosCargado(poolDe(areaRespSel), CARGA) : '');
+    var h = horasElegidas();
+    $('resumen').innerHTML = hechos === req.length ?
+      '<b>Resumen:</b> tarjeta <b style="color:'+colorTipo(tipoSel)+'">'+tipoSel+'</b> · '+esc($('categoria').value)+' · prioridad <b>'+$('prioridad').value+'</b><br>'+
+      '📍 '+esc([area, sub, $('componente').value].filter(String).join(' › '))+'<br>'+
+      '👷 '+esc(areaRespSel)+(resp ? ' → <b>'+esc(resp)+'</b>' : '')+' · '+CONDICIONES[condSel].icono+' '+CONDICIONES[condSel].corto+
+      (h ? ' · '+h+' h' : '')+(personasSel ? ' × '+personasSel+' pers.' : '')+(fotoDataURL ? ' · 📷 con foto' : ' · <span style="color:#8A5A0A">sin foto</span>') : '';
+  }
+  ['detectadoPor','descripcion'].forEach(function(id){ $(id).addEventListener('input', actualizar); });
   $('categoria').addEventListener('change', function(){
     var opt = this.options[this.selectedIndex];
     var grupo = opt && opt.parentNode && opt.parentNode.label ? opt.parentNode.label : '';
     var sug = ETAPA_SUGERIDA[grupo];
     if (sug && !$('etapaMa').value) $('etapaMa').value = sug;
+    actualizar();
   });
 
   /* ---------- foto ---------- */
   $('foto').addEventListener('change', async function(){
     var f = this.files[0];
-    if(!f){ fotoDataURL=''; $('fotoPrev').innerHTML=''; return; }
+    if(!f){ fotoDataURL=''; $('fotoPrev').innerHTML=''; actualizar(); return; }
     $('fotoPrev').innerHTML = '<span class="ayuda">Procesando imagen...</span>';
     try{ fotoDataURL = await comprimirImagen(f);
       $('fotoPrev').innerHTML = '<img src="'+fotoDataURL+'" style="max-height:110px;margin-top:6px;border-radius:8px;border:1px solid var(--line)">';
     }catch(e){ fotoDataURL=''; $('fotoPrev').innerHTML='<span class="ayuda" style="color:#A32D2D">No se pudo cargar la imagen</span>'; }
+    actualizar();
   });
 
   /* ---------- parametros de URL: QR del equipo / tarjeta Kaizen ---------- */
+  pintarPrioridad(); pintarCondicion(); pintarChips(); pintarAreas();
   (function(){
     var q = new URLSearchParams(location.search);
     var u = q.get('u');
@@ -240,20 +344,24 @@
     }
     if (q.get('tipo') && TIPOS[q.get('tipo')]) elegirTipo(q.get('tipo'));
     if (q.get('desc')) $('descripcion').value = q.get('desc');
-    pintarRespAuto();
+    actualizar();
   })();
+  /* carga de cada responsable, para repartir y mostrarlo (si no hay senal, se reparte en el servidor igual) */
+  api('listar', { desde: desdeISO(30) }).then(function(r){ if (r.ok) { CARGA = cargaAbiertas(r.tarjetas); actualizar(); } }).catch(function(){});
 
   /* ---------- guardar ---------- */
   function msg(txt, ok){ $('msg').innerHTML = '<div class="msg '+(ok?'ok':'err')+'">'+txt+'</div>'; window.scrollTo(0,0); }
 
   function limpiarCampos(mantenerUbicacion){
-    ['descripcion','costo','fechaCompromiso'].forEach(function(id){ $(id).value=''; });
-    ['categoria','etapaMa','responsable','dimensionMejora','turno','prioridad'].forEach(function(id){ $(id).value=''; });
-    pintarPrioridad();
+    ['descripcion','costo','fechaCompromiso','masHoras'].forEach(function(id){ $(id).value=''; });
+    ['categoria','etapaMa','dimensionMejora','turno','prioridad'].forEach(function(id){ $(id).value=''; });
+    $('responsable').value = '';
     $('foto').value=''; $('fotoPrev').innerHTML=''; fotoDataURL='';
-    condSel = 'A definir'; pintarCondicion(); elegirTipo(''); tiempoSel = ''; personasSel = ''; pintarChips(); $('respAuto').innerHTML = '';
+    condSel = 'A definir'; tiempoSel = ''; personasSel = ''; $('boxMasHoras').style.display = 'none';
+    elegirTipo(''); pintarPrioridad(); pintarCondicion(); pintarChips();
     $('masDatos').open = false;
     if (!mantenerUbicacion) { $('buscaEquipo').value=''; $('areaEquipo').value=''; llenarSub(''); $('qrInfo').innerHTML=''; }
+    actualizar();
   }
   $('limpiar').addEventListener('click', function(){ limpiarCampos(false); $('msg').innerHTML=''; });
 
@@ -267,23 +375,27 @@
 
   $('guardar').addEventListener('click', async function(){
     var det = $('detectadoPor').value.trim();
-    if (!personaValida(det)) return msg('Elegí tu nombre de la lista en "¿Quién sos?".', false);
-    if (!tipoSel) return msg('Elegí el color de la tarjeta.', false);
+    if (!personaValida(det)) return msg('Elegí tu nombre de la lista en "¿Quién sos?" (paso 1).', false);
     var area = $('areaEquipo').value, sub = $('equipo').value, n3 = $('componente').value;
-    if (!area || !sub) return msg('Indicá dónde: buscá el equipo o elegí área y subárea.', false);
-    if ((ARBOL_EQUIPO[area][sub] || []).length && !n3) return msg('Elegí el equipo específico (tercer desplegable).', false);
+    if (!area || !sub) return msg('Indicá dónde: buscá el equipo o elegí área y subárea (paso 2).', false);
+    if ((ARBOL_EQUIPO[area][sub] || []).length && !n3) return msg('Elegí el equipo específico (tercer desplegable del paso 2).', false);
     var descripcion = $('descripcion').value.trim();
-    if (!descripcion) return msg('Contá qué ves en "¿Qué ves?".', false);
-    if (!$('categoria').value) return msg('Elegí el tipo de anomalía (paso 5).', false);
-    if (!$('prioridad').value) return msg('Elegí la prioridad (paso 6).', false);
+    if (!descripcion) return msg('Contá qué ves (paso 3).', false);
+    if (!$('categoria').value) return msg('Elegí el tipo de anomalía (paso 4).', false);
+    if (!tipoSel) return msg('Elegí el color de la tarjeta (paso 5).', false);
+    if (!areaRespSel) return msg('Elegí qué área lo resuelve (paso 6).', false);
+    if (!$('prioridad').value) return msg('Elegí la prioridad (paso 8).', false);
+    if (tiempoSel === 'mas' && !horasElegidas()) return msg('Indicá cuántas horas (9 o más) o elegí "No sé" (paso 10).', false);
 
     if (getYo() !== det) setYo(det);
     var data = {
       tipo: tipoSel, detectadoPor: det, sectorDetector: sectorDe(det), turno: $('turno').value,
       areaEquipo: area, equipo: sub, componente: n3, categoria: $('categoria').value, descripcion: descripcion,
-      prioridad: $('prioridad').value, responsable: $('responsable').value, fechaCompromiso: $('fechaCompromiso').value,
+      prioridad: $('prioridad').value, areaResponsable: areaRespSel, poolResponsable: poolDe(areaRespSel),
+      responsable: $('responsable').value, fechaCompromiso: $('fechaCompromiso').value,
       fotoData: fotoDataURL, costo: $('costo').value, etapaMa: $('etapaMa').value, dimensionMejora: $('dimensionMejora').value,
-      condicion: condSel, horasEstimadas: tiempoSel, personasNecesarias: personasSel, clienteId: Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+      condicion: condSel, horasEstimadas: horasElegidas(), personasNecesarias: personasSel,
+      clienteId: Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
     };
     var btn = $('guardar'); btn.disabled = true; btn.textContent = 'Guardando...';
     var sinRed = function(){
@@ -297,7 +409,8 @@
       else {
         var r = await api('crear', { data: data });
         if (r.ok) {
-          mostrarOk('Tarjeta ' + esc(r.id), 'Asignada a <b>' + esc(r.grupo) + '</b>' + (r.responsable ? ' · responsable: <b>' + esc(r.responsable) + '</b>' : '') + '. Gracias por cuidar la línea.' +
+          if (r.responsable) CARGA[r.responsable] = (CARGA[r.responsable] || 0) + 1;
+          mostrarOk('Tarjeta ' + esc(r.id), 'Área: <b>' + esc(areaRespSel) + '</b>' + (r.responsable ? ' · responsable: <b>' + esc(r.responsable) + '</b>' : '') + '. Gracias por cuidar la línea.' +
             (r.fotoError ? '<br><span style="color:#8A2E1C">⚠ ' + esc(r.fotoError) + '</span>' : '') +
             (r.ehs ? '<br>Es de seguridad: ' + (r.ehs === 'Pendiente' ? 'queda marcada para Seguridad e Higiene.' : 'también se derivó a Seguridad e Higiene.') : ''));
         } else msg('Error: ' + esc(r.error || 'no se pudo guardar'), false);

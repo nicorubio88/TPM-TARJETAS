@@ -68,7 +68,9 @@ const HEADERS = [
   // v4 — planificacion automatica
   'Personas necesarias', 'Ejecutores', 'Fecha planificada', 'Horario planificado',
   // v5 — control de duplicados de la cola sin conexion
-  'Cliente ID'
+  'Cliente ID',
+  // v6 — area que resuelve y datos reales del cierre
+  'Area responsable', 'Horas reales', 'Personas reales'
 ];
 const COLS_FECHAHORA = ['Fecha alta', 'Fecha cierre', 'Fecha verificacion'];
 const COLS_FECHA = ['Fecha compromiso', 'Parada objetivo', 'Fecha planificada'];
@@ -77,6 +79,9 @@ const H_HIST = ['Fecha', 'ID', 'Accion', 'Campo', 'Antes', 'Despues', 'Usuario']
 const H_PARADAS = ['ID', 'Fecha', 'Descripcion', 'HH disponibles', 'Estado', 'Duracion (h)', 'Hora inicio'];
 // Configuracion por area: criticidad del area (A/B/C) y, por color, supervisor (responsable por defecto)
 // y ejecutores (quienes hacen el trabajo). La fila con Area = '*' es el valor por defecto para todas.
+// Areas que resuelven: equipo de cada area y modo de reparto (equipo = rojas entre todos los tecnicos;
+// supervisor = azules/verdes a un supervisor). Personas separadas por ";".
+const H_RESP = ['Area', 'Colores', 'Modo', 'HorasDia', 'Personas', 'Ayuda'];
 const H_AREAS = ['Area', 'Criticidad', 'Supervisor Roja', 'Ejecutores Roja', 'Supervisor Azul', 'Ejecutores Azul', 'Supervisor Verde', 'Ejecutores Verde'];
 const H_PERSONAS = ['Sector', 'Nombre', 'Email', 'Activo'];
 const H_ARBOL = ['Area', 'Subarea', 'Equipo'];
@@ -87,7 +92,7 @@ var _EN_WEBAPP = false;
 function doGet(e)  { _EN_WEBAPP = true; return handle_(e); }
 function doPost(e) { _EN_WEBAPP = true; return handle_(e); }
 
-const ACCIONES_ESCRITURA = ['crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
+const ACCIONES_ESCRITURA = ['guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
 
 function handle_(e) {
   var req = {};
@@ -113,6 +118,7 @@ function handle_(e) {
       case 'actualizar':      out = actualizar_(req.id, req.cambios || {}, usuario); break;
       case 'actualizarLote':  out = actualizarLote_(req.items || [], usuario); break;
       case 'guardarAreas':    out = guardarAreas_(req.filas || [], usuario); break;
+      case 'guardarResponsables': out = guardarResponsables_(req.filas || [], usuario); break;
       case 'cerrar':          out = cerrar_(req, usuario); break;
       case 'verificar':       out = verificar_(req, usuario); break;
       case 'historial':       out = { ok: true, historial: historial_(req.id) }; break;
@@ -166,7 +172,7 @@ function getSheet_() { return hoja_(SHEET_NAME, HEADERS); }
 
 function setup() {
   getSheet_(); hoja_('Historial', H_HIST); hoja_('Paradas', H_PARADAS);
-  hoja_('Personas', H_PERSONAS); hoja_('Arbol', H_ARBOL); hoja_('Areas', H_AREAS);
+  hoja_('Personas', H_PERSONAS); hoja_('Arbol', H_ARBOL); hoja_('Areas', H_AREAS); hoja_('Responsables', H_RESP);
   // Desde el editor (no hay lock tomado) corre la migracion; desde la web app ya corrio en handle_.
   if (!_EN_WEBAPP) migrarV3_();
   return { ok: true, mensaje: 'Hojas listas. Tarjetas tiene ' + HEADERS.length + ' columnas.' };
@@ -245,6 +251,7 @@ function crear_(d, usuario) {
   if (!d.descripcion)  throw new Error('Falta la descripcion.');
   if (!String(d.categoria || '').trim()) throw new Error('Falta la categoria de anomalia.');
   if (PRIORIDADES.indexOf(d.prioridad) === -1) throw new Error('Falta la prioridad (Alta, Media o Baja).');
+  if (!String(d.areaResponsable || '').trim()) throw new Error('Falta el area que resuelve la tarjeta.');
 
   // Idempotencia para la cola sin conexion: si el mismo envio llega dos veces, no se duplica.
   // Se busca el Cliente ID en las ultimas 1000 filas (un reintento llega siempre poco despues).
@@ -286,8 +293,11 @@ function crear_(d, usuario) {
   fila['Horas estimadas'] = d.horasEstimadas || '';
   fila['Personas necesarias'] = d.personasNecesarias || '';
   fila['Cliente ID'] = d.clienteId || '';
-  // Responsable automatico: supervisor configurado para el area y el color (hoja Areas)
-  if (!fila['Responsable asignado']) fila['Responsable asignado'] = supervisorDefecto_(d.areaEquipo, tipo);
+  fila['Area responsable'] = d.areaResponsable;
+  // Responsable: el elegido; si no, el menos cargado del equipo del area responsable
+  if (!fila['Responsable asignado'] || fila['Responsable asignado'] === '__auto__') {
+    fila['Responsable asignado'] = menosCargado_(poolResponsable_(d.areaResponsable, d.poolResponsable));
+  }
 
   var esSeguridad = CATEGORIAS_SEGURIDAD.indexOf(d.categoria) > -1;
   if (esSeguridad) fila['Enviado a EHS'] = 'Pendiente';
@@ -413,7 +423,8 @@ const MAPA_CAMPOS = {
   condicion: 'Condicion intervencion', especialidad: 'Especialidad', horasEstimadas: 'Horas estimadas',
   repuestos: 'Repuestos', paradaObjetivo: 'Parada objetivo', nOT: 'N OT', loto: 'LOTO / Permiso',
   tipo: 'Tipo', dimensionMejora: 'Dimension mejora', costo: 'Costo estimado',
-  personas: 'Personas necesarias', ejecutores: 'Ejecutores', fechaPlanificada: 'Fecha planificada', horario: 'Horario planificado'
+  personas: 'Personas necesarias', ejecutores: 'Ejecutores', fechaPlanificada: 'Fecha planificada', horario: 'Horario planificado',
+  areaResponsable: 'Area responsable'
 };
 
 function actualizar_(id, cambios, usuario) {
@@ -428,6 +439,10 @@ function actualizar_(id, cambios, usuario) {
   // categoria y prioridad son obligatorias: se pueden cambiar, no borrar
   if (cambios.categoria !== undefined && !String(cambios.categoria).trim() && t['Categoria']) throw new Error('La categoria de anomalia es obligatoria.');
   if (cambios.prioridad !== undefined && PRIORIDADES.indexOf(cambios.prioridad) === -1) throw new Error('Prioridad invalida (Alta, Media o Baja).');
+  if (cambios.areaResponsable !== undefined && !String(cambios.areaResponsable).trim() && t['Area responsable']) throw new Error('El area que resuelve es obligatoria.');
+  if (cambios.responsable === '__auto__') {
+    cambios.responsable = menosCargado_(poolResponsable_(cambios.areaResponsable || t['Area responsable'], cambios.poolResponsable), id);
+  }
   if (cambios.tipo !== undefined && !GRUPO_POR_COLOR[cambios.tipo]) delete cambios.tipo;
 
   var valores = {};
@@ -466,6 +481,10 @@ function cerrar_(req, usuario) {
   var id = req.id, accion = String(req.accion || '').trim(), cerradoPor = String(req.cerradoPor || '').trim();
   if (!accion) throw new Error('Indica la accion de cierre.');
   if (!cerradoPor) throw new Error('Indica quien resolvio la tarjeta.');
+  var hr = parseFloat(req.horasReales), pr = parseInt(req.personasReales, 10);
+  if (!(hr > 0)) throw new Error('Indica cuantas horas llevo realmente.');
+  if (!(pr >= 1)) throw new Error('Indica cuantas personas trabajaron.');
+  if (!String(req.causa || '').trim()) throw new Error('Indica la causa.');
   var t = leer_(id);
   if (ESTADOS_ABIERTOS.indexOf(t['Estado']) === -1) throw new Error('La tarjeta no esta abierta (estado: ' + t['Estado'] + ').');
 
@@ -476,7 +495,7 @@ function cerrar_(req, usuario) {
   }
   var v = {
     'Estado': 'Cerrada', 'Fecha cierre': ahora_(), 'Accion de cierre': accion, 'Cerrado por': cerradoPor,
-    'Causa': req.causa || '', 'Agregar a MP': req.agregarMP ? 'Si' : '', 'Actualizar estandar': req.actualizarEstandar ? 'Si' : ''
+    'Causa': req.causa || '', 'Horas reales': hr, 'Personas reales': pr, 'Agregar a MP': req.agregarMP ? 'Si' : '', 'Actualizar estandar': req.actualizarEstandar ? 'Si' : ''
   };
   if (fotoCierre) v['Foto cierre URL'] = fotoCierre;
   if (req.costo !== undefined && req.costo !== null && req.costo !== '') v['Costo estimado'] = req.costo;
@@ -585,7 +604,7 @@ function maestros_() {
       nA++;
     });
   }
-  return { ok: true, personas: nP ? personas : null, arbol: nA ? arbol : null, areas: leerAreas_() };
+  return { ok: true, personas: nP ? personas : null, arbol: nA ? arbol : null, areas: leerAreas_(), responsables: leerResponsables_() };
 }
 
 function sembrarMaestros_(personas, arbol, forzar) {
@@ -641,12 +660,49 @@ function guardarAreas_(filas, usuario) {
   return { ok: true, filas: v.length };
 }
 
-function supervisorDefecto_(area, tipo) {
-  try {
-    var col = 'Supervisor ' + tipo, filas = leerAreas_(), porDefecto = '', propio = '';
-    filas.forEach(function (f) { if (f.Area === area) propio = f[col]; if (f.Area === '*') porDefecto = f[col]; });
-    return propio || porDefecto || '';
-  } catch (e) { return ''; }
+/* ---------- Areas que resuelven ---------- */
+function leerResponsables_() {
+  var sh = hoja_('Responsables', H_RESP);
+  if (sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, H_RESP.length).getValues()
+    .filter(function (r) { return r[0]; })
+    .map(function (r) { var o = {}; H_RESP.forEach(function (h, i) { o[h] = String(r[i] == null ? '' : r[i]); }); return o; });
+}
+
+function guardarResponsables_(filas, usuario) {
+  var sh = hoja_('Responsables', H_RESP);
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, H_RESP.length).clearContent();
+  var v = filas.filter(function (f) { return f && String(f.Area || '').trim(); })
+    .map(function (f) { return H_RESP.map(function (h) { return f[h] == null ? '' : f[h]; }); });
+  if (v.length) sh.getRange(2, 1, v.length, H_RESP.length).setValues(v);
+  log_('-', 'Configuracion', 'Areas que resuelven', '', v.length + ' areas', usuario);
+  return { ok: true, filas: v.length };
+}
+
+function listaNombres_(txt) {
+  if (Array.isArray(txt)) return txt.map(String).filter(String);
+  return String(txt || '').split(';').map(function (x) { return x.trim(); }).filter(String);
+}
+
+// Equipo del area: el de la hoja Responsables si esta configurada; si no, el que manda el frontend (defaults de la nomina).
+function poolResponsable_(area, enviado) {
+  var r = leerResponsables_().filter(function (x) { return x.Area === area; })[0];
+  return r ? listaNombres_(r.Personas) : listaNombres_(enviado);
+}
+
+// El del equipo con menos tarjetas abiertas como responsable (empate: orden alfabetico).
+function menosCargado_(pool, excluirId) {
+  if (!pool.length) return '';
+  var sh = getSheet_(), n = sh.getLastRow() - 1, carga = {};
+  if (n > 0) {
+    var cR = colDe_('Responsable asignado'), cE = colDe_('Estado');
+    var v = sh.getRange(2, 1, n, Math.max(cR, cE)).getValues();
+    v.forEach(function (r) {
+      if (excluirId && String(r[0]) === String(excluirId)) return;
+      if (ESTADOS_ABIERTOS.indexOf(r[cE - 1]) > -1 && r[cR - 1]) carga[r[cR - 1]] = (carga[r[cR - 1]] || 0) + 1;
+    });
+  }
+  return pool.slice().sort(function (a, b) { return ((carga[a] || 0) - (carga[b] || 0)) || a.localeCompare(b); })[0];
 }
 
 function emailDe_(nombre) {
@@ -670,7 +726,7 @@ function notificar_(grupo, id, tipo, d, fotoUrl) {
     'Nueva tarjeta ' + tipo + ' asignada a ' + grupo + '.\n\n' +
     'ID: ' + id + '\nArea: ' + (d.areaEquipo || '') + '\nEquipo: ' + (d.equipo || '') +
     '\nComponente: ' + (d.componente || '') + '\nCategoria: ' + (d.categoria || '') +
-    '\nPrioridad: ' + (d.prioridad || 'Media') + '\nCondicion: ' + normCondicion_(d.condicion) +
+    '\nPrioridad: ' + (d.prioridad || 'Media') + '\nArea que resuelve: ' + (d.areaResponsable || '') + '\nCondicion: ' + normCondicion_(d.condicion) +
     '\nDetectado por: ' + (d.detectadoPor || '') +
     '\n\nDescripcion:\n' + (d.descripcion || '') +
     (fotoUrl ? '\n\nFoto: ' + fotoUrl : '') +

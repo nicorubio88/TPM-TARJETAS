@@ -34,27 +34,35 @@
   </div>
 
   <div class="card" style="margin-top:16px">
-    <h2 style="margin-top:0">Áreas: criticidad, supervisores y ejecutores</h2>
-    <p class="sub">Define quién recibe cada tarjeta y quién la ejecuta. El <b>supervisor</b> queda como responsable automático al cargarla;
-      los <b>ejecutores</b> son el equipo del que la planificación elige gente (rojas → técnicos, azules → producción).
-      La fila <b>Por defecto</b> vale para todas las áreas sin configurar. La <b>criticidad</b> (A/B/C) suma puntos al priorizar.</p>
-    <div style="overflow-x:auto"><table id="tAreas" class="areas"><thead><tr>
-      <th>Área</th><th>Crit.</th>
-      <th style="background:#C0392B">Roja · supervisor</th><th style="background:#C0392B">Roja · ejecutores</th>
-      <th style="background:#2D6CB5">Azul · supervisor</th><th style="background:#2D6CB5">Azul · ejecutores</th>
-      <th style="background:#4E9A2F">Verde · supervisor</th><th style="background:#4E9A2F">Verde · ejecutores</th>
+    <h2 style="margin-top:0">Áreas que resuelven</h2>
+    <p class="sub">Cada tarjeta se asigna a una de estas áreas (obligatorio al cargar) y el sistema reparte <b>solo entre su equipo</b>.
+      <b>Técnicos</b>: la tarjeta la ejecutan N personas del equipo (rojas). <b>Supervisores</b>: la toma un supervisor, que la hace ejecutar por su gente (azules y verdes).
+      <b>Horas/día</b> = tiempo por persona por día para tarjetas en máquina en marcha.</p>
+    <div id="avisoResp"></div>
+    <div style="overflow-x:auto"><table class="areas" id="tResp"><thead><tr>
+      <th>Área</th><th>Colores</th><th>Reparto</th><th>Horas/día</th><th>Equipo</th><th>Ayuda (se ve al cargar)</th><th></th>
     </tr></thead><tbody></tbody></table></div>
     <div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">
-      <button class="btn" id="guardarAreas">Guardar configuración de áreas</button><span class="mini" id="areasInfo"></span>
+      <button class="btn sec sm" id="addResp">+ Agregar área</button>
+      <button class="btn" id="guardarResp">Guardar áreas que resuelven</button><span class="mini" id="respInfo"></span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2 style="margin-top:0">Criticidad de las áreas de planta</h2>
+    <p class="sub">A / B / C suma puntos al priorizar (A +20, B +10, C 0). Sin definir = B.</p>
+    <div id="tCrit" class="crit"></div>
+    <div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="guardarAreas">Guardar criticidad</button><span class="mini" id="areasInfo"></span>
     </div>
   </div>
 
   <div class="modal-bg" id="mEjec"><div class="modal">
     <div style="display:flex;justify-content:space-between"><h3 id="ejTitulo"></h3><button class="btn sec sm" id="ejX">✕</button></div>
-    <p class="sub" style="margin:4px 0 8px">Tildá quiénes pueden ejecutar. Sin nadie tildado se usa la fila "Por defecto".</p>
+    <p class="sub" style="margin:4px 0 8px">Tildá quiénes forman el equipo de esta área.</p>
     <input id="ejBuscar" placeholder="Filtrar por nombre o sector...">
     <div id="ejLista" style="max-height:50vh;overflow:auto;margin-top:10px"></div>
-    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="ejOk">Listo</button><button class="btn sec" id="ejNadie">Usar por defecto</button></div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="ejOk">Listo</button><button class="btn sec" id="ejNadie">Destildar todos</button></div>
   </div></div>
 
   <div class="card" style="margin-top:16px">
@@ -100,40 +108,41 @@
     } catch(e) { msg('Error: ' + esc(e.message), false); }
     b.disabled = false; b.textContent = 'Copiar nómina y árbol a la planilla';
   });
-  /* ---------- Areas ---------- */
-  var COLORES = ['Roja','Azul','Verde'], FILAS = {}, EDIT = null;
-  function cargarFilas(){
-    FILAS = {};
-    ['*'].concat(Object.keys(ARBOL_EQUIPO)).forEach(function(a){
-      var f = (window.AREAS_CFG || []).find(function(x){ return x.Area === a; }) || {};
-      FILAS[a] = { Area: a, Criticidad: f.Criticidad || '' };
-      COLORES.forEach(function(c){ FILAS[a]['Supervisor '+c] = f['Supervisor '+c] || ''; FILAS[a]['Ejecutores '+c] = f['Ejecutores '+c] || ''; });
-    });
-  }
-  function optsPersonas(sel, vacio){ return '<option value="">'+vacio+'</option>' + opcionesGrupos(PERSONAS_POR_SECTOR, sel); }
-  function pintarAreas(){
-    var def = areaPorDefecto();
-    $('tAreas').querySelector('tbody').innerHTML = Object.keys(FILAS).map(function(a){
-      var f = FILAS[a], esDef = a === '*';
-      var h = '<tr'+(esDef?' style="background:var(--verde-soft)"':'')+'><td><b>'+(esDef?'Por defecto (todas)':esc(a))+'</b></td>'+
-        '<td><select data-a="'+esc(a)+'" data-k="Criticidad"><option value="">'+(esDef?'B':'—')+'</option>'+['A','B','C'].map(function(x){ return '<option'+(f.Criticidad===x?' selected':'')+'>'+x+'</option>'; }).join('')+'</select></td>';
-      COLORES.forEach(function(c){
-        var heredado = esDef ? def['Supervisor '+c] : '';
-        h += '<td><select data-a="'+esc(a)+'" data-k="Supervisor '+c+'">'+optsPersonas(f['Supervisor '+c], esDef ? (heredado ? '(auto: '+heredado.split(',')[0]+')' : '— sin supervisor —') : '(por defecto)')+'</select></td>';
-        var n = listaNombres(f['Ejecutores '+c]).length, nDef = listaNombres(esDef ? def['Ejecutores '+c] : '').length;
-        h += '<td><button class="btn sec sm" data-ej="'+esc(a)+'" data-c="'+c+'">'+(n ? '👷 '+n+' personas' : esDef ? '(auto: '+nDef+')' : '(por defecto)')+'</button></td>';
-      });
-      return h + '</tr>';
+  /* ---------- Areas que resuelven ---------- */
+  var RESP = [], EDIT = null;
+  function cargarResp(){ RESP = areasResponsables().map(function(r){ return Object.assign({}, r); }); }
+  function pintarResp(){
+    var prod = RESP.filter(function(r){ return /azul/i.test(r.Colores) && r.Modo === 'supervisor'; });
+    $('avisoResp').innerHTML = prod.filter(function(r){ return listaNombres(r.Personas).length !== 4; }).map(function(r){
+      return '<div class="msg err" style="margin:0 0 10px">⚠ <b>'+esc(r.Area)+'</b> tiene '+listaNombres(r.Personas).length+' personas. Si las azules se reparten solo entre los 4 supervisores, tocá "👷" y dejá tildados solo a ellos.</div>';
     }).join('');
-    $('tAreas').querySelectorAll('select').forEach(function(sl){ sl.onchange = function(){ FILAS[sl.dataset.a][sl.dataset.k] = sl.value; }; });
-    $('tAreas').querySelectorAll('[data-ej]').forEach(function(b){ b.onclick = function(){ abrirEjecutores(b.dataset.ej, b.dataset.c); }; });
+    $('tResp').querySelector('tbody').innerHTML = RESP.map(function(r, i){
+      var cols = ['Roja','Azul','Verde'].map(function(c){ return '<label class="chk" style="margin-right:6px!important"><input type="checkbox" data-i="'+i+'" data-c="'+c+'"'+(listaNombres(String(r.Colores).replace(/,/g,';')).indexOf(c)>-1?' checked':'')+'> '+c+'</label>'; }).join('');
+      var n = listaNombres(r.Personas).length;
+      return '<tr><td><input data-i="'+i+'" data-k="Area" value="'+esc(r.Area)+'" style="min-width:170px"></td><td style="white-space:nowrap">'+cols+'</td>'+
+        '<td><select data-i="'+i+'" data-k="Modo"><option value="equipo"'+(r.Modo==='equipo'?' selected':'')+'>Técnicos (N personas)</option><option value="supervisor"'+(r.Modo==='supervisor'?' selected':'')+'>Supervisores (1 responsable)</option></select></td>'+
+        '<td><input type="number" min="1" max="12" step="1" data-i="'+i+'" data-k="HorasDia" value="'+esc(r.HorasDia)+'" style="width:80px"></td>'+
+        '<td><button class="btn sec sm" data-ej="'+i+'">👷 '+n+' persona'+(n!==1?'s':'')+'</button></td>'+
+        '<td><input data-i="'+i+'" data-k="Ayuda" value="'+esc(r.Ayuda||'')+'" style="min-width:220px"></td>'+
+        '<td><button class="btn sec sm" data-del="'+i+'" title="Quitar">✕</button></td></tr>';
+    }).join('');
+    var tb = $('tResp');
+    tb.querySelectorAll('[data-k]').forEach(function(el){ el.onchange = function(){ RESP[+el.dataset.i][el.dataset.k] = el.value; if (el.dataset.k !== 'Ayuda') pintarResp(); }; });
+    tb.querySelectorAll('[data-c]').forEach(function(el){ el.onchange = function(){
+      var r = RESP[+el.dataset.i], l = listaNombres(String(r.Colores).replace(/,/g,';')).filter(function(c){ return c !== el.dataset.c; });
+      if (el.checked) l.push(el.dataset.c); r.Colores = l.join('; ');
+    }; });
+    tb.querySelectorAll('[data-ej]').forEach(function(b){ b.onclick = function(){ abrirEjecutores(+b.dataset.ej); }; });
+    tb.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(){
+      if (b.dataset.ok !== '1') { b.dataset.ok = '1'; b.textContent = '¿Quitar?'; return; }
+      RESP.splice(+b.dataset.del, 1); pintarResp();
+    }; });
   }
-  function abrirEjecutores(a, c){
-    EDIT = { a: a, c: c, sel: {} };
-    var actuales = listaNombres(FILAS[a]['Ejecutores '+c]);
-    if (!actuales.length && a === '*') actuales = listaNombres(areaPorDefecto()['Ejecutores '+c]);
-    actuales.forEach(function(n){ EDIT.sel[n] = 1; });
-    $('ejTitulo').textContent = 'Ejecutores ' + c + ' · ' + (a === '*' ? 'Por defecto' : a);
+  $('addResp').onclick = function(){ RESP.push({ Area: 'Nueva área', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: '', Ayuda: '' }); pintarResp(); };
+  function abrirEjecutores(i){
+    EDIT = { i: i, sel: {} };
+    listaNombres(RESP[i].Personas).forEach(function(n){ EDIT.sel[n] = 1; });
+    $('ejTitulo').textContent = 'Equipo de ' + RESP[i].Area;
     $('ejBuscar').value = ''; pintarEj(); $('mEjec').classList.add('show');
   }
   function pintarEj(){
@@ -149,21 +158,42 @@
   }
   $('ejBuscar').oninput = pintarEj;
   $('ejX').onclick = function(){ $('mEjec').classList.remove('show'); };
-  $('ejOk').onclick = function(){ FILAS[EDIT.a]['Ejecutores '+EDIT.c] = Object.keys(EDIT.sel).join('; '); $('mEjec').classList.remove('show'); pintarAreas(); };
-  $('ejNadie').onclick = function(){ FILAS[EDIT.a]['Ejecutores '+EDIT.c] = ''; $('mEjec').classList.remove('show'); pintarAreas(); };
-  $('guardarAreas').onclick = async function(){
-    var filas = Object.keys(FILAS).map(function(a){ return FILAS[a]; }).filter(function(f){
-      return f.Area === '*' || Object.keys(f).some(function(k){ return k !== 'Area' && f[k]; });
-    });
+  $('ejOk').onclick = function(){ RESP[EDIT.i].Personas = Object.keys(EDIT.sel).join('; '); $('mEjec').classList.remove('show'); pintarResp(); };
+  $('ejNadie').onclick = function(){ EDIT.sel = {}; pintarEj(); };
+  $('guardarResp').onclick = async function(){
+    var nombres = RESP.map(function(r){ return String(r.Area).trim(); });
+    if (nombres.some(function(n){ return !n; })) return msg('Hay un área sin nombre.', false);
+    if (nombres.some(function(n, i){ return nombres.indexOf(n) !== i; })) return msg('Hay dos áreas con el mismo nombre.', false);
+    var sinEquipo = RESP.filter(function(r){ return !listaNombres(r.Personas).length; }).map(function(r){ return r.Area; });
+    if (sinEquipo.length) return msg('Estas áreas no tienen equipo: ' + esc(sinEquipo.join(', ')), false);
+    var sinColor = RESP.filter(function(r){ return !listaNombres(String(r.Colores).replace(/,/g,';')).length; }).map(function(r){ return r.Area; });
+    if (sinColor.length) return msg('Estas áreas no tienen color: ' + esc(sinColor.join(', ')), false);
     var b = this; b.disabled = true;
-    try { var r = await api('guardarAreas', { filas: filas });
-      if (r.ok) { await refrescarMaestros(true); msg('Configuración de áreas guardada (' + r.filas + ' filas).', true); }
+    try { var r = await api('guardarResponsables', { filas: RESP.map(function(x){ return { Area: String(x.Area).trim(), Colores: x.Colores, Modo: x.Modo, HorasDia: x.HorasDia, Personas: x.Personas, Ayuda: x.Ayuda || '' }; }) });
+      if (r.ok) { await refrescarMaestros(true); cargarResp(); pintarResp(); msg('Áreas que resuelven guardadas (' + r.filas + ').', true); }
       else msg(esc(r.error), false);
     } catch(e) { msg('Error: ' + esc(e.message), false); }
     b.disabled = false;
   };
-  cargarFilas(); pintarAreas();
-  refrescarMaestros(true).then(function(ok){ if (ok) { cargarFilas(); pintarAreas(); $('areasInfo').textContent = 'Leído de la planilla.'; } });
+
+  /* ---------- Criticidad por area de planta ---------- */
+  var CRIT = {};
+  function cargarCrit(){ CRIT = {}; (window.AREAS_CFG || []).forEach(function(f){ if (f.Area && f.Criticidad) CRIT[f.Area] = f.Criticidad; }); }
+  function pintarCrit(){
+    $('tCrit').innerHTML = Object.keys(ARBOL_EQUIPO).map(function(a){
+      return '<div class="crit-f"><span>'+esc(a)+'</span><select data-a="'+esc(a)+'"><option value="">B (sin definir)</option>'+['A','B','C'].map(function(x){ return '<option'+(CRIT[a]===x?' selected':'')+'>'+x+'</option>'; }).join('')+'</select></div>';
+    }).join('');
+    $('tCrit').querySelectorAll('select').forEach(function(sl){ sl.onchange = function(){ if (sl.value) CRIT[sl.dataset.a] = sl.value; else delete CRIT[sl.dataset.a]; }; });
+  }
+  $('guardarAreas').onclick = async function(){
+    var b = this; b.disabled = true;
+    try { var r = await api('guardarAreas', { filas: Object.keys(CRIT).map(function(a){ return { Area: a, Criticidad: CRIT[a] }; }) });
+      if (r.ok) { await refrescarMaestros(true); msg('Criticidad guardada.', true); } else msg(esc(r.error), false);
+    } catch(e) { msg('Error: ' + esc(e.message), false); }
+    b.disabled = false;
+  };
+  cargarResp(); pintarResp(); cargarCrit(); pintarCrit();
+  refrescarMaestros(true).then(function(ok){ if (ok) { cargarResp(); pintarResp(); cargarCrit(); pintarCrit(); $('respInfo').textContent = (window.RESP_CFG||[]).length ? 'Leído de la planilla.' : 'Valores por defecto (todavía no se guardó ninguna configuración).'; } });
 
   $('refrescar').addEventListener('click', async function(){
     var ok = await refrescarMaestros(true);
