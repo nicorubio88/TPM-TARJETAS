@@ -62,6 +62,7 @@
       <div><label>Condición máquina</label><select id="fCond"></select></div>
       <div><label>Área equipo</label><select id="fArea"></select></div>
       <div><label>Parada objetivo</label><select id="fParada"></select></div>
+      <div><label>Área que resuelve</label><select id="fAreaResp"></select></div>
       <div><label>Especialidad</label><select id="fEsp"></select></div>
       <div><label>Etapa MA</label><select id="fEtapa"></select></div>
       <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto, OT..."></div>
@@ -127,8 +128,11 @@
         <div><label>Prioridad</label><select id="gPrioridad"></select></div>
       </div>
       <div id="boxMotivo" style="display:none"><label>Motivo de anulación *</label><input id="gMotivo" placeholder="Duplicada, no corresponde, ya resuelta en otra tarjeta..."></div>
-      <div class="grid cols-3">
+      <div class="grid cols-2">
+        <div><label>Área que lo resuelve *</label><select id="gAreaResp"></select></div>
         <div><label>Responsable asignado</label><select id="gResponsable"></select></div>
+      </div>
+      <div class="grid cols-2">
         <div><label>Fecha compromiso</label><input id="gCompromiso" type="date"></div>
         <div><label>Parada objetivo</label><select id="gParada"></select></div>
       </div>
@@ -137,7 +141,7 @@
         <div><label>Especialidad</label><select id="gEspecialidad"></select></div>
       </div>
       <div class="grid cols-3">
-        <div><label>Duración estimada (h)</label><input id="gHoras" type="number" min="0" step="0.25" placeholder="ej: 1.5"></div>
+        <div><label>Duración estimada (h)</label><input id="gHoras" type="number" min="1" step="1" placeholder="horas enteras, ej: 2"></div>
         <div><label>Personas necesarias</label><input id="gPersonas" type="number" min="1" step="1" placeholder="ej: 2"></div>
         <div><label>Fecha planificada</label><input id="gFechaPlan" type="date"></div>
       </div>
@@ -169,10 +173,19 @@
       <h2>Resolver la tarjeta</h2>
       <label>Acción realizada (qué se hizo) *</label>
       <textarea id="rAccion" placeholder="Cómo se resolvió." style="min-height:60px"></textarea>
-      <div class="grid cols-3">
+      <div class="grid cols-2">
         <div><label>Resuelta por *</label><input id="rPor"></div>
-        <div><label>Causa</label><select id="rCausa"></select></div>
+        <div><label>Causa *</label><select id="rCausa"></select></div>
+      </div>
+      <label>¿Cuánto llevó realmente? *</label>
+      <div class="chips" id="rChHoras"></div>
+      <div id="rBoxMas" style="display:none;margin-top:6px"><input id="rMasHoras" type="number" min="9" step="1" placeholder="Horas (9 o más)" style="max-width:220px"></div>
+      <label>¿Cuántas personas trabajaron? *</label>
+      <div class="chips" id="rChPers"></div>
+      <div class="ayuda">Lo real alimenta las estimaciones: la próxima vez el sistema planifica mejor.</div>
+      <div class="grid cols-2">
         <div><label>Costo / ahorro (USD)</label><input id="rCosto" type="number"></div>
+        <div></div>
       </div>
       <label>Foto del después</label>
       <input id="rFoto" type="file" accept="image/*" capture="environment"><div id="rFotoPrev"></div>
@@ -220,6 +233,7 @@
   $('fCond').innerHTML = '<option value="">Todas</option>' + optCond;
   $('fArea').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
   $('fEsp').innerHTML = '<option value="">Todas</option>' + opciones(ESPECIALIDADES);
+  $('fAreaResp').innerHTML = '<option value="">Todas</option><option value="_sin">Sin área asignada</option>' + opciones(areasResponsables().map(function(a){ return a.Area; }));
   $('fEtapa').innerHTML = '<option value="">Todas</option>' + opciones(ETAPAS_MA);
   $('gTipo').innerHTML = opciones(Object.keys(TIPOS));
   $('gEstado').innerHTML = opciones(['Abierta', 'En proceso', 'Anulada']);
@@ -229,9 +243,21 @@
   $('gLoto').innerHTML = '<option value="">—</option>' + opciones(LOTO_OPCIONES);
   $('gCategoria').innerHTML = '<option value="">(sin categoría: elegir)</option>' + opcionesGrupos(CATEGORIAS_TPM);
   $('gEtapaMa').innerHTML = '<option value="">—</option>' + opciones(ETAPAS_MA);
-  $('gResponsable').innerHTML = '<option value="">(sin asignar)</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
+  function pintarAreaResp(tipo, sel){
+    var areas = areasRespPara(tipo);
+    $('gAreaResp').innerHTML = (sel ? '' : '<option value="">(elegir)</option>') + areas.map(function(a){ return '<option value="'+esc(a.Area)+'">'+esc(a.Area)+'</option>'; }).join('') +
+      (sel && !areas.some(function(a){ return a.Area === sel; }) ? '<option value="'+esc(sel)+'">'+esc(sel)+'</option>' : '');
+    $('gAreaResp').value = sel || '';
+  }
+  function pintarRespSel(area, sel){
+    var pool = poolDe(area), carga = cargaAbiertas(TODAS);
+    $('gResponsable').innerHTML = '<option value="__auto__">Automático: el menos cargado ('+esc(menosCargado(pool, carga) || '—')+')</option>' +
+      '<optgroup label="Equipo de '+esc(area||'—')+'">' + pool.map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+' · '+(carga[p]||0)+' abiertas</option>'; }).join('') + '</optgroup>' +
+      '<optgroup label="Otra persona">' + todasLasPersonas().filter(function(p){ return pool.indexOf(p) === -1; }).map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+'</option>'; }).join('') + '</optgroup>';
+    $('gResponsable').value = sel || '__auto__';
+  }
   $('rCausa').innerHTML = '<option value="">—</option>' + opciones(CAUSAS);
-  $('bResp').innerHTML = '<option value="">Responsable: sin cambio</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
+  $('bResp').innerHTML = '<option value="">Responsable: sin cambio</option><option value="__auto__">Responsable: automático (menos cargado del área)</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
   $('bCond').innerHTML = '<option value="">Condición: sin cambio</option>' + optCond;
   montarBuscadorPersona($('rPor')); montarBuscadorPersona($('vQuien'));
 
@@ -273,6 +299,7 @@
       if(fa && t['Area equipo']!==fa) return false;
       if(fp==='_sin' ? !!t['Parada objetivo'] : (fp && t['Parada objetivo']!==fp)) return false;
       if(fe && t['Especialidad']!==fe) return false;
+      var far = $('fAreaResp').value; if(far==='_sin' ? !!t['Area responsable'] : (far && t['Area responsable']!==far)) return false;
       if(et && t['Etapa MA']!==et) return false;
       if($('fVencidas').checked && !t.vencida) return false;
       if($('fRepetidas').checked && !t.repetidaDe) return false;
@@ -295,7 +322,7 @@
         '<td>'+badgeCondicion(condicionDe(t))+'</td>'+
         '<td>'+esc(t['Area equipo']||'—')+(t['Equipo']?'<br><span class="mini">'+esc(t['Equipo'])+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</span>':'')+'</td>'+
         '<td>'+esc(d.slice(0,70))+(d.length>70?'…':'')+(t.repetidaDe?' '+badgeRepetida(t):'')+'</td>'+
-        '<td>'+esc(t['Responsable asignado']||'—')+(t['Ejecutores']?'<br><span class="mini">👷 '+esc(listaNombres(t['Ejecutores']).map(function(n){return n.split(',')[0];}).join(', '))+'</span>':'')+
+        '<td>'+esc(t['Responsable asignado']||'—')+'<br><span class="mini">'+esc(t['Area responsable']||'sin área')+'</span>'+(t['Ejecutores']?'<br><span class="mini">👷 '+esc(listaNombres(t['Ejecutores']).map(function(n){return n.split(',')[0];}).join(', '))+'</span>':'')+
           (t['Horas estimadas']?'<br><span class="mini">'+esc(t['Horas estimadas'])+' h × '+esc(t['Personas necesarias']||1)+'</span>':'')+'</td>'+
         '<td class="mini">'+(t['Parada objetivo']?'■ '+esc(String(t['Parada objetivo']).split('-').reverse().join('/')):(t['Fecha planificada']?'▶ '+esc(String(t['Fecha planificada']).slice(0,10).split('-').reverse().join('/')):'—'))+(t['Horario planificado']?'<br>'+esc(t['Horario planificado']):'')+'</td>'+
         '<td style="text-align:center">'+(t.diasAbierta===''?'—':t.diasAbierta)+'</td>'+
@@ -331,7 +358,9 @@
     var ids = Object.keys(SEL), ok = 0, btn = this; btn.disabled = true;
     for (var i = 0; i < ids.length; i++) {
       btn.textContent = 'Aplicando ' + (i+1) + '/' + ids.length + '...';
-      try { var r = await api('actualizar', { id: ids[i], cambios: cambios }); if (r.ok) ok++; } catch(e) {}
+      var c = Object.assign({}, cambios);
+      if (c.responsable === '__auto__') { var tt = TODAS.find(function(x){ return x['ID'] === ids[i]; }); c.poolResponsable = tt ? poolDe(areaRespDe(tt)) : []; }
+      try { var r = await api('actualizar', { id: ids[i], cambios: c }); if (r.ok) ok++; } catch(e) {}
     }
     btn.disabled = false; btn.textContent = 'Aplicar a seleccionadas';
     SEL = {}; $('selTodas').checked = false;
@@ -370,6 +399,8 @@
     $('gEHS').style.display = grupoCategoria(t['Categoria']).indexOf('6 ')===0 ? 'inline-block' : 'none';
 
     $('gTipo').value = t['Tipo'];
+    pintarAreaResp(t['Tipo'], t['Area responsable'] || '');
+    pintarRespSel(t['Area responsable'] || areaRespDe(t), t['Responsable asignado'] || '');
     var editable = esAbierta(t) || est==='Anulada';
     $('gEstado').innerHTML = editable ? opciones(['Abierta', 'En proceso', 'Anulada']) : '<option value="'+esc(est)+'">'+esc(ESTADO_LABEL[est]||est)+'</option>';
     $('gEstado').value = est; $('gEstado').disabled = !editable;
@@ -381,11 +412,16 @@
     $('gFechaPlan').value = String(t['Fecha planificada']||'').slice(0,10); $('gHorario').value = t['Horario planificado']||'';
     var pt = puntaje(t);
     $('ptsInfo').innerHTML = esAbierta(t) ? '<b>Puntaje de planificación: '+pt.total+'</b> <span class="mini">('+esc(textoPuntaje(pt))+')</span>' +
-      (!t['Responsable asignado'] && supervisorPara(t['Area equipo'], t['Tipo']) ? '<br><span class="mini">Supervisor por defecto del área: '+esc(supervisorPara(t['Area equipo'], t['Tipo']))+'</span>' : '') : '';
+      (!t['Area responsable'] ? '<br><span class="mini" style="color:#8A2E1C">Tarjeta sin área que la resuelve: elegila y guardá.</span>' : '') : '';
     $('gLoto').value = t['LOTO / Permiso']||''; $('gOT').value = t['N OT']||''; $('gRepuestos').value = t['Repuestos']||'';
     $('gCategoria').value = t['Categoria']||''; $('gEtapaMa').value = t['Etapa MA']||''; $('gNotas').value = t['Notas']||'';
     $('gMotivo').value = ''; $('boxMotivo').style.display = 'none';
-    $('rAccion').value = ''; $('rPor').value = getYo(); $('rCausa').value = ''; $('rCosto').value = t['Costo estimado']||'';
+    $('rAccion').value = ''; $('rPor').value = listaNombres(t['Ejecutores'])[0] || t['Responsable asignado'] || getYo(); $('rCausa').value = ''; $('rCosto').value = t['Costo estimado']||'';
+    // horas y personas reales: precargadas con lo estimado (1 toque si coincidio)
+    rHoras = parseFloat(t['Horas estimadas']) ? String(Math.max(1, Math.round(parseFloat(t['Horas estimadas'])))) : '';
+    if (+rHoras > 8) { $('rMasHoras').value = rHoras; rHoras = 'mas'; } else $('rMasHoras').value = '';
+    rPers = parseInt(t['Personas necesarias'], 10) ? String(Math.min(4, parseInt(t['Personas necesarias'], 10))) : '';
+    pintarChipsCierre();
     $('rFoto').value = ''; $('rFotoPrev').innerHTML = ''; fotoDespues = ''; $('rMP').checked = false; $('rEstd').checked = false;
     $('vQuien').value = getYo(); $('vCom').value = '';
     $('secHist').open = false; $('hist').innerHTML = '';
@@ -411,8 +447,10 @@
     if(!actual) return;
     var nuevoEstado = $('gEstado').value;
     if (nuevoEstado === 'Anulada' && actual['Estado'] !== 'Anulada' && !$('gMotivo').value.trim()) return msg('Indicá el motivo de anulación.', false);
+    if (!$('gAreaResp').value) return msg('Elegí el área que resuelve la tarjeta.', false);
     var cambios = {
-      tipo: $('gTipo').value, prioridad: $('gPrioridad').value, responsable: $('gResponsable').value,
+      tipo: $('gTipo').value, prioridad: $('gPrioridad').value, areaResponsable: $('gAreaResp').value,
+      responsable: $('gResponsable').value, poolResponsable: poolDe($('gAreaResp').value),
       fechaCompromiso: $('gCompromiso').value, paradaObjetivo: $('gParada').value, condicion: $('gCondicion').value,
       especialidad: $('gEspecialidad').value, horasEstimadas: $('gHoras').value, loto: $('gLoto').value,
       personas: $('gPersonas').value, ejecutores: $('gEjecutores').value.trim(), fechaPlanificada: $('gFechaPlan').value, horario: $('gHorario').value.trim(),
@@ -442,14 +480,31 @@
     catch(e){ fotoDespues=''; }
   });
 
+  var rHoras = '', rPers = '';
+  function pintarChipsCierre(){
+    var H = [1,2,3,4,5,6,7,8].map(function(h){ return [h+' h', String(h)]; }).concat([['Más de 8 h','mas']]);
+    $('rChHoras').innerHTML = H.map(function(o){ return '<span class="chipsel'+(o[1]===rHoras?' on':'')+'" data-v="'+o[1]+'">'+o[0]+'</span>'; }).join('');
+    $('rChPers').innerHTML = [['1','1'],['2','2'],['3','3'],['4 o más','4']].map(function(o){ return '<span class="chipsel'+(o[1]===rPers?' on':'')+'" data-v="'+o[1]+'">'+o[0]+'</span>'; }).join('');
+    $('rBoxMas').style.display = rHoras === 'mas' ? 'block' : 'none';
+    $('rChHoras').querySelectorAll('.chipsel').forEach(function(c){ c.onclick = function(){ rHoras = c.dataset.v; pintarChipsCierre(); }; });
+    $('rChPers').querySelectorAll('.chipsel').forEach(function(c){ c.onclick = function(){ rPers = c.dataset.v; pintarChipsCierre(); }; });
+  }
+  $('gTipo').addEventListener('change', function(){ pintarAreaResp(this.value, ''); pintarRespSel('', ''); });
+  $('gAreaResp').addEventListener('change', function(){ pintarRespSel(this.value, ''); });
+
   $('rCerrar').addEventListener('click', async function(){
     if(!actual) return;
     var accion = $('rAccion').value.trim(), por = $('rPor').value.trim();
     if(!accion) return msg('Indicá la acción realizada.', false);
     if(!personaValida(por)) return msg('Indicá quién la resolvió (elegí de la lista).', false);
+    if(!$('rCausa').value) return msg('Indicá la causa.', false);
+    var hReal = rHoras === 'mas' ? Math.round(parseFloat($('rMasHoras').value)) : parseFloat(rHoras);
+    if(!(hReal > 0)) return msg('Indicá cuántas horas llevó realmente.', false);
+    if(!rPers) return msg('Indicá cuántas personas trabajaron.', false);
     var btn = this; btn.disabled = true; btn.textContent = 'Guardando...';
     try{ var r = await api('cerrar', { id: actual['ID'], accion: accion, cerradoPor: por, costo: $('rCosto').value, causa: $('rCausa').value,
-          fotoCierreData: fotoDespues, agregarMP: $('rMP').checked, actualizarEstandar: $('rEstd').checked });
+          fotoCierreData: fotoDespues, agregarMP: $('rMP').checked, actualizarEstandar: $('rEstd').checked,
+          horasReales: hReal, personasReales: rPers });
       if(r.ok){ var id = actual['ID']; cerrarModal(); msg('Tarjeta '+esc(id)+' resuelta. Queda pendiente de verificación en el equipo.'+(r.fotoError?' ⚠ '+esc(r.fotoError):''), true); cargar(); }
       else msg(esc(r.error||'error'), false);
     }catch(e){ msg('Error: '+esc(e.message), false); }
@@ -497,7 +552,7 @@
   });
 
   ['fPeriodo'].forEach(function(id){ $(id).addEventListener('change', cargar); });
-  ['fColor','fEstado','fCond','fArea','fParada','fEsp','fEtapa','fVencidas','fRepetidas','fSeguridad','fMias'].forEach(function(id){ $(id).addEventListener('change', render); });
+  ['fColor','fEstado','fCond','fArea','fParada','fAreaResp','fEsp','fEtapa','fVencidas','fRepetidas','fSeguridad','fMias'].forEach(function(id){ $(id).addEventListener('change', render); });
   $('fTexto').addEventListener('input', render);
   $('recargar').addEventListener('click', cargar);
 
@@ -526,12 +581,13 @@
     <p><b>LOTO / permiso:</b> ${esc(t['LOTO / Permiso']||'—')} · <b>Repuestos:</b> ${esc(t['Repuestos']||'—')}</p>
     <p><b>Personas:</b> ${esc(t['Personas necesarias']||'—')} · <b>Ejecutores:</b> ${esc(t['Ejecutores']||'—')} · <b>Planificada:</b> ${fechaAR(t['Fecha planificada'])} ${esc(t['Horario planificado']||'')}</p></div>
   <div class="orden-grid">
-    <div class="orden-section"><h3>Responsable</h3><p style="font-size:15px;font-weight:bold">${esc(t['Responsable asignado']||'Sin asignar')}</p><p>Grupo: ${esc(t['Grupo responsable']||'—')}</p></div>
+    <div class="orden-section"><h3>Responsable</h3><p style="font-size:15px;font-weight:bold">${esc(t['Responsable asignado']||'Sin asignar')}</p><p>Área: ${esc(t['Area responsable']||t['Grupo responsable']||'—')}</p></div>
     <div class="orden-section"><h3>Origen</h3><p>${esc(t['Detectado por']||'—')} (Turno ${esc(t['Turno']||'—')})</p><p>Compromiso: ${fechaAR(t['Fecha compromiso'])} · ${t.diasAbierta} días</p></div>
   </div>
   <div class="orden-grid">${img(t['Foto URL'],'Antes')}${img(t['Foto cierre URL'],'Después')}</div>
   ${t['Notas']?`<div class="orden-section"><h3>Notas</h3><p style="white-space:pre-line">${esc(t['Notas'])}</p></div>`:''}
-  <div class="orden-section"><h3>Acción realizada · causa · materiales · tiempo</h3><div class="firma-box" style="min-height:80px"></div></div>
+  <div class="orden-section"><h3>Acción realizada · causa · materiales</h3><div class="firma-box" style="min-height:70px"></div></div>
+  <div style="font-size:11px;margin:6px 0">Horas reales: ☐1 ☐2 ☐3 ☐4 ☐5 ☐6 ☐7 ☐8 ☐más: ____ &nbsp;&nbsp; Personas: ☐1 ☐2 ☐3 ☐4+</div>
   <div style="font-size:11px;margin:6px 0">☐ Agregar al plan preventivo &nbsp;&nbsp; ☐ Actualizar estándar / LUP</div>
   <div class="orden-grid"><div class="firma-box"><div class="firma-label">Resolvió / fecha</div></div><div class="firma-box"><div class="firma-label">Verificó en el equipo (operador)</div></div></div>
 </div>`;

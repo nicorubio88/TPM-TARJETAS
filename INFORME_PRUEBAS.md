@@ -1,4 +1,4 @@
-# Informe de pruebas · Tarjetas TPM v5
+# Informe de pruebas · Tarjetas TPM v6
 
 Fecha: 27/09/2026. Todo se probó antes de entregar, contra el `Codigo.gs` real ejecutándose sobre una planilla simulada
 (Sheets, Drive, Mail, Lock, Properties y UrlFetch simulados e instrumentados) y las páginas reales en Chromium.
@@ -8,8 +8,9 @@ Fecha: 27/09/2026. Todo se probó antes de entregar, contra el `Codigo.gs` real 
 | Batería | Resultado |
 |---|---|
 | Análisis estático (ESLint: variables sin definir, claves duplicadas, redeclaraciones, código inalcanzable) | 0 errores en páginas y backend |
-| Backend (`pruebas/backend.test.js`, 9 grupos) | **89 / 89 OK** |
-| Frontend: 11 páginas × planilla vacía y con 220 tarjetas, escritorio y celular, flujos completos | **179 / 179 OK** |
+| Backend (`pruebas/backend.test.js`, 9 grupos) | **99 / 99 OK** |
+| Frontend: 12 páginas × planilla vacía y con 220 tarjetas, escritorio y celular, flujos completos | **197 / 197 OK** |
+| Planificador: nadie fuera de su área, azules a 1 solo supervisor, capacidad diaria respetada | OK |
 | Modo sin conexión (service worker + cola) | 5 / 5 páginas abren sin señal; la cola se envía al volver |
 | Referencias a archivos y lista de caché offline | sin faltantes |
 
@@ -40,6 +41,14 @@ Los números del Dashboard se compararon con un cálculo independiente hecho apa
 - **Categoría de anomalía y prioridad obligatorias.** Pasan a ser los pasos 5 y 6 del formulario (sin valor por defecto:
   hay que elegir) y el backend rechaza tarjetas sin ellas. En Seguimiento se pueden cambiar pero no borrar.
   Las tarjetas viejas sin categoría siguen visibles y se completan al gestionarlas.
+
+## v6 — reglas nuevas probadas
+
+- Área que resuelve obligatoria (formulario y backend); no se puede borrar.
+- Reparto parejo: 8 azules entre 4 supervisores = 2 cada uno; rojas entre todos los técnicos del área.
+- La configuración de la hoja *Responsables* manda sobre lo que envía el celular.
+- Responsable elegido a mano se respeta; cambiar de área reasigna automático dentro del nuevo equipo.
+- Cierre sin causa, sin horas reales o sin personas reales se rechaza.
 
 ## Lo que NO se pudo probar aquí (probar al publicar)
 

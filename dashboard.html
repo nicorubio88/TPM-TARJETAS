@@ -124,6 +124,10 @@
     <h2><span class="nro">8</span>Planificación</h2>
     <p class="sub">Qué se puede resolver con la máquina en marcha y qué hay que llevar a la parada. <a href="planificacion.html"><b>Ir a Planificación →</b></a></p>
     <div class="grid cols-3" id="porCondicion"></div>
+    <div class="grid cols-2" style="margin-top:14px">
+      <div class="card"><b>Colgadas por área que resuelve</b><div id="porAreaResp" style="margin-top:8px"></div></div>
+      <div class="card"><b>Carga por responsable</b><p class="mini" style="margin:2px 0 6px">Tarjetas colgadas a nombre de cada uno: muestra si el reparto es parejo.</p><div id="porResp"></div></div>
+    </div>
     <div class="card" style="margin-top:14px;overflow-x:auto"><b>Tablero de acciones abiertas</b><div class="kanban" id="kanban" style="min-width:640px;margin-top:10px"></div></div>
   </div>
 </div>
@@ -320,6 +324,12 @@
         '<div style="font-size:26px;font-weight:800;color:'+d.color+'">'+d.icono+' '+v.n+'</div>'+
         '<div style="font-size:13px;font-weight:700">'+d.corto+'</div><div class="mini">'+det+'</div></a>';
     }).join('');
+    var col = ts.filter(esAbierta), porAR = {}, porR = {};
+    col.forEach(function(t){ var a = t['Area responsable'] || 'Sin área asignada'; porAR[a] = porAR[a] || { n: 0, hh: 0 }; porAR[a].n++; porAR[a].hh += hhDe(t);
+      if (t['Responsable asignado']) porR[t['Responsable asignado']] = (porR[t['Responsable asignado']] || 0) + 1; });
+    $('porAreaResp').innerHTML = hbars(Object.keys(porAR).sort(function(a,b){ return porAR[b].n - porAR[a].n; }).map(function(a){
+      return { l: a, v: porAR[a].n, txt: porAR[a].n + ' <span class="mini">(' + f1(porAR[a].hh) + ' HH)</span>', c: a === 'Sin área asignada' ? '#A9B6A0' : '#548235' }; }));
+    $('porResp').innerHTML = hbars(topN(porR, 12).map(function(x){ return { l: x[0], v: x[1], c: '#2D6CB5' }; }));
     pintarKanban(ts.filter(function(t){ return esAbierta(t) || t['Estado'] === 'Cerrada'; }));
   }
 

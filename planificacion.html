@@ -50,7 +50,8 @@
     <div class="filtros" style="margin-bottom:6px">
       <div id="boxDias"><label>Horizonte</label><select id="dias"><option value="5">1 semana (5 días hábiles)</option><option value="10" selected>2 semanas</option><option value="15">3 semanas</option><option value="20">4 semanas</option></select></div>
       <div id="boxParada" style="display:none"><label>Parada</label><select id="parada"></select></div>
-      <div><label>Área</label><select id="area"></select></div>
+      <div><label>Área de planta</label><select id="area"></select></div>
+      <div><label>Área que resuelve</label><select id="areaResp"></select></div>
     </div>
     <div style="display:flex;gap:18px;flex-wrap:wrap">
       <label class="chk"><input type="checkbox" id="aDefinir"> Incluir las "A definir"</label>
@@ -77,6 +78,7 @@
   var $ = function(id){ return document.getElementById(id); };
   var TODAS = [], PARADAS = [], MODO = 'marcha', FIJOS = {}, PLAN = null, confirmar = false;
   $('area').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
+  $('areaResp').innerHTML = '<option value="">Todas</option>' + opciones(areasResponsables().map(function(a){ return a.Area; }));
 
   function msg(t, ok){ $('msg').innerHTML = '<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
   function colorPts(p){ return p >= 60 ? '#B8402A' : p >= 40 ? '#E8871A' : p >= 25 ? '#548235' : '#7A8A6E'; }
@@ -93,8 +95,8 @@
       ['Repetida ↻ (volvió en ' + CONFIG.DIAS_REPETICION + ' días)', '+' + P.repetida], ['Vencida', '+' + P.vencida],
       ['Antigüedad', '+1 cada 3 días abierta (máx. +' + P.antiguedadMax + ')'], ['Verde (mejora)', P.verde],
       ['Duración y personas', 'lo cargado en la tarjeta → mediana de tarjetas parecidas (mismo color y fuguai, mín. 3) → por defecto (roja ' + CONFIG.DURACION_DEFECTO.Roja + ' h × ' + CONFIG.PERSONAS_DEFECTO.Roja + ', azul ' + CONFIG.DURACION_DEFECTO.Azul + ' h × ' + CONFIG.PERSONAS_DEFECTO.Azul + ')'],
-      ['Quién la hace', 'rojas → técnicos de mantenimiento · azules → producción · verdes → ingeniería/producción. Se configura por área en Configuración. Si la tarjeta pide especialidad, se usa esa especialidad.'],
-      ['Capacidad en marcha', 'horas por persona por día para tarjetas: técnicos ' + CONFIG.HORAS_DIA_TARJETAS.Roja + ' h · operarios ' + CONFIG.HORAS_DIA_TARJETAS.Azul + ' h · otros ' + CONFIG.HORAS_DIA_TARJETAS.Verde + ' h'],
+      ['Quién la hace', 'solo el equipo del área que la resuelve (Configuración › Áreas que resuelven). Rojas: se reparte entre todos los técnicos del área (primero el responsable elegido y la especialidad pedida). Azules y verdes: la toma un solo supervisor del área, que la hace ejecutar por su gente.'],
+      ['Capacidad en marcha', areasResponsables().map(function(a){ return a.Area + ' ' + a.HorasDia + ' h/persona/día'; }).join(' · ')],
       ['En parada', 'cada tarjeta arranca cuando sus ejecutores están libres; si no termina dentro de la duración de la parada, queda para la próxima']
     ].map(function(r){ return '<tr><td><b>'+esc(r[0])+'</b></td><td>'+esc(r[1])+'</td></tr>'; }).join('') + '</tbody></table>';
   }
@@ -110,7 +112,7 @@
 
   /* selects de ejecutores: cada uno permite cambiar a otra persona del pool (o de toda la nomina) */
   function selectsEjecutores(x){
-    var pool = ejecutoresPara(x.t['Area equipo'], x.t['Tipo']);
+    var pool = ejecutoresPara(x.t);
     return (x.ejecutores || []).map(function(p, i){
       var otros = pool.filter(function(q){ return q !== p; });
       return '<select data-id="'+esc(x.id)+'" data-i="'+i+'"><option value="'+esc(p)+'" selected>'+esc(p)+(especialidadDe(p)?' · '+especialidadDe(p).slice(0,4):'')+'</option>'+
@@ -126,8 +128,9 @@
       '<td><span class="pts" style="background:'+colorPts(x.pts)+'" title="'+esc(x.ptsTxt)+'">'+x.pts+'</span></td>'+
       '<td><a href="seguimiento.html?id='+encodeURIComponent(x.id)+'" style="font-family:monospace;font-size:11.5px">'+esc(x.id)+'</a><br>'+badgeTipo(t['Tipo'])+' '+badgeRepetida(t)+'</td>'+
       '<td><b>'+esc(t['Equipo']||t['Area equipo'])+'</b>'+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'<br><span class="mini">'+esc(String(t['Descripcion']).slice(0,90))+'</span>'+
+        '<div class="fuente">👷 '+esc(x.areaResp || 'sin área')+(x.modo==='supervisor'?' · a un supervisor':'')+(t['Area responsable']?'':' <b style="color:#B8402A">(tarjeta sin área: se usó la del color)</b>')+'</div>'+
         '<div class="fuente" title="'+esc(x.ptsTxt)+'">'+esc(x.ptsTxt)+'</div></td>'+
-      '<td style="white-space:nowrap">'+x.dur+' h × '+x.n+'<div class="fuente">'+ICONO[x.durFuente]+(x.nFuente!==x.durFuente?' / '+ICONO[x.nFuente]:'')+'</div><b>'+(x.dur*Math.min(x.n,(x.ejecutores||[]).length||x.n)).toFixed(1)+' HH</b></td>'+
+      '<td style="white-space:nowrap">'+x.dur+' h × '+x.n+'<div class="fuente">'+ICONO[x.durFuente]+(x.nFuente!==x.durFuente?' / '+ICONO[x.nFuente]:'')+'</div><b>'+(x.dur*x.n).toFixed(0)+' HH</b></td>'+
       (extra || '')+
       '<td>'+selectsEjecutores(x)+'</td></tr>';
   }
@@ -143,7 +146,7 @@
   }
 
   function render(){
-    var opts = { area: $('area').value, incluirADefinir: $('aDefinir').checked, incluirVerdes: $('verdes').checked, findes: $('findes').checked, fijos: FIJOS };
+    var opts = { area: $('area').value, areaResp: $('areaResp').value, incluirADefinir: $('aDefinir').checked, incluirVerdes: $('verdes').checked, findes: $('findes').checked, fijos: FIJOS };
     $('boxDias').style.display = MODO === 'marcha' ? '' : 'none';
     $('boxFindes').style.display = MODO === 'marcha' ? '' : 'none';
     $('boxParada').style.display = MODO === 'parada' ? '' : 'none';
@@ -211,7 +214,7 @@
   document.querySelectorAll('.tab').forEach(function(tb){ tb.onclick = function(){
     MODO = tb.dataset.m; document.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('on', x === tb); }); render();
   }; });
-  ['dias','parada','area','aDefinir','verdes','findes'].forEach(function(id){ $(id).addEventListener('change', render); });
+  ['dias','parada','area','areaResp','aDefinir','verdes','findes'].forEach(function(id){ $(id).addEventListener('change', render); });
   $('imprimir').onclick = function(){ window.print(); };
 
   $('aplicar').onclick = async function(){
@@ -219,7 +222,9 @@
     if (!confirmar) { confirmar = true; this.textContent = '¿Confirmar? Se actualizan ' + PLAN.asignadas.length + ' tarjetas'; return; }
     var items = PLAN.asignadas.map(function(x){
       var c = { ejecutores: x.ejecutores.join('; ') };
-      if (!x.t['Responsable asignado']) { var sup = supervisorPara(x.t['Area equipo'], x.t['Tipo']); if (sup) c.responsable = sup; }
+      // responsable: en azules/verdes es el supervisor planificado; en rojas, el primero si no tenia
+      if (x.modo === 'supervisor' || !x.t['Responsable asignado']) c.responsable = x.ejecutores[0];
+      if (!x.t['Area responsable'] && x.areaResp) c.areaResponsable = x.areaResp;
       if (PLAN.tipo === 'marcha') { c.fechaPlanificada = iso(x.fecha); c.horario = x.fin === x.dia ? '' : 'hasta ' + iso(x.fechaFin); }
       else { c.fechaPlanificada = PLAN.parada.fecha; c.paradaObjetivo = PLAN.parada.fecha; c.horario = horaMas(PLAN.parada.horaInicio || '06:00', x.ini) + '-' + horaMas(PLAN.parada.horaInicio || '06:00', x.finH); }
       return { id: x.id, cambios: c };

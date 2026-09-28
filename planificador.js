@@ -8,19 +8,24 @@
       prioridad + seguridad + calidad + criticidad del area + repeticion + vencida + antiguedad.
    2. Se ordenan de mayor a menor puntaje.
    3. Duracion y personas: lo cargado en la tarjeta, o la mediana de tarjetas parecidas, o un valor por defecto.
-   4. Ejecutores: los configurados para el area y el color (rojas -> tecnicos, azules -> produccion).
-      Se prefieren los de la especialidad pedida y los menos cargados. Se pueden fijar a mano.
+   4. Ejecutores: SOLO el equipo del "Area responsable" de la tarjeta (config.html > Areas que resuelven).
+      - modo 'equipo' (rojas): se eligen N tecnicos del area; primero el responsable asignado, despues
+        los de la especialidad pedida y los menos cargados.
+      - modo 'supervisor' (azules/verdes): la tarjeta va a UN supervisor (el responsable si ya tiene,
+        si no el menos cargado); consume duracion x personas de la capacidad de su gente.
+      Siempre se puede fijar a mano otra persona.
    5. MARCHA: cada persona tiene HORAS_DIA_TARJETAS por dia; la tarjeta va al primer dia en que
       N personas pueden terminarla (si dura mas que un dia, sigue los dias siguientes).
    6. PARADA: dentro de la ventana de la parada (duracion en horas) cada tarjeta arranca cuando
       sus N ejecutores estan libres; si no termina antes del fin de la parada, "no entra".
    ============================================================ */
 
-function _ordenarPool(pool, t, libre) {
+function _ordenarPool(pool, t, libre, preferido) {
   const esp = t['Especialidad'] || '';
   return pool.slice().sort(function (a, b) {
+    const pa = a === preferido ? 0 : 1, pb = b === preferido ? 0 : 1;
     const ea = esp && especialidadDe(a) === esp ? 0 : 1, eb = esp && especialidadDe(b) === esp ? 0 : 1;
-    return (ea - eb) || (libre(b) - libre(a)) || a.localeCompare(b);
+    return (pa - pb) || (ea - eb) || (libre(b) - libre(a)) || a.localeCompare(b);
   });
 }
 
@@ -28,7 +33,11 @@ function _ordenarPool(pool, t, libre) {
    Si la tarjeta pide una especialidad y hay suficientes de esa especialidad, solo ellos. */
 function _poolPara(x, fijos) {
   if (fijos[x.id] && fijos[x.id].length) return fijos[x.id].slice();
-  const pool = ejecutoresPara(x.t['Area equipo'], x.t['Tipo']), esp = x.t['Especialidad'];
+  const pool = ejecutoresPara(x.t), esp = x.t['Especialidad'], resp = x.t['Responsable asignado'];
+  if (x.modo === 'supervisor') return (resp && pool.indexOf(resp) > -1) ? [resp] : pool;
+  if (resp && pool.indexOf(resp) > -1) {   // el responsable elegido va primero
+    x.preferido = resp;
+  }
   if (esp) {
     const m = pool.filter(function (p) { return especialidadDe(p) === esp; });
     if (m.length >= x.n) return m;
@@ -41,13 +50,17 @@ function _tarjetasPlanificables(ts, opts) {
     if (!esAbierta(t)) return false;
     if (t['Tipo'] === 'Verde' && !opts.incluirVerdes) return false;
     if (opts.area && t['Area equipo'] !== opts.area) return false;
+    if (opts.areaResp && areaRespDe(t) !== opts.areaResp) return false;
     return true;
   });
 }
 
 function _enriquecer(t, st) {
-  const d = duracionDe(t, st), p = personasDe(t, st), pt = puntaje(t);
-  return { t: t, id: t['ID'], dur: d.v, durFuente: d.fuente, n: p.v, nFuente: p.fuente, pts: pt.total, ptsTxt: textoPuntaje(pt) };
+  const d = duracionDe(t, st), p = personasDe(t, st), pt = puntaje(t), modo = modoDe(t);
+  return { t: t, id: t['ID'], dur: d.v, durFuente: d.fuente, n: p.v, nFuente: p.fuente, pts: pt.total, ptsTxt: textoPuntaje(pt),
+    modo: modo, areaResp: areaRespDe(t),
+    // en modo supervisor se asigna 1 persona (el supervisor) que consume duracion x personas de su gente
+    nAsig: modo === 'supervisor' ? 1 : p.v, horasPorAsig: modo === 'supervisor' ? d.v * p.v : d.v };
 }
 
 /* ---------------- MAQUINA EN MARCHA ---------------- */
@@ -61,7 +74,10 @@ function diasHabiles(n, findes) {
   return out;
 }
 
+/* Horas por dia para tarjetas: las de su area responsable (config); si no figura, por especialidad. */
 function capacidadDiaria(nombre) {
+  const a = areasResponsables().find(function (r) { return listaNombres(r.Personas).indexOf(nombre) > -1; });
+  if (a && a.HorasDia) return a.HorasDia;
   const e = especialidadDe(nombre);
   if (e === 'Mecanica' || e === 'Electrica' || e === 'Instrumentacion') return CONFIG.HORAS_DIA_TARJETAS.Roja;
   if (e === 'Operacion') return CONFIG.HORAS_DIA_TARJETAS.Azul;
@@ -87,26 +103,27 @@ function planificarMarcha(ts, opts) {
   cand.forEach(function (x) {
     const pool = _poolPara(x, fijos);
     if (!pool.length) { sinGente.push(x); return; }
-    const n = Math.min(x.n, pool.length); x.faltan = x.n - n;
+    const n = Math.min(x.nAsig, pool.length); x.faltan = x.nAsig - n;
+    const H = x.horasPorAsig;
     let hecho = false;
     for (let d = 0; d < D && !hecho; d++) {
-      const opciones = _ordenarPool(pool, x.t, libreTotal).map(function (p) {
+      const opciones = _ordenarPool(pool, x.t, libreTotal, x.preferido).map(function (p) {
         const c = capDe(p); if (c[d] <= 0) return null;
-        let resta = x.dur, k = d;
+        let resta = H, k = d;
         while (k < D && resta > 1e-9) { resta -= c[k]; k++; }
         return resta > 1e-9 ? null : { p: p, fin: k - 1 };
       }).filter(Boolean);
       // estables: el orden de _ordenarPool desempata
-      opciones.sort(function (a, b) { return a.fin - b.fin; });
+      opciones.sort(function (a, b) { return (a.fin - b.fin) || ((a.p === x.preferido ? 0 : 1) - (b.p === x.preferido ? 0 : 1)); });
       if (opciones.length < n) continue;
       const elegidos = opciones.slice(0, n);
       elegidos.forEach(function (o) {
-        const c = capDe(o.p); let resta = x.dur, k = d;
+        const c = capDe(o.p); let resta = H, k = d;
         while (resta > 1e-9) { const u = Math.min(c[k], resta); c[k] -= u; resta -= u; k++; }
       });
       x.dia = d; x.fin = Math.max.apply(null, elegidos.map(function (o) { return o.fin; }));
       x.fecha = dias[d]; x.fechaFin = dias[x.fin]; x.ejecutores = elegidos.map(function (o) { return o.p; });
-      x.hh = x.dur * n; hecho = true;
+      x.hh = x.dur * x.n; hecho = true;
       asignadas.push(x);
     }
     if (!hecho) sinCapacidad.push(x);
@@ -144,13 +161,13 @@ function planificarParada(ts, parada, opts) {
   cand.forEach(function (x) {
     const pool = _poolPara(x, fijos);
     if (!pool.length) { sinGente.push(x); return; }
-    const n = Math.min(x.n, pool.length); x.faltan = x.n - n;
-    const orden = pool.slice().sort(function (a, b) { return (libreDe(a) - libreDe(b)) || a.localeCompare(b); });
+    const n = Math.min(x.nAsig, pool.length); x.faltan = x.nAsig - n;
+    const orden = pool.slice().sort(function (a, b) { return ((a === x.preferido ? 0 : 1) - (b === x.preferido ? 0 : 1)) || (libreDe(a) - libreDe(b)) || a.localeCompare(b); });
     const elegidos = orden.slice(0, n);
     const ini = Math.max.apply(null, elegidos.map(libreDe)), fin = ini + x.dur;
     if (fin > W + 1e-9) { noEntran.push(x); return; }
     elegidos.forEach(function (p) { libre[p] = fin; });
-    x.ini = ini; x.finH = fin; x.ejecutores = elegidos; x.hh = x.dur * n;
+    x.ini = ini; x.finH = fin; x.ejecutores = elegidos; x.hh = x.dur * x.n;
     asignadas.push(x);
   });
   const carga = {};

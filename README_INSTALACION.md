@@ -1,4 +1,4 @@
-# Sistema de Tarjetas TPM — Planta Tornquist · v5
+# Sistema de Tarjetas TPM — Planta Tornquist · v6
 
 Registrar anomalías, planificarlas (en marcha / con parada), resolverlas, verificarlas en el equipo
 y medir apertura vs. cierre, lugares críticos, participación y repeticiones.
@@ -150,3 +150,30 @@ Los indicadores de resultado de los pilares (averías, MTBF, MTTR, OEE, defectos
 **Revisión y pruebas:** ver `INFORME_PRUEBAS.md` (bugs corregidos y lo que queda por probar en producción).
 Columna nueva en *Tarjetas*: `Cliente ID` (control de duplicados de la cola sin conexión). Se agrega sola.
 La carpeta `pruebas/` no hace falta subirla a DigitalOcean (si se sube, no afecta).
+
+## v6 — Área que resuelve, reparto automático y cierre con datos reales
+
+**Formulario en 3 bloques** (A · qué pasa y dónde, B · quién lo resuelve, C · para planificar), con barra de avance y resumen final.
+Obligatorios: quién, dónde, qué, **tipo de anomalía**, **color**, **área que lo resuelve** y **prioridad**.
+El sistema sugiere (sin imponer) color, área y prioridad según el tipo de anomalía; si el color tiene una sola área, se elige sola.
+
+**Áreas que resuelven** (Configuración › hoja *Responsables*):
+
+| Área | Color | Reparto | Por defecto |
+|---|---|---|---|
+| Mantenimiento Mecánico | Roja | Técnicos: se reparte entre todos | sector Mantenimiento Mecánico |
+| Mantenimiento Eléctrico | Roja | Técnicos: se reparte entre todos | sector Mantenimiento Eléctrico |
+| Mantenimiento (a derivar) | Roja | Al jefe, que la deriva | sector Mantenimiento |
+| Producción | Azul | Supervisores: **solo entre los 4 supervisores** | sector Producción (**elegir los 4 en Configuración**) |
+| Mejora Enfocada | Verde | Supervisores | Ingeniería e I+D |
+
+**Responsable:** automático = el del equipo con menos tarjetas abiertas; o se elige a mano (del equipo o cualquier persona).
+La planificación asigna gente **solo del equipo del área**; en azules, a un solo supervisor que la hace ejecutar por su gente.
+
+**Tiempo de a 1 hora:** 1 h … 8 h o "más de 8 h" (se indica cuántas).
+
+**Cierre con información completa:** causa, **horas reales** y **personas reales** obligatorias (precargadas con lo estimado).
+Las estimaciones futuras usan lo real.
+
+Columnas nuevas en *Tarjetas*: Area responsable · Horas reales · Personas reales. Hoja nueva: *Responsables*.
+La hoja *Areas* queda solo para la criticidad A/B/C.

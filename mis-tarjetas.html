@@ -67,7 +67,7 @@
       '<div style="margin:4px 0">'+badgeEstado(t['Estado'], t.vencida)+' '+badgeCondicion(condicionDe(t))+' '+badgeRepetida(t)+'</div>' +
       '<div class="desc" style="margin:6px 0">'+esc(t['Descripcion'])+'</div>';
     if (t['Accion de cierre']) h += '<div class="desc ok" style="margin:6px 0"><b>'+esc(t['Cerrado por'])+':</b> '+esc(t['Accion de cierre'])+'</div>';
-    if (modo === 'abierta' || modo === 'asig') h += '<div class="mini">'+(t['Responsable asignado']?'Responsable: <b>'+esc(t['Responsable asignado'])+'</b> · ':'Sin responsable asignado · ')+
+    if (modo === 'abierta' || modo === 'asig') h += '<div class="mini">'+(t['Area responsable']?esc(t['Area responsable'])+' · ':'')+(t['Responsable asignado']?'Responsable: <b>'+esc(t['Responsable asignado'])+'</b> · ':'Sin responsable asignado · ')+
       (t['Fecha compromiso']?'compromiso '+esc(String(t['Fecha compromiso']).split('-').reverse().join('/'))+' · ':'')+
       (t['Parada objetivo']?'parada '+esc(String(t['Parada objetivo']).split('-').reverse().join('/'))+' · ':'')+t.diasAbierta+' días</div>' +
       (t['Fecha planificada'] ? '<div class="mini">📅 Planificada: <b>'+esc(String(t['Fecha planificada']).slice(0,10).split('-').reverse().join('/'))+' '+esc(t['Horario planificado']||'')+'</b>'+(t['Ejecutores']?' · 👷 '+esc(t['Ejecutores']):'')+'</div>' : '');
