@@ -54,7 +54,7 @@ const CATEGORIAS_TPM = {
   '1 · Condicion basica incumplida': ['Suciedad / falta de limpieza', 'Lubricacion deficiente', 'Ajuste / apriete flojo'],
   '2 · Foco de contaminacion (fuente)': ['Fuga (aceite / aire / agua / vapor)', 'Fuente de polvo / viruta / particulas', 'Derrame / dispersion de material'],
   '3 · Lugar de dificil acceso': ['Dificil limpieza', 'Dificil lubricacion', 'Dificil inspeccion', 'Dificil operacion / ajuste'],
-  '4 · Deterioro / pequena deficiencia': ['Desgaste / juego / holgura', 'Ruido / vibracion / sobretemperatura', 'Anomalia electrica / instrumentacion', 'Grieta / deformacion / corrosion'],
+  '4 · Deterioro / pequena deficiencia': ['Desgaste / juego / holgura', 'Ruido / vibracion / sobretemperatura', 'Anomalia electrica', 'Anomalia de instrumentacion / control', 'Grieta / deformacion / corrosion'],
   '5 · Defecto de calidad': ['Contaminacion / cuerpo extrano que afecta calidad', 'Variable de proceso fuera de estandar', 'Defecto visible en el producto (arruga, mancha, gramaje, humedad)'],
   '6 · Seguridad': ['Condicion insegura'],
   '7 · MUDA': ['Elemento innecesario / fuera de lugar']
@@ -163,19 +163,26 @@ function responsablesPorDefecto() {
     { Area: 'Mantenimiento Mecánico', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^Mantenimiento Mec/i).join('; '),
       Ayuda: 'Mecánica: rodamientos, transmisiones, fugas, bombas, estructuras.' },
     { Area: 'Mantenimiento Eléctrico', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^Mantenimiento El/i).join('; '),
-      Ayuda: 'Eléctrica e instrumentos: motores, tableros, sensores, cableado.' },
+      Ayuda: 'Eléctrica: motores, tableros, variadores, cableado, iluminación.' },
+    { Area: 'ICOPRO', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^ICOPRO$/i).join('; '),
+      Ayuda: 'Instrumentos y control: transmisores, válvulas de control, lazos, PLC, sensores de proceso.' },
     { Area: 'Mantenimiento (a derivar)', Colores: 'Roja', Modo: 'supervisor', HorasDia: 8, Personas: _personasDeSectores(/^Mantenimiento$/i).join('; '),
-      Ayuda: 'No sé si es mecánico o eléctrico: lo deriva el jefe de mantenimiento.' },
+      Ayuda: 'No sé si es mecánico, eléctrico o ICOPRO: lo deriva el jefe de mantenimiento.' },
     { Area: 'Producción', Colores: 'Azul', Modo: 'supervisor', HorasDia: 6, Personas: _personasDeSectores(/^Producci/i).join('; '),
       Ayuda: 'La resuelve la gente del turno; se asigna a un supervisor de producción.' },
     { Area: 'Mejora Enfocada', Colores: 'Verde', Modo: 'supervisor', HorasDia: 4, Personas: _personasDeSectores(/Ingenier|^I\+D/i).join('; '),
       Ayuda: 'Ideas de mejora: la toma el equipo de Mejora Enfocada.' }
   ];
 }
+const AREAS_NUEVAS = ['ICOPRO'];
 function areasResponsables() {
   const cfg = (window.RESP_CFG || []).filter(function (r) { return r.Area; });
   const base = responsablesPorDefecto();
   if (!cfg.length) return base;
+  // areas agregadas en versiones nuevas: aparecen aunque la hoja Responsables ya exista
+  AREAS_NUEVAS.forEach(function (n) {
+    if (!cfg.some(function (r) { return r.Area === n; })) { const d = base.find(function (b) { return b.Area === n; }); if (d) cfg.push(d); }
+  });
   return cfg.map(function (r) {
     const d = base.find(function (b) { return b.Area === r.Area; }) || {};
     return { Area: r.Area, Colores: r.Colores || d.Colores || '', Modo: r.Modo || d.Modo || 'equipo',
@@ -209,7 +216,7 @@ function especialidadDe(nombre) {
   const s = sectorDe(nombre);
   if (/el[eé]ctric/i.test(s)) return 'Electrica';
   if (/mec[aá]nic/i.test(s)) return 'Mecanica';
-  if (/instrument/i.test(s)) return 'Instrumentacion';
+  if (/instrument|icopro/i.test(s)) return 'Instrumentacion';
   if (/operari|producci/i.test(s)) return 'Operacion';
   return '';
 }
@@ -349,8 +356,10 @@ function fechaDe(v) {
   return isNaN(d.getTime()) ? null : d;
 }
 function condicionDe(t) { const c = t['Condicion intervencion']; return CONDICIONES[c] ? c : 'A definir'; }
+const CATEGORIAS_LEGADO = { 'Anomalia electrica / instrumentacion': '4 · Deterioro / pequena deficiencia' };
 function grupoCategoria(cat) {
   if (!cat) return 'Sin categoria';
+  if (CATEGORIAS_LEGADO[cat]) return CATEGORIAS_LEGADO[cat];
   for (const g in CATEGORIAS_TPM) if (CATEGORIAS_TPM[g].indexOf(cat) > -1) return g;
   return cat;
 }

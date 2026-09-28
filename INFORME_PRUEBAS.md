@@ -61,3 +61,9 @@ Los números del Dashboard se compararon con un cálculo independiente hecho apa
 ## Cómo repetir las pruebas del backend
 
 Con Node 18+: `cd pruebas && node backend.test.js`
+
+## v7 · Área ICOPRO (28/09/2026)
+- Nueva área que resuelve **ICOPRO** (rojas, modo equipo, reparte entre las 5 personas del sector ICOPRO).
+- Categoría "Anomalía eléctrica / instrumentación" separada en **Anomalía eléctrica** (sugiere Mant. Eléctrico) y **Anomalía de instrumentación / control** (sugiere ICOPRO). Las tarjetas viejas siguen contando en la familia 4.
+- Si la hoja Responsables ya estaba guardada, ICOPRO aparece igual (se agrega sola).
+- Pruebas: backend 99/99, frontend 201/201 (4 nuevas de ICOPRO).
