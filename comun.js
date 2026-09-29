@@ -96,12 +96,20 @@ const LS = {
    Fuente: hojas "Personas" y "Arbol" de la planilla (si tienen datos);
    si no, personas.js / arbol.js. Se cachean en el dispositivo.
    ============================================================ */
+const ALTAS_NUEVAS = { 'Gerencia de Planta': ['Rubio, Nicolas'] };
 (function aplicarMaestrosCache() {
   const m = LS.get('tpm_maestros', null);
   if (!m) return;
   if (m.personas && typeof PERSONAS_POR_SECTOR !== 'undefined') {
     Object.keys(PERSONAS_POR_SECTOR).forEach(function (k) { delete PERSONAS_POR_SECTOR[k]; });
     Object.assign(PERSONAS_POR_SECTOR, m.personas);
+    // altas nuevas de la nomina: aparecen aunque la hoja Personas no las tenga todavia
+    Object.keys(ALTAS_NUEVAS).forEach(function (sec) {
+      ALTAS_NUEVAS[sec].forEach(function (n) {
+        const ya = Object.keys(PERSONAS_POR_SECTOR).some(function (k) { return PERSONAS_POR_SECTOR[k].indexOf(n) > -1; });
+        if (!ya) (PERSONAS_POR_SECTOR[sec] = PERSONAS_POR_SECTOR[sec] || []).push(n);
+      });
+    });
   }
   if (m.areas) window.AREAS_CFG = m.areas;
   if (m.responsables) window.RESP_CFG = m.responsables;
@@ -166,15 +174,17 @@ function responsablesPorDefecto() {
       Ayuda: 'Eléctrica: motores, tableros, variadores, cableado, iluminación.' },
     { Area: 'ICOPRO', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^ICOPRO$/i).join('; '),
       Ayuda: 'Instrumentos y control: transmisores, válvulas de control, lazos, PLC, sensores de proceso.' },
+    { Area: 'Ingeniería', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^Ingenier/i).join('; '),
+      Ayuda: 'Proyectos y modificaciones: cambios de diseño, montajes, obras, ingeniería de equipos.' },
     { Area: 'Mantenimiento (a derivar)', Colores: 'Roja', Modo: 'supervisor', HorasDia: 8, Personas: _personasDeSectores(/^Mantenimiento$/i).join('; '),
-      Ayuda: 'No sé si es mecánico, eléctrico o ICOPRO: lo deriva el jefe de mantenimiento.' },
+      Ayuda: 'No sé quién lo resuelve: lo deriva el jefe de mantenimiento.' },
     { Area: 'Producción', Colores: 'Azul', Modo: 'supervisor', HorasDia: 6, Personas: _personasDeSectores(/^Producci/i).join('; '),
       Ayuda: 'La resuelve la gente del turno; se asigna a un supervisor de producción.' },
     { Area: 'Mejora Enfocada', Colores: 'Verde', Modo: 'supervisor', HorasDia: 4, Personas: _personasDeSectores(/Ingenier|^I\+D/i).join('; '),
       Ayuda: 'Ideas de mejora: la toma el equipo de Mejora Enfocada.' }
   ];
 }
-const AREAS_NUEVAS = ['ICOPRO'];
+const AREAS_NUEVAS = ['ICOPRO', 'Ingeniería'];
 function areasResponsables() {
   const cfg = (window.RESP_CFG || []).filter(function (r) { return r.Area; });
   const base = responsablesPorDefecto();

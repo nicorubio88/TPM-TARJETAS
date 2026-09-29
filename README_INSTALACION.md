@@ -164,6 +164,7 @@ El sistema sugiere (sin imponer) color, área y prioridad según el tipo de anom
 | Mantenimiento Mecánico | Roja | Técnicos: se reparte entre todos | sector Mantenimiento Mecánico |
 | Mantenimiento Eléctrico | Roja | Técnicos: se reparte entre todos | sector Mantenimiento Eléctrico |
 | ICOPRO | Roja | Técnicos: se reparte entre todos | sector ICOPRO |
+| Ingeniería | Roja | Se reparte entre todos | sector Ingeniería |
 | Mantenimiento (a derivar) | Roja | Al jefe, que la deriva | sector Mantenimiento |
 | Producción | Azul | Supervisores: **solo entre los 4 supervisores** | sector Producción (**elegir los 4 en Configuración**) |
 | Mejora Enfocada | Verde | Supervisores | Ingeniería e I+D |
