@@ -179,12 +179,3 @@ Las estimaciones futuras usan lo real.
 
 Columnas nuevas en *Tarjetas*: Area responsable · Horas reales · Personas reales. Hoja nueva: *Responsables*.
 La hoja *Areas* queda solo para la criticidad A/B/C.
-
-## v10 · Exámenes de capacitación con QR
-1. Subí `examen.html` y `examenes.js` al repo (junto con `sw.js` y `Codigo.gs` actualizados).
-2. En Apps Script pegá el `Codigo.gs` nuevo y **Implementar → Administrar implementaciones → Editar → Nueva versión**. Ejecutá `setup` una vez: crea la hoja **Examenes**.
-3. En la capacitación abrí en el proyector: `https://TU-APP/examen.html?e=mp&qr=1` → muestra el QR grande y cuántos ya respondieron.
-4. Cada persona escanea, elige su nombre, responde y ve su nota con el repaso de cada respuesta. Sin señal, el resultado queda guardado en el celular y se envía solo después.
-5. Resultados: `https://TU-APP/examen.html?e=mp&resultados=1` (por persona, promedio y aciertos por pregunta; las preguntas con menos aciertos son los temas a reforzar). También quedan en la hoja Examenes.
-- Exámenes disponibles: `e=mp` (Mantenimiento Planificado, 10 preguntas) y `e=tpm` (repaso general, 8 preguntas). Para sumar Autónomo o Calidad se agrega un bloque en `examenes.js`.
-- Las opciones se mezclan en cada celular, así no se copian la letra.

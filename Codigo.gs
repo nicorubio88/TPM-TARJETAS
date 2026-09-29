@@ -85,7 +85,6 @@ const H_RESP = ['Area', 'Colores', 'Modo', 'HorasDia', 'Personas', 'Ayuda'];
 const H_AREAS = ['Area', 'Criticidad', 'Supervisor Roja', 'Ejecutores Roja', 'Supervisor Azul', 'Ejecutores Azul', 'Supervisor Verde', 'Ejecutores Verde'];
 const H_PERSONAS = ['Sector', 'Nombre', 'Email', 'Activo'];
 const H_ARBOL = ['Area', 'Subarea', 'Equipo'];
-const H_EXAM = ['Fecha', 'Examen', 'Persona', 'Sector', 'Puntaje', 'Total', 'Porcentaje', 'Respuestas', 'Cliente ID'];
 
 /* ============================ ROUTING ============================ */
 
@@ -93,7 +92,7 @@ var _EN_WEBAPP = false;
 function doGet(e)  { _EN_WEBAPP = true; return handle_(e); }
 function doPost(e) { _EN_WEBAPP = true; return handle_(e); }
 
-const ACCIONES_ESCRITURA = ['guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup', 'examen'];
+const ACCIONES_ESCRITURA = ['guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
 
 function handle_(e) {
   var req = {};
@@ -128,8 +127,6 @@ function handle_(e) {
       case 'maestros':        out = maestros_(); break;
       case 'sembrarMaestros': out = sembrarMaestros_(req.personas, req.arbol, req.forzar); break;
       case 'derivarEHS':      out = derivarEHSManual_(req.id, usuario); break;
-      case 'examen':          out = guardarExamen_(req.data || {}); break;
-      case 'examenes':        out = { ok: true, resultados: listarExamenes_(req.examen) }; break;
       default:                out = { ok: false, error: 'Accion desconocida: ' + action };
     }
   } catch (err) {
@@ -175,7 +172,7 @@ function getSheet_() { return hoja_(SHEET_NAME, HEADERS); }
 
 function setup() {
   getSheet_(); hoja_('Historial', H_HIST); hoja_('Paradas', H_PARADAS);
-  hoja_('Personas', H_PERSONAS); hoja_('Arbol', H_ARBOL); hoja_('Areas', H_AREAS); hoja_('Responsables', H_RESP); hoja_('Examenes', H_EXAM);
+  hoja_('Personas', H_PERSONAS); hoja_('Arbol', H_ARBOL); hoja_('Areas', H_AREAS); hoja_('Responsables', H_RESP);
   // Desde el editor (no hay lock tomado) corre la migracion; desde la web app ya corrio en handle_.
   if (!_EN_WEBAPP) migrarV3_();
   return { ok: true, mensaje: 'Hojas listas. Tarjetas tiene ' + HEADERS.length + ' columnas.' };
@@ -812,37 +809,4 @@ function derivarEHSManual_(id, usuario) {
   escribir_(id, { 'Enviado a EHS': res });
   log_(id, 'Derivada a EHS', 'Enviado a EHS', t['Enviado a EHS'], res, usuario);
   return { ok: true, id: id, ehs: res };
-}
-
-
-/* ============================ EXAMENES (capacitaciones) ============================
-   Una fila por persona y examen rendido. El puntaje lo calcula la pagina (examen de
-   capacitacion, no de certificacion); se guardan tambien las respuestas elegidas. */
-function guardarExamen_(d) {
-  var examen = String(d.examen || '').trim(), persona = String(d.persona || '').trim();
-  if (!examen) throw new Error('Falta el examen.');
-  if (!persona) throw new Error('Falta quien rinde el examen.');
-  var total = parseInt(d.total, 10) || 0, puntaje = parseInt(d.puntaje, 10) || 0;
-  if (total < 1 || puntaje < 0 || puntaje > total) throw new Error('Puntaje invalido.');
-  var sh = hoja_('Examenes', H_EXAM), n = sh.getLastRow() - 1;
-  if (d.clienteId && n > 0) {
-    var desde = Math.max(2, sh.getLastRow() - 499), cant = sh.getLastRow() - desde + 1;
-    var cids = sh.getRange(desde, H_EXAM.indexOf('Cliente ID') + 1, cant, 1).getValues();
-    for (var i = 0; i < cids.length; i++) if (String(cids[i][0]) === String(d.clienteId)) return { ok: true, repetido: true };
-  }
-  sh.appendRow([ahora_(), examen, persona, String(d.sector || ''), puntaje, total, Math.round(puntaje * 100 / total),
-    JSON.stringify(d.respuestas || {}), String(d.clienteId || '')]);
-  return { ok: true };
-}
-function listarExamenes_(examen) {
-  var sh = hoja_('Examenes', H_EXAM), n = sh.getLastRow() - 1;
-  if (n < 1) return [];
-  var v = sh.getRange(2, 1, n, H_EXAM.length).getValues(), out = [];
-  v.forEach(function (r) {
-    if (examen && String(r[1]) !== String(examen)) return;
-    var o = {}; H_EXAM.forEach(function (h, i) { o[h] = r[i] instanceof Date ? Utilities.formatDate(r[i], TZ, 'yyyy-MM-dd HH:mm') : r[i]; });
-    try { o['Respuestas'] = JSON.parse(o['Respuestas'] || '{}'); } catch (e) { o['Respuestas'] = {}; }
-    out.push(o);
-  });
-  return out;
 }
