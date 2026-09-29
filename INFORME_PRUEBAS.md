@@ -72,3 +72,8 @@ Con Node 18+: `cd pruebas && node backend.test.js`
 - Nueva área que resuelve **Ingeniería** para tarjetas rojas (reparte entre las 3 personas del sector Ingeniería).
 - Alta en la nómina: **Rubio, Nicolas** · sector Gerencia de Planta. Aparece aunque la hoja Personas ya esté cargada.
 - Pruebas: backend 99/99, frontend 203/203.
+
+## v9 · Foto: cámara o archivo del dispositivo (29/09/2026)
+- Al cargar la tarjeta y al resolverla hay dos botones: **📷 Sacar foto** (abre la cámara) y **🖼️ Subir desde el celular / dispositivo** (galería o archivos, también desde la PC).
+- Se puede quitar la foto elegida. La foto sigue siendo opcional.
+- Pruebas: backend 99/99, frontend 207/207 (4 nuevas de foto).

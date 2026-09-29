@@ -45,8 +45,9 @@
     <div class="paso"><span class="pn">3</span>¿Qué ves?</div>
     <textarea id="descripcion" placeholder="Qué ves, oís o sentís (ruido, temperatura, pérdida, suciedad), en qué parte exacta y desde cuándo."></textarea>
     <div class="foto-row">
-      <label class="btn sec sm foto-btn">📷 Sacar / adjuntar foto<input id="foto" type="file" accept="image/*" capture="environment" hidden></label>
-      <span class="ayuda" style="margin:0">Una foto ahorra una visita: quien la resuelve ve exactamente qué y dónde.</span>
+      <label class="btn sec sm foto-btn">📷 Sacar foto<input id="foto" type="file" accept="image/*" capture="environment" hidden></label>
+      <label class="btn sec sm foto-btn">🖼️ Subir desde el celular<input id="fotoGaleria" type="file" accept="image/*" hidden></label>
+      <span class="ayuda" style="margin:0">Opcional. Una foto ahorra una visita: quien la resuelve ve exactamente qué y dónde.</span>
     </div>
     <div id="fotoPrev"></div>
 
@@ -321,15 +322,20 @@
   });
 
   /* ---------- foto ---------- */
-  $('foto').addEventListener('change', async function(){
-    var f = this.files[0];
-    if(!f){ fotoDataURL=''; $('fotoPrev').innerHTML=''; actualizar(); return; }
+  async function tomarFoto(input){
+    var f = input.files[0];
+    if(!f) return;
     $('fotoPrev').innerHTML = '<span class="ayuda">Procesando imagen...</span>';
     try{ fotoDataURL = await comprimirImagen(f);
-      $('fotoPrev').innerHTML = '<img src="'+fotoDataURL+'" style="max-height:110px;margin-top:6px;border-radius:8px;border:1px solid var(--line)">';
+      $('fotoPrev').innerHTML = '<img src="'+fotoDataURL+'" style="max-height:110px;margin-top:6px;border-radius:8px;border:1px solid var(--line)"> <a href="#" id="quitarFoto" class="ayuda" style="margin-left:8px">Quitar foto</a>';
+      $('quitarFoto').onclick = function(ev){ ev.preventDefault(); quitarFoto(); };
     }catch(e){ fotoDataURL=''; $('fotoPrev').innerHTML='<span class="ayuda" style="color:#A32D2D">No se pudo cargar la imagen</span>'; }
+    input.value = '';   // permite volver a elegir la misma foto
     actualizar();
-  });
+  }
+  function quitarFoto(){ fotoDataURL=''; $('fotoPrev').innerHTML=''; $('foto').value=''; $('fotoGaleria').value=''; actualizar(); }
+  $('foto').addEventListener('change', function(){ tomarFoto(this); });
+  $('fotoGaleria').addEventListener('change', function(){ tomarFoto(this); });
 
   /* ---------- parametros de URL: QR del equipo / tarjeta Kaizen ---------- */
   pintarPrioridad(); pintarCondicion(); pintarChips(); pintarAreas();
@@ -357,7 +363,7 @@
     ['descripcion','costo','fechaCompromiso','masHoras'].forEach(function(id){ $(id).value=''; });
     ['categoria','etapaMa','dimensionMejora','turno','prioridad'].forEach(function(id){ $(id).value=''; });
     $('responsable').value = '';
-    $('foto').value=''; $('fotoPrev').innerHTML=''; fotoDataURL='';
+    $('foto').value=''; $('fotoGaleria').value=''; $('fotoPrev').innerHTML=''; fotoDataURL='';
     condSel = 'A definir'; tiempoSel = ''; personasSel = ''; $('boxMasHoras').style.display = 'none';
     elegirTipo(''); pintarPrioridad(); pintarCondicion(); pintarChips();
     $('masDatos').open = false;
