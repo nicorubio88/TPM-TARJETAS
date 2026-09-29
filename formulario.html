@@ -180,7 +180,8 @@
   function areaSugerida(){
     var c = $('categoria').value;
     if (tipoSel !== 'Roja' || !c) return '';
-    if (/electrica|instrumentacion/i.test(c)) return 'Mantenimiento Eléctrico';
+    if (/instrumentacion/i.test(c)) return 'ICOPRO';
+    if (/electrica/i.test(c)) return 'Mantenimiento Eléctrico';
     if (/Desgaste|Ruido|Grieta|Fuga|Lubricacion|Ajuste/i.test(c)) return 'Mantenimiento Mecánico';
     return '';
   }

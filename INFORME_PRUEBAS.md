@@ -61,3 +61,14 @@ Los números del Dashboard se compararon con un cálculo independiente hecho apa
 ## Cómo repetir las pruebas del backend
 
 Con Node 18+: `cd pruebas && node backend.test.js`
+
+## v7 · Área ICOPRO (28/09/2026)
+- Nueva área que resuelve **ICOPRO** (rojas, modo equipo, reparte entre las 5 personas del sector ICOPRO).
+- Categoría "Anomalía eléctrica / instrumentación" separada en **Anomalía eléctrica** (sugiere Mant. Eléctrico) y **Anomalía de instrumentación / control** (sugiere ICOPRO). Las tarjetas viejas siguen contando en la familia 4.
+- Si la hoja Responsables ya estaba guardada, ICOPRO aparece igual (se agrega sola).
+- Pruebas: backend 99/99, frontend 201/201 (4 nuevas de ICOPRO).
+
+## v8 · Ingeniería en rojas y alta de Nicolás Rubio (29/09/2026)
+- Nueva área que resuelve **Ingeniería** para tarjetas rojas (reparte entre las 3 personas del sector Ingeniería).
+- Alta en la nómina: **Rubio, Nicolas** · sector Gerencia de Planta. Aparece aunque la hoja Personas ya esté cargada.
+- Pruebas: backend 99/99, frontend 203/203.
