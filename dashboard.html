@@ -55,13 +55,27 @@
   <!-- 2 -->
   <div class="bloque">
     <h2><span class="nro">2</span>Promedio de generación</h2>
-    <p class="sub">Cuánto se detecta y cuánta gente participa. Meta: <b id="metaTxt"></b> tarjetas por persona por mes.</p>
+    <p class="sub">Cuánto se detecta y cuánta gente participa. Objetivo de cada persona: <b>2 rojas + 1 azul + 1 verde por mes</b> (<span id="metaTxt"></span> tarjetas).</p>
     <div class="kpis k4" id="k2"></div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Tarjetas por persona por mes</b>
         <div class="leyenda"><span><i style="background:#548235"></i>Promedio del mes</span><span><i class="ln" style="background:#20291F"></i>Meta</span></div></div><div id="mensual"></div>
         <p class="mini" style="margin:6px 0 0">El mes en curso se proyecta a mes completo. Sobre la nómina total de planta.</p></div>
       <div class="card"><b>Participación por sector</b><p class="mini" style="margin:2px 0 8px">Tarjetas por persona por mes · % de personas que reportaron. Sector = el de quien reporta.</p><div id="sectores"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px" id="cardObj">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px">
+        <div><b>Objetivo por persona</b><p class="mini" style="margin:2px 0 0">Tarjetas que cada uno detectó en el mes, por color. Se cumple con 2 rojas, 1 azul y 1 verde.</p></div>
+        <div class="filtros" style="margin:0">
+          <div><label>Mes</label><select id="oMes"></select></div>
+          <div><label>Sector</label><select id="oSector"></select></div>
+          <div><label>Persona</label><input id="oPersona" placeholder="Apellido..."></div>
+          <div><label>Mostrar</label><select id="oVer"><option value="">Todos</option><option value="no">Los que no cumplen</option><option value="si">Los que cumplen</option></select></div>
+        </div>
+      </div>
+      <div class="kpis k4" id="oKpis" style="margin-top:12px"></div>
+      <div style="overflow-x:auto;margin-top:10px"><table id="oTabla" style="min-width:560px"></table></div>
+      <div id="oMas" style="margin-top:8px"></div>
     </div>
   </div>
 
@@ -257,6 +271,8 @@
         '<div class="hb-v" style="width:120px" title="'+x.n+' tarjetas · '+x.rep+' de '+x.np+' personas">'+f1(x.tasa)+' · '+Math.round(x.rep/x.np*100)+'%</div></div>';
     }).join('');
 
+    pintarObjetivo();
+
     /* 3 */
     $('k3').innerHTML =
       kpi(f1(it.tiempoMedio) + ' d', 'Tiempo medio de retiro', 'amber') +
@@ -332,6 +348,47 @@
     $('porResp').innerHTML = hbars(topN(porR, 12).map(function(x){ return { l: x[0], v: x[1], c: '#2D6CB5' }; }));
     pintarKanban(ts.filter(function(t){ return esAbierta(t) || t['Estado'] === 'Cerrada'; }));
   }
+
+
+  /* ---------- Objetivo por persona (2 rojas + 1 azul + 1 verde por mes) ---------- */
+  var O_TODOS = false;
+  function prepararObjetivo(){
+    var ms = [], d = new Date(); d.setDate(1);
+    for (var i = 0; i < 6; i++) { ms.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')); d.setMonth(d.getMonth() - 1); }
+    $('oMes').innerHTML = ms.map(function(m, i){ return '<option value="'+m+'">'+esc(textoMes(m))+(i===0?' (en curso)':'')+'</option>'; }).join('');
+    $('oSector').innerHTML = '<option value="">Todos</option>' + opciones(Object.keys(PERSONAS_POR_SECTOR).sort());
+    montarBuscadorPersona($('oPersona'));
+    ['oMes','oSector','oVer'].forEach(function(id){ $(id).addEventListener('change', function(){ O_TODOS = false; pintarObjetivo(); }); });
+    $('oPersona').addEventListener('input', function(){ O_TODOS = false; pintarObjetivo(); });
+  }
+  function pintarObjetivo(){
+    var mes = $('oMes').value, sec = $('oSector').value, qp = $('oPersona').value.trim().toLowerCase(), ver = $('oVer').value;
+    var cuenta = objetivoPorPersona(TODAS, mes), O = CONFIG.OBJETIVO_MES;
+    var filas = todasLasPersonas().filter(function(p){ return !sec || sectorDe(p) === sec; }).map(function(p){
+      return { p: p, s: sectorDe(p), o: cuenta[p] || evaluarObjetivo({ Roja: 0, Azul: 0, Verde: 0, total: 0 }) };
+    });
+    var base = filas.length || 1, cumplen = filas.filter(function(x){ return x.o.cumple; }).length;
+    var tot = { Roja: 0, Azul: 0, Verde: 0 }; filas.forEach(function(x){ tot.Roja += x.o.Roja; tot.Azul += x.o.Azul; tot.Verde += x.o.Verde; });
+    var avProm = Math.round(filas.reduce(function(s,x){ return s + x.o.avance; }, 0) / base * 100);
+    $('oKpis').innerHTML =
+      kpi(cumplen + ' / ' + filas.length, 'Cumplen el objetivo', cumplen / base < 0.5 ? 'amber' : '', Math.round(cumplen / base * 100) + '% de ' + (sec || 'la planta')) +
+      kpi(avProm + '%', 'Avance promedio', avProm < 50 ? 'amber' : '', 'cada color cuenta hasta su objetivo') +
+      kpi(tot.Roja + ' / ' + (O.Roja * filas.length), 'Rojas del mes', '', 'contra el objetivo') +
+      kpi(tot.Azul + ' · ' + tot.Verde, 'Azules · verdes', '', 'objetivo ' + (O.Azul * filas.length) + ' · ' + (O.Verde * filas.length));
+    var vis = filas.filter(function(x){ return (!qp || x.p.toLowerCase().indexOf(qp) > -1) && (!ver || (ver === 'si') === x.o.cumple); })
+      .sort(function(a,b){ return (b.o.avance - a.o.avance) || (b.o.total - a.o.total) || a.p.localeCompare(b.p); });
+    var lim = O_TODOS ? vis.length : 25;
+    $('oTabla').innerHTML = '<thead><tr><th>Persona</th><th>Sector</th><th>Rojas · azules · verdes</th><th style="min-width:120px">Avance</th><th></th></tr></thead><tbody>' +
+      vis.slice(0, lim).map(function(x){
+        var pct = Math.round(x.o.avance * 100);
+        return '<tr><td><a href="seguimiento.html?persona='+encodeURIComponent(x.p)+'" title="Ver sus tarjetas">'+esc(x.p)+'</a></td><td class="mini">'+esc(x.s)+'</td><td>'+htmlObjetivo(x.o, true)+'</td>'+
+          '<td><div class="hb-b"><div style="width:'+pct+'%;background:'+(x.o.cumple?'#548235':pct>=50?'#E8871A':'#B8402A')+'"></div></div></td>'+
+          '<td class="mini">'+(x.o.cumple?'<b style="color:#3D5F26">✓ Cumple</b>':'Faltan '+(Math.max(0,O.Roja-x.o.Roja)?Math.max(0,O.Roja-x.o.Roja)+' R ':'')+(Math.max(0,O.Azul-x.o.Azul)?'1 A ':'')+(Math.max(0,O.Verde-x.o.Verde)?'1 V':''))+'</td></tr>';
+      }).join('') + '</tbody>';
+    $('oMas').innerHTML = vis.length > lim ? '<a href="#" id="oVerTodos" class="mini"><b>Ver las '+vis.length+' personas</b></a>' : (vis.length ? '' : '<p class="mini">Nadie con estos filtros.</p>');
+    var a = $('oVerTodos'); if (a) a.onclick = function(e){ e.preventDefault(); O_TODOS = true; pintarObjetivo(); };
+  }
+  prepararObjetivo();
 
   async function cargar(){
     $('msg').innerHTML = '';

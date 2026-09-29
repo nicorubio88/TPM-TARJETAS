@@ -20,18 +20,6 @@
   @page { margin:12mm }
 }
 .print-solo { display:none }
-.orden-print { font-family:Arial,sans-serif; max-width:780px; margin:0 auto }
-.orden-header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #548235; padding-bottom:12px; margin-bottom:16px }
-.orden-brand { font-size:13px; color:#3D5F26; font-weight:bold }
-.orden-id { font-size:26px; font-weight:bold; font-family:monospace; color:#263528 }
-.orden-badge { display:inline-block; color:#fff; font-weight:bold; font-size:13px; padding:5px 14px; border-radius:20px; margin:4px 4px 0 0 }
-.orden-section { margin:12px 0 }
-.orden-section h3 { font-size:11px; font-weight:bold; color:#3D5F26; letter-spacing:1px; text-transform:uppercase; margin:0 0 4px; border-bottom:1px solid #D7DECC; padding-bottom:3px }
-.orden-section p { margin:4px 0; font-size:13px; color:#2B362C; line-height:1.5 }
-.orden-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px }
-.orden-foto { max-width:100%; max-height:200px; border-radius:8px; border:1px solid #D7DECC; margin-top:8px }
-.firma-box { border:1px solid #D7DECC; border-radius:6px; padding:14px; margin-top:10px; min-height:60px }
-.firma-label { font-size:10px; color:#6E7A6C; margin-bottom:6px }
 .lista-print { font-family:Arial,sans-serif }
 .lista-header { display:flex; justify-content:space-between; border-bottom:3px solid #548235; padding-bottom:10px; margin-bottom:14px }
 .plan-grupo{margin:14px 0 4px;font-size:12px;font-weight:bold;color:#263528;border-bottom:2px solid #548235;padding-bottom:3px;display:flex;justify-content:space-between}
@@ -66,6 +54,8 @@
       <div><label>Especialidad</label><select id="fEsp"></select></div>
       <div><label>Etapa MA</label><select id="fEtapa"></select></div>
       <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto, OT..."></div>
+      <div><label>Persona</label><input id="fPersona" placeholder="Apellido..."></div>
+      <div><label>Rol de la persona</label><select id="fRol"><option value="">Cualquier rol</option><option value="det">La detectó</option><option value="resp">Responsable</option><option value="ejec">Ejecuta</option><option value="cerro">La resolvió</option></select></div>
     </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin:-4px 0 12px;font-size:12.5px">
       <label class="chk"><input type="checkbox" id="fVencidas"> Solo vencidas</label>
@@ -73,6 +63,7 @@
       <label class="chk"><input type="checkbox" id="fSeguridad"> Solo seguridad</label>
       <label class="chk"><input type="checkbox" id="fMias"> Asignadas a mí</label>
     </div>
+    <div id="fichaPersona"></div>
     <div id="bulk" class="bulk" style="display:none">
       <b id="bulkN"></b>
       <select id="bParada"></select>
@@ -145,6 +136,7 @@
         <div><label>Personas necesarias</label><input id="gPersonas" type="number" min="1" step="1" placeholder="ej: 2"></div>
         <div><label>Fecha planificada</label><input id="gFechaPlan" type="date"></div>
       </div>
+      <div id="gEst" class="sug"></div>
       <div class="grid cols-2">
         <div><label>Ejecutores (separados por ;)</label><input id="gEjecutores" placeholder="Apellido, Nombre; Apellido, Nombre"></div>
         <div><label>Horario planificado</label><input id="gHorario" placeholder="ej: 08:00-10:30"></div>
@@ -277,6 +269,22 @@
   function msg(t,ok){ $('msg').innerHTML='<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
 
   /* ---------- datos ---------- */
+  var HIST_EST = [];
+  /* Estimacion por historial en la gestion: sugiere horas, personas, especialidad y repuestos */
+  function pintarEstGestion(t){
+    var e = estimarPorHistorial(Object.assign({}, t, { ID: '' }), estadisticasEstimacion(TODAS, HIST_EST));
+    if (e.nivel === 'defecto') { $('gEst').innerHTML = ''; return; }
+    $('gEst').innerHTML = '📊 <b>Historial</b>: ' + esc(textoEstimacion(e)) + '. <a href="#" id="gUsarEst">Completar los vacíos con esto</a>';
+    $('gUsarEst').onclick = function(ev){
+      ev.preventDefault();
+      if (!$('gHoras').value) $('gHoras').value = e.h;
+      if (!$('gPersonas').value && e.p) $('gPersonas').value = e.p;
+      if (!$('gEspecialidad').value && e.especialidad) $('gEspecialidad').value = e.especialidad;
+      if (!$('gRepuestos').value && e.repuestos.length) $('gRepuestos').value = e.repuestos.join('; ');
+      if ($('gCondicion').value === 'A definir' && e.condicion) $('gCondicion').value = e.condicion;
+      $('gEst').innerHTML = '✔ Completado con el historial. Revisalo y guardá.';
+    };
+  }
   async function cargar(){
     try{
       var p = +$('fPeriodo').value;
@@ -285,6 +293,7 @@
       if(!r.ok){ msg(esc(r.error||'error'), false); return; }
       TODAS = marcarRepeticiones(r.tarjetas); PARADAS = r.paradas || [];
       pintarCombosParada(); render(); pintarParadas();
+      cargarHistorialEstimacion().then(function(h){ HIST_EST = h; });
       var id = new URLSearchParams(location.search).get('id');
       if (id && !actual) abrir(id);
     }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
@@ -293,7 +302,7 @@
   function filtradas(){
     var v = function(id){ return $(id).value; };
     var e=v('fEstado'), c=v('fColor'), fc=v('fCond'), fa=v('fArea'), fp=v('fParada'), fe=v('fEsp'), et=v('fEtapa'),
-        tx=v('fTexto').toLowerCase(), yo=getYo();
+        tx=v('fTexto').toLowerCase(), yo=getYo(), fper=personaValida(v('fPersona').trim()) ? v('fPersona').trim() : '', frol=v('fRol');
     var dp = +v('fPeriodo'), lim = dp ? desdeISO(dp) : '';
     return TODAS.filter(function(t){
       if(lim && !esAbierta(t) && t['Estado']!=='Cerrada' && String(t['Fecha alta']).slice(0,10) < lim && String(t['Fecha cierre']||'').slice(0,10) < lim) return false;
@@ -309,12 +318,28 @@
       if($('fRepetidas').checked && !t.repetidaDe) return false;
       if($('fSeguridad').checked && grupoCategoria(t['Categoria']).indexOf('6 ')!==0) return false;
       if($('fMias').checked && t['Responsable asignado']!==yo && listaNombres(t['Ejecutores']).indexOf(yo)===-1) return false;
+      if(fper){
+        var roles = { det: t['Detectado por']===fper, resp: t['Responsable asignado']===fper, ejec: listaNombres(t['Ejecutores']).indexOf(fper)>-1, cerro: t['Cerrado por']===fper };
+        if(frol ? !roles[frol] : !(roles.det||roles.resp||roles.ejec||roles.cerro)) return false;
+      }
       if(tx){ var blob=[t['ID'],t['Equipo'],t['Descripcion'],t['Responsable asignado'],t['Componente/Ubicacion'],t['Repuestos'],t['N OT'],t['Detectado por']].join(' ').toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
       return true;
     }).sort(function(a,b){ return String(b['Fecha alta']).localeCompare(String(a['Fecha alta'])); });
   }
 
+  function pintarFichaPersona(){
+    var p = $('fPersona').value.trim();
+    if (!personaValida(p)) { $('fichaPersona').innerHTML = ''; return; }
+    var mes = mesActual(), o = objetivoPorPersona(TODAS, mes)[p] || evaluarObjetivo({ Roja: 0, Azul: 0, Verde: 0, total: 0 });
+    var det = TODAS.filter(function(t){ return t['Detectado por'] === p; }).length;
+    var asig = TODAS.filter(function(t){ return esAbierta(t) && (t['Responsable asignado'] === p || listaNombres(t['Ejecutores']).indexOf(p) > -1); }).length;
+    var res = TODAS.filter(function(t){ return t['Cerrado por'] === p; }).length;
+    $('fichaPersona').innerHTML = '<div class="ficha-p"><div><div class="n">'+esc(p)+'</div><div class="mini">'+esc(sectorDe(p)||'')+'</div></div>'+
+      '<div><div class="mini">Objetivo de '+esc(textoMes(mes))+'</div>'+htmlObjetivo(o)+(o.cumple?' <b style="color:var(--verde-d)">Cumplido</b>':'')+'</div>'+
+      '<div class="mini">En el período: <b>'+det+'</b> detectadas · <b>'+asig+'</b> abiertas a su cargo · <b>'+res+'</b> resueltas</div></div>';
+  }
   function render(){
+    pintarFichaPersona();
     var f = filtradas();
     $('tbody').innerHTML = f.map(function(t){
       var d = String(t['Descripcion']||'');
@@ -418,6 +443,7 @@
     $('ptsInfo').innerHTML = esAbierta(t) ? '<b>Puntaje de planificación: '+pt.total+'</b> <span class="mini">('+esc(textoPuntaje(pt))+')</span>' +
       (!t['Area responsable'] ? '<br><span class="mini" style="color:#8A2E1C">Tarjeta sin área que la resuelve: elegila y guardá.</span>' : '') : '';
     $('gLoto').value = t['LOTO / Permiso']||''; $('gOT').value = t['N OT']||''; $('gRepuestos').value = t['Repuestos']||'';
+    if (esAbierta(t)) pintarEstGestion(t); else $('gEst').innerHTML = '';
     $('gCategoria').value = t['Categoria']||''; $('gEtapaMa').value = t['Etapa MA']||''; $('gNotas').value = t['Notas']||'';
     $('gMotivo').value = ''; $('boxMotivo').style.display = 'none';
     $('rAccion').value = ''; $('rPor').value = listaNombres(t['Ejecutores'])[0] || t['Responsable asignado'] || getYo(); $('rCausa').value = ''; $('rCosto').value = t['Costo estimado']||'';
@@ -563,44 +589,17 @@
   ['fPeriodo'].forEach(function(id){ $(id).addEventListener('change', cargar); });
   ['fColor','fEstado','fCond','fArea','fParada','fAreaResp','fEsp','fEtapa','fVencidas','fRepetidas','fSeguridad','fMias'].forEach(function(id){ $(id).addEventListener('change', render); });
   $('fTexto').addEventListener('input', render);
+  montarBuscadorPersona($('fPersona'), new URLSearchParams(location.search).get('persona') || '');
+  if (new URLSearchParams(location.search).get('persona')) $('fEstado').value = '';   // desde el dashboard: todas sus tarjetas
+  $('fPersona').addEventListener('input', function(){ if (!this.value.trim() || personaValida(this.value.trim())) render(); });
+  $('fRol').addEventListener('change', render);
   $('recargar').addEventListener('click', cargar);
 
   /* ═══════════════ IMPRESIÓN ═══════════════ */
   function fmtFecha(v){ return v?String(v).slice(0,16):'—'; }
   function fechaAR(v){ return v?String(v).slice(0,10).split('-').reverse().join('/'):'—'; }
 
-  function htmlOrden(t){
-    var ahora=new Date().toLocaleDateString('es-AR');
-    var img=function(u,l){ return u?'<div><div style="font-size:10px;color:#6E7A6C">'+l+'</div><img class="orden-foto" src="'+esc(fotoSrc(u))+'"></div>':''; };
-    return `<div class="orden-print">
-  <div class="orden-header"><div>
-      <div class="orden-brand">ORDEN DE TRABAJO TPM — Planta Tornquist</div>
-      <div class="orden-id">${esc(t['ID'])}</div>
-      <div style="margin-top:8px"><span class="orden-badge" style="background:${colorTipo(t['Tipo'])}">${esc(t['Tipo'])}</span> ${badgeCondicion(condicionDe(t))} ${t.repetidaDe?'<b style="color:#8A5A0A">↻ REPETIDA</b>':''}</div>
-    </div><div style="text-align:right;font-size:11px;color:#6E7A6C">
-      <div>Impreso: ${ahora}</div><div>Alta: ${fmtFecha(t['Fecha alta'])}</div>${t['N OT']?'<div style="font-size:14px;color:#263528"><b>OT '+esc(t['N OT'])+'</b></div>':''}
-      <div style="font-size:15px;font-weight:bold;color:#C0392B">${t.vencida?'⚠ VENCIDA':''}</div></div></div>
-  <div class="orden-grid">
-    <div class="orden-section"><h3>Ubicación</h3><p style="font-weight:bold">${esc(claveEquipo(t)||'—')}</p></div>
-    <div class="orden-section"><h3>Categoría</h3><p>${esc(t['Categoria']||'—')} · Prioridad <b>${esc(t['Prioridad']||'—')}</b></p></div>
-  </div>
-  <div class="orden-section"><h3>Descripción</h3><p style="background:#F3F6EE;padding:10px;border-radius:6px">${esc(t['Descripcion']||'')}</p></div>
-  <div class="orden-section"><h3>Planificación</h3>
-    <p><b>Especialidad:</b> ${esc(t['Especialidad']||'—')} · <b>Horas est.:</b> ${esc(t['Horas estimadas']||'—')} · <b>Parada:</b> ${fechaAR(t['Parada objetivo'])}</p>
-    <p><b>LOTO / permiso:</b> ${esc(t['LOTO / Permiso']||'—')} · <b>Repuestos:</b> ${esc(t['Repuestos']||'—')}</p>
-    <p><b>Personas:</b> ${esc(t['Personas necesarias']||'—')} · <b>Ejecutores:</b> ${esc(t['Ejecutores']||'—')} · <b>Planificada:</b> ${fechaAR(t['Fecha planificada'])} ${esc(t['Horario planificado']||'')}</p></div>
-  <div class="orden-grid">
-    <div class="orden-section"><h3>Responsable</h3><p style="font-size:15px;font-weight:bold">${esc(t['Responsable asignado']||'Sin asignar')}</p><p>Área: ${esc(t['Area responsable']||t['Grupo responsable']||'—')}</p></div>
-    <div class="orden-section"><h3>Origen</h3><p>${esc(t['Detectado por']||'—')} (Turno ${esc(t['Turno']||'—')})</p><p>Compromiso: ${fechaAR(t['Fecha compromiso'])} · ${t.diasAbierta} días</p></div>
-  </div>
-  <div class="orden-grid">${img(t['Foto URL'],'Antes')}${img(t['Foto cierre URL'],'Después')}</div>
-  ${t['Notas']?`<div class="orden-section"><h3>Notas</h3><p style="white-space:pre-line">${esc(t['Notas'])}</p></div>`:''}
-  <div class="orden-section"><h3>Acción realizada · causa · materiales</h3><div class="firma-box" style="min-height:70px"></div></div>
-  <div style="font-size:11px;margin:6px 0">Horas reales: ☐1 ☐2 ☐3 ☐4 ☐5 ☐6 ☐7 ☐8 ☐más: ____ &nbsp;&nbsp; Personas: ☐1 ☐2 ☐3 ☐4+</div>
-  <div style="font-size:11px;margin:6px 0">☐ Agregar al plan preventivo &nbsp;&nbsp; ☐ Actualizar estándar / LUP</div>
-  <div class="orden-grid"><div class="firma-box"><div class="firma-label">Resolvió / fecha</div></div><div class="firma-box"><div class="firma-label">Verificó en el equipo (operador)</div></div></div>
-</div>`;
-  }
+  function htmlOrden(t){ return htmlOrdenTrabajo(t); }
 
   function htmlLista(ts){
     var ahora=new Date().toLocaleString('es-AR');

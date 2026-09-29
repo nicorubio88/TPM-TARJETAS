@@ -11,7 +11,8 @@ const CONFIG = {
      ╚══════════════════════════════════════════════════════════════╝ */
   API_URL: 'https://script.google.com/macros/s/AKfycbxUYpbmGe-T0Rc-jD0dxkzdAnwOzop9ikIvajMgxDRa5gj33a5ErLSkbNTar4kNkJkN/exec',
   PLANTA: 'Tornquist',
-  META_TARJETAS_PERSONA_MES: 2,   // meta de cultura: tarjetas por persona por mes
+  OBJETIVO_MES: { Roja: 2, Azul: 1, Verde: 1 },   // objetivo de cada persona por mes (tarjetas que detecta)
+  META_TARJETAS_PERSONA_MES: 4,   // = suma del objetivo (2 rojas + 1 azul + 1 verde)
   DIAS_REPETICION: 90,            // misma falla en el mismo equipo dentro de N dias de resuelta = repeticion
   UMBRAL_KAIZEN: 3,               // equipo con >= N tarjetas en 90 dias = candidato a Mejora Enfocada
   PERIODO_DEFECTO_DIAS: 365,      // cuanto historial traen Seguimiento y Dashboard por defecto
@@ -235,31 +236,173 @@ function especialidadDe(nombre) {
    1) lo cargado en la tarjeta; 2) mediana de tarjetas parecidas (mismo color y familia de anomalia);
    3) valor por defecto del color. Devuelve { v, fuente }. */
 function _mediana(a) { if (!a.length) return 0; a = a.slice().sort(function (x, y) { return x - y; }); const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
-function estadisticasEstimacion(ts) {
-  const st = {};
-  ts.forEach(function (t) {
+/* ---------- Estimacion por historial ----------
+   Busca tarjetas CERRADAS parecidas y usa lo REAL de su cierre (horas, personas, especialidad,
+   repuestos, marcha/parada). De lo mas especifico a lo mas general:
+     1. mismo equipo y mismo trabajo (descripcion/accion parecida) ...... desde 1 caso
+     2. mismo trabajo en cualquier equipo (ej. "cambio de bomba") ....... desde 2 casos
+     3. mismo equipo, cualquier trabajo del mismo color .................. desde 3 casos
+     4. mismo color y familia de anomalia (lo cargado o lo real) ......... desde 3 casos
+     5. valor por defecto del color
+   Cuantos mas cierres se registran, mas fina es la estimacion. */
+const _STOP = ('para con del los las una uno que por sobre desde hace esta este estan muy mas sin hay tiene tienen ' +
+  'lado parte zona equipo maquina linea sector area cuando donde todo toda como pero porque entre queda quedo ' +
+  'revisar revision verificar nota ver favor urgente posible tambien siempre veces otra otro').split(' ');
+const _SINON = { reemplazo: 'cambio', reemplazar: 'cambio', cambiar: 'cambio', cambiado: 'cambio', recambio: 'cambio',
+  perdida: 'fuga', goteo: 'fuga', gotea: 'fuga', pierde: 'fuga', perder: 'fuga',
+  ruidoso: 'ruido', vibra: 'vibracion', recalienta: 'temperatura', caliente: 'temperatura', sobretemperatura: 'temperatura',
+  flojo: 'ajuste', floja: 'ajuste', suelto: 'ajuste', suelta: 'ajuste', lubricar: 'lubricacion', engrasar: 'lubricacion', grasa: 'lubricacion' };
+function tokensTrabajo(txt) {
+  const out = {};
+  String(txt || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).forEach(function (w) {
+    if (w.length < 4 || /^\d+$/.test(w) || _STOP.indexOf(w) > -1) return;
+    if (_SINON[w]) w = _SINON[w];
+    else if (w.length > 5 && /es$/.test(w)) w = w.slice(0, -2);
+    else if (w.length > 4 && /s$/.test(w)) w = w.slice(0, -1);
+    if (_STOP.indexOf(w) === -1) out[w] = 1;
+  });
+  return Object.keys(out);
+}
+function _cuantil(a, q) { if (!a.length) return 0; a = a.slice().sort(function (x, y) { return x - y; }); const i = (a.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i); return a[lo] + (a[hi] - a[lo]) * (i - lo); }
+function _moda(a) { const c = {}; let best = '', n = 0; a.forEach(function (v) { if (!v) return; c[v] = (c[v] || 0) + 1; if (c[v] > n) { n = c[v]; best = v; } }); return best; }
+function claveEq_(t) { return [t['Area equipo'] || '', t['Equipo'] || '', t['Componente/Ubicacion'] || ''].join('|'); }
+function _cerradaConReal(t) { return (t['Estado'] === 'Cerrada' || t['Estado'] === 'Verificada') && parseFloat(t['Horas reales']) > 0; }
+
+/* ts: tarjetas del periodo; hist (opcional): cierres historicos compactos (accion historialEstimacion). */
+function estadisticasEstimacion(ts, hist) {
+  const fam = {}, porId = {};
+  (hist || []).concat(ts || []).forEach(function (t) { if (t && t['ID']) porId[t['ID']] = t; });
+  const todas = Object.keys(porId).map(function (k) { return porId[k]; });
+  todas.forEach(function (t) {
     const k = t['Tipo'] + '|' + grupoCategoria(t['Categoria']);
     // lo real (al cerrar) ensena mas que lo estimado
     const h = parseFloat(t['Horas reales']) || parseFloat(t['Horas estimadas']), p = parseFloat(t['Personas reales']) || parseFloat(t['Personas necesarias']);
-    st[k] = st[k] || { h: [], p: [] };
-    if (h > 0) st[k].h.push(h); if (p > 0) st[k].p.push(p);
+    fam[k] = fam[k] || { h: [], p: [] };
+    if (h > 0) fam[k].h.push(h); if (p > 0) fam[k].p.push(p);
   });
-  return st;
+  const casos = todas.filter(_cerradaConReal).map(function (t) {
+    return { t: t, tok: tokensTrabajo(t['Descripcion'] + ' ' + (t['Accion de cierre'] || '')), eq: claveEq_(t) };
+  });
+  const df = {};
+  casos.forEach(function (c) { c.tok.forEach(function (w) { df[w] = (df[w] || 0) + 1; }); });
+  const N = casos.length;
+  const idf = function (w) { return Math.log((N + 1) / ((df[w] || 0) + 1)) + 1; };
+  return { fam: fam, casos: casos, idf: idf, cache: {} };
+}
+
+/* Estimacion completa para una tarjeta (abierta o en carga). */
+function estimarPorHistorial(t, st) {
+  st = st || estadisticasEstimacion([]);
+  const key = t['ID'] ? t['ID'] : null;
+  if (key && st.cache[key]) return st.cache[key];
+  const q = tokensTrabajo(t['Descripcion']), eq = claveEq_(t), tipo = t['Tipo'];
+  const qPeso = q.reduce(function (s, w) { return s + st.idf(w); }, 0);
+  const sim = function (c) {
+    if (!qPeso) return 0;
+    let s = 0; q.forEach(function (w) { if (c.tok.indexOf(w) > -1) s += st.idf(w); });
+    return s / qPeso;
+  };
+  const base = st.casos.filter(function (c) { return c.t['ID'] !== t['ID'] && (!tipo || c.t['Tipo'] === tipo); })
+    .map(function (c) { return { c: c, s: sim(c) }; });
+  const niveles = [
+    { nivel: 'mismo equipo y trabajo', min: 1, f: function (x) { return eq && x.c.eq === eq && x.s >= 0.3; } },
+    { nivel: 'trabajo parecido', min: 2, f: function (x) { return x.s >= 0.5; } },
+    { nivel: 'mismo equipo', min: 3, f: function (x) { return eq && x.c.eq === eq; } }
+  ];
+  let res = null;
+  for (let i = 0; i < niveles.length && !res; i++) {
+    const L = niveles[i], sel = base.filter(L.f).sort(function (a, b) { return b.s - a.s; });
+    if (sel.length >= L.min) {
+      const ts = sel.slice(0, 15).map(function (x) { return x.c.t; });
+      const hs = ts.map(function (x) { return parseFloat(x['Horas reales']); });
+      const ps = ts.map(function (x) { return parseFloat(x['Personas reales']) || parseFloat(x['Personas necesarias']) || 0; }).filter(function (v) { return v > 0; });
+      const rep = {};
+      ts.forEach(function (x) { String(x['Repuestos'] || '').split(/[;,\n]/).forEach(function (r) { r = r.trim(); if (r) rep[r] = (rep[r] || 0) + 1; }); });
+      res = {
+        nivel: L.nivel, n: sel.length, h: Math.max(1, Math.round(_mediana(hs))),
+        hMin: Math.round(_cuantil(hs, 0.25) * 2) / 2, hMax: Math.round(_cuantil(hs, 0.75) * 2) / 2,
+        p: ps.length ? Math.max(1, Math.round(_mediana(ps))) : 0,
+        especialidad: _moda(ts.map(function (x) { return x['Especialidad'] || especialidadDe(listaNombres(x['Ejecutores'])[0] || x['Cerrado por'] || ''); })),
+        areaResp: _moda(ts.map(function (x) { return x['Area responsable']; })),
+        condicion: _moda(ts.map(function (x) { const c = x['Condicion intervencion']; return c === 'Maquina en marcha' || c === 'Maquina parada' ? c : ''; })),
+        repuestos: Object.keys(rep).sort(function (a, b) { return rep[b] - rep[a]; }).slice(0, 3),
+        casos: ts.slice(0, 5).map(function (x) { return x['ID']; })
+      };
+    }
+  }
+  if (!res) {
+    const e = st.fam[tipo + '|' + grupoCategoria(t['Categoria'])];
+    if (e && e.h.length >= 3) res = { nivel: 'mismo color y tipo de anomalía', n: e.h.length, h: Math.max(1, Math.ceil(_mediana(e.h))),
+      hMin: _cuantil(e.h, 0.25), hMax: _cuantil(e.h, 0.75), p: e.p.length >= 3 ? Math.round(_mediana(e.p)) : 0, especialidad: '', areaResp: '', condicion: '', repuestos: [], casos: [] };
+  }
+  if (!res) res = { nivel: 'defecto', n: 0, h: CONFIG.DURACION_DEFECTO[tipo] || 1, hMin: 0, hMax: 0, p: CONFIG.PERSONAS_DEFECTO[tipo] || 1, especialidad: '', areaResp: '', condicion: '', repuestos: [], casos: [] };
+  if (key) st.cache[key] = res;
+  return res;
+}
+function textoEstimacion(e) {
+  if (!e || e.nivel === 'defecto') return 'Sin historial todavía: se usa el valor por defecto del color.';
+  let s = e.n + (e.n === 1 ? ' caso' : ' casos') + ' (' + e.nivel + '): ~' + e.h + ' h' + (e.p ? ' × ' + e.p + (e.p === 1 ? ' persona' : ' personas') : '');
+  if (e.hMax > e.hMin) s += ' (entre ' + e.hMin + ' y ' + e.hMax + ' h)';
+  if (e.especialidad) s += ' · ' + e.especialidad;
+  if (e.repuestos.length) s += ' · repuestos usados: ' + e.repuestos.join(', ');
+  if (e.condicion) s += ' · suele hacerse ' + (e.condicion === 'Maquina parada' ? 'con máquina parada' : 'en marcha');
+  return s;
 }
 function duracionDe(t, st) {
   const h = parseFloat(t['Horas estimadas']);
   if (h > 0) return { v: h, fuente: 'tarjeta' };
-  const e = st && st[t['Tipo'] + '|' + grupoCategoria(t['Categoria'])];
-  if (e && e.h.length >= 3) return { v: Math.max(1, Math.ceil(_mediana(e.h))), fuente: 'historial' };
-  return { v: CONFIG.DURACION_DEFECTO[t['Tipo']] || 1, fuente: 'defecto' };
+  const e = estimarPorHistorial(t, st);
+  return e.nivel === 'defecto' ? { v: e.h, fuente: 'defecto' } : { v: e.h, fuente: 'historial', det: e };
 }
 function personasDe(t, st) {
   const p = parseInt(t['Personas necesarias'], 10);
   if (p > 0) return { v: p, fuente: 'tarjeta' };
-  const e = st && st[t['Tipo'] + '|' + grupoCategoria(t['Categoria'])];
-  if (e && e.p.length >= 3) return { v: Math.round(_mediana(e.p)), fuente: 'historial' };
+  const e = estimarPorHistorial(t, st);
+  if (e.nivel !== 'defecto' && e.p > 0) return { v: e.p, fuente: 'historial', det: e };
   return { v: CONFIG.PERSONAS_DEFECTO[t['Tipo']] || 1, fuente: 'defecto' };
 }
+/* Cierres historicos compactos para estimar (cache 6 h en el dispositivo). */
+async function cargarHistorialEstimacion(forzar) {
+  const c = LS.get('tpm_hist_est', null);
+  if (!forzar && c && Date.now() - c.ts < 6 * 3600 * 1000) return c.filas || [];
+  try {
+    const r = await api('historialEstimacion', {});
+    if (r.ok) { LS.set('tpm_hist_est', { ts: Date.now(), filas: r.filas || [] }); return r.filas || []; }
+  } catch (e) { /* sin conexion: se usa lo que haya */ }
+  return c ? c.filas || [] : [];
+}
+/* ---------- Objetivo mensual por persona: 2 rojas + 1 azul + 1 verde ---------- */
+function mesDe(v) { return String(v || '').slice(0, 7); }   // 'yyyy-mm'
+function mesActual() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function textoMes(m) { const n = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']; return n[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4); }
+/* Cuenta las tarjetas que cada persona DETECTO en el mes, por color. Devuelve { persona: {Roja, Azul, Verde, total, cumple, avance} } */
+function objetivoPorPersona(ts, mes) {
+  const out = {};
+  (ts || []).forEach(function (t) {
+    if (t['Estado'] === 'Anulada' || mesDe(t['Fecha alta']) !== mes) return;
+    const p = t['Detectado por']; if (!p) return;
+    const o = out[p] = out[p] || { Roja: 0, Azul: 0, Verde: 0, total: 0 };
+    if (o[t['Tipo']] != null) o[t['Tipo']]++; o.total++;
+  });
+  Object.keys(out).forEach(function (p) { evaluarObjetivo(out[p]); });
+  return out;
+}
+function evaluarObjetivo(o) {
+  const O = CONFIG.OBJETIVO_MES, meta = O.Roja + O.Azul + O.Verde;
+  o.cumple = o.Roja >= O.Roja && o.Azul >= O.Azul && o.Verde >= O.Verde;
+  // avance: cada color cuenta hasta su objetivo (una roja de mas no compensa la verde que falta)
+  o.avance = (Math.min(o.Roja, O.Roja) + Math.min(o.Azul, O.Azul) + Math.min(o.Verde, O.Verde)) / meta;
+  return o;
+}
+function htmlObjetivo(o, compacto) {
+  const O = CONFIG.OBJETIVO_MES;
+  return ['Roja', 'Azul', 'Verde'].map(function (c) {
+    const ok = o[c] >= O[c];
+    return '<span class="obj' + (ok ? ' ok' : '') + '" style="--c:' + colorTipo(c) + '" title="' + c + 's este mes: ' + o[c] + ' de ' + O[c] + '">' +
+      (compacto ? '' : c + ' ') + '<b>' + o[c] + '/' + O[c] + '</b>' + (ok ? ' ✓' : '') + '</span>';
+  }).join(' ');
+}
+
 function hhDe(t) { const h = parseFloat(t['Horas estimadas']) || 0, p = parseInt(t['Personas necesarias'], 10) || 1; return h * p; }
 
 /* ---------- Criterio de prioridad para planificar ---------- */
@@ -646,6 +789,49 @@ function montarBuscadorPersona(input, valorInicial) {
   if (valorInicial) input.value = valorInicial;
 }
 function personaValida(n) { return !!n && todasLasPersonas().indexOf(n) > -1; }
+
+/* ---------- Orden de trabajo imprimible (la usan Seguimiento y Planificacion) ---------- */
+function htmlOrdenTrabajo(t, plan){
+  plan = plan || {};
+  var fmtFecha=function(v){ return v?String(v).slice(0,16):'—'; };
+  var fechaAR=function(v){ return v?String(v).slice(0,10).split('-').reverse().join('/'):'—'; };
+  var ejec = plan.ejecutores ? plan.ejecutores.join('; ') : (t['Ejecutores']||'—');
+  var fPlan = plan.fecha || t['Fecha planificada'], hPlan = plan.horario != null ? plan.horario : (t['Horario planificado']||'');
+  var esp = t['Especialidad'] || (plan.est && plan.est.especialidad ? plan.est.especialidad + ' (sugerida)' : '—');
+  var rep = t['Repuestos'] || (plan.est && plan.est.repuestos && plan.est.repuestos.length ? plan.est.repuestos.join(', ') + ' (usados antes)' : '—');
+  var horas = t['Horas estimadas'] || (plan.dur ? plan.dur + ' (estimadas)' : '—');
+  var pers = t['Personas necesarias'] || (plan.n ? plan.n + ' (estimadas)' : '—');
+  var ahora=new Date().toLocaleDateString('es-AR');
+  var img=function(u,l){ return u?'<div><div style="font-size:10px;color:#6E7A6C">'+l+'</div><img class="orden-foto" src="'+esc(fotoSrc(u))+'"></div>':''; };
+  return `<div class="orden-print">
+<div class="orden-header"><div>
+    <div class="orden-brand">ORDEN DE TRABAJO TPM — Planta Tornquist</div>
+    <div class="orden-id">${esc(t['ID'])}</div>
+    <div style="margin-top:8px"><span class="orden-badge" style="background:${colorTipo(t['Tipo'])}">${esc(t['Tipo'])}</span> ${badgeCondicion(condicionDe(t))} ${t.repetidaDe?'<b style="color:#8A5A0A">↻ REPETIDA</b>':''}</div>
+  </div><div style="text-align:right;font-size:11px;color:#6E7A6C">
+    <div>Impreso: ${ahora}</div><div>Alta: ${fmtFecha(t['Fecha alta'])}</div>${t['N OT']?'<div style="font-size:14px;color:#263528"><b>OT '+esc(t['N OT'])+'</b></div>':''}
+    <div style="font-size:15px;font-weight:bold;color:#C0392B">${t.vencida?'⚠ VENCIDA':''}</div></div></div>
+<div class="orden-grid">
+  <div class="orden-section"><h3>Ubicación</h3><p style="font-weight:bold">${esc(claveEquipo(t)||'—')}</p></div>
+  <div class="orden-section"><h3>Categoría</h3><p>${esc(t['Categoria']||'—')} · Prioridad <b>${esc(t['Prioridad']||'—')}</b></p></div>
+</div>
+<div class="orden-section"><h3>Descripción</h3><p style="background:#F3F6EE;padding:10px;border-radius:6px">${esc(t['Descripcion']||'')}</p></div>
+<div class="orden-section"><h3>Planificación</h3>
+  <p><b>Especialidad:</b> ${esc(esp)} · <b>Horas est.:</b> ${esc(horas)} · <b>Parada:</b> ${fechaAR(plan.parada || t['Parada objetivo'])}</p>
+  <p><b>LOTO / permiso:</b> ${esc(t['LOTO / Permiso']||'—')} · <b>Repuestos:</b> ${esc(rep)}</p>
+  <p><b>Personas:</b> ${esc(pers)} · <b>Ejecutores:</b> ${esc(ejec)} · <b>Planificada:</b> ${fechaAR(fPlan)} ${esc(hPlan)}</p>${plan.est && plan.est.nivel !== 'defecto' ? '<p style="font-size:11.5px;color:#3D5F26">📊 Historial: '+esc(textoEstimacion(plan.est))+'</p>' : ''}</div>
+<div class="orden-grid">
+  <div class="orden-section"><h3>Responsable</h3><p style="font-size:15px;font-weight:bold">${esc(t['Responsable asignado']||'Sin asignar')}</p><p>Área: ${esc(t['Area responsable']||t['Grupo responsable']||'—')}</p></div>
+  <div class="orden-section"><h3>Origen</h3><p>${esc(t['Detectado por']||'—')} (Turno ${esc(t['Turno']||'—')})</p><p>Compromiso: ${fechaAR(t['Fecha compromiso'])} · ${t.diasAbierta} días</p></div>
+</div>
+<div class="orden-grid">${img(t['Foto URL'],'Antes')}${img(t['Foto cierre URL'],'Después')}</div>
+${t['Notas']?`<div class="orden-section"><h3>Notas</h3><p style="white-space:pre-line">${esc(t['Notas'])}</p></div>`:''}
+<div class="orden-section"><h3>Acción realizada · causa · materiales</h3><div class="firma-box" style="min-height:70px"></div></div>
+<div style="font-size:11px;margin:6px 0">Horas reales: ☐1 ☐2 ☐3 ☐4 ☐5 ☐6 ☐7 ☐8 ☐más: ____ &nbsp;&nbsp; Personas: ☐1 ☐2 ☐3 ☐4+</div>
+<div style="font-size:11px;margin:6px 0">☐ Agregar al plan preventivo &nbsp;&nbsp; ☐ Actualizar estándar / LUP</div>
+<div class="orden-grid"><div class="firma-box"><div class="firma-label">Resolvió / fecha</div></div><div class="firma-box"><div class="firma-label">Verificó en el equipo (operador)</div></div></div>
+</div>`;
+}
 
 /* Reduce la foto (max 1024px, JPEG) y devuelve un dataURL. */
 function comprimirImagen(file, maxLado, calidad) {
