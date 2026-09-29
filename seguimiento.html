@@ -188,7 +188,11 @@
         <div></div>
       </div>
       <label>Foto del después</label>
-      <input id="rFoto" type="file" accept="image/*" capture="environment"><div id="rFotoPrev"></div>
+      <div class="foto-row" style="margin-top:4px">
+        <label class="btn sec sm foto-btn">📷 Sacar foto<input id="rFoto" type="file" accept="image/*" capture="environment" hidden></label>
+        <label class="btn sec sm foto-btn">🖼️ Subir desde el dispositivo<input id="rFotoGal" type="file" accept="image/*" hidden></label>
+      </div>
+      <div id="rFotoPrev"></div>
       <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:13px">
         <label class="chk"><input type="checkbox" id="rMP"> Agregar al plan preventivo (Mant. Planificado)</label>
         <label class="chk"><input type="checkbox" id="rEstd"> Actualizar estándar LILA / hacer LUP</label>
@@ -422,7 +426,7 @@
     if (+rHoras > 8) { $('rMasHoras').value = rHoras; rHoras = 'mas'; } else $('rMasHoras').value = '';
     rPers = parseInt(t['Personas necesarias'], 10) ? String(Math.min(4, parseInt(t['Personas necesarias'], 10))) : '';
     pintarChipsCierre();
-    $('rFoto').value = ''; $('rFotoPrev').innerHTML = ''; fotoDespues = ''; $('rMP').checked = false; $('rEstd').checked = false;
+    $('rFoto').value = ''; $('rFotoGal').value = ''; $('rFotoPrev').innerHTML = ''; fotoDespues = ''; $('rMP').checked = false; $('rEstd').checked = false;
     $('vQuien').value = getYo(); $('vCom').value = '';
     $('secHist').open = false; $('hist').innerHTML = '';
     $('modal').classList.add('show');
@@ -474,11 +478,16 @@
     } catch(e) { msg('Error: '+esc(e.message), false); }
   });
 
-  $('rFoto').addEventListener('change', async function(){
-    var f = this.files[0]; if(!f){ fotoDespues=''; $('rFotoPrev').innerHTML=''; return; }
-    try { fotoDespues = await comprimirImagen(f); $('rFotoPrev').innerHTML = '<img src="'+fotoDespues+'" style="max-height:90px;margin-top:6px;border-radius:8px">'; }
-    catch(e){ fotoDespues=''; }
-  });
+  async function tomarFotoCierre(input){
+    var f = input.files[0]; if(!f) return;
+    try { fotoDespues = await comprimirImagen(f);
+      $('rFotoPrev').innerHTML = '<img src="'+fotoDespues+'" style="max-height:90px;margin-top:6px;border-radius:8px"> <a href="#" id="rQuitarFoto" style="font-size:12px;margin-left:8px">Quitar foto</a>';
+      $('rQuitarFoto').onclick = function(ev){ ev.preventDefault(); fotoDespues=''; $('rFotoPrev').innerHTML=''; };
+    } catch(e){ fotoDespues=''; $('rFotoPrev').innerHTML='<span style="color:#A32D2D;font-size:12px">No se pudo cargar la imagen</span>'; }
+    input.value = '';
+  }
+  $('rFoto').addEventListener('change', function(){ tomarFotoCierre(this); });
+  $('rFotoGal').addEventListener('change', function(){ tomarFotoCierre(this); });
 
   var rHoras = '', rPers = '';
   function pintarChipsCierre(){
