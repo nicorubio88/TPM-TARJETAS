@@ -20,8 +20,8 @@
       sus N ejecutores estan libres; si no termina antes del fin de la parada, "no entra".
    ============================================================ */
 
-function _ordenarPool(pool, t, libre, preferido) {
-  const esp = t['Especialidad'] || '';
+function _ordenarPool(pool, t, libre, preferido, espSug) {
+  const esp = t['Especialidad'] || espSug || '';
   return pool.slice().sort(function (a, b) {
     const pa = a === preferido ? 0 : 1, pb = b === preferido ? 0 : 1;
     const ea = esp && especialidadDe(a) === esp ? 0 : 1, eb = esp && especialidadDe(b) === esp ? 0 : 1;
@@ -33,7 +33,7 @@ function _ordenarPool(pool, t, libre, preferido) {
    Si la tarjeta pide una especialidad y hay suficientes de esa especialidad, solo ellos. */
 function _poolPara(x, fijos) {
   if (fijos[x.id] && fijos[x.id].length) return fijos[x.id].slice();
-  const pool = ejecutoresPara(x.t), esp = x.t['Especialidad'], resp = x.t['Responsable asignado'];
+  const pool = ejecutoresPara(x.t), esp = x.t['Especialidad'] || x.espSug, resp = x.t['Responsable asignado'];
   if (x.modo === 'supervisor') return (resp && pool.indexOf(resp) > -1) ? [resp] : pool;
   if (resp && pool.indexOf(resp) > -1) {   // el responsable elegido va primero
     x.preferido = resp;
@@ -44,6 +44,10 @@ function _poolPara(x, fijos) {
   }
   return pool;
 }
+
+/* Parada objetivo vigente: una parada que ya paso y la tarjeta sigue abierta = no se hizo, vuelve a planificarse. */
+function paradaVigente(t) { const p = String(t['Parada objetivo'] || '').slice(0, 10); return p && p >= hoyISO() ? p : ''; }
+function paradaVencida(t) { const p = String(t['Parada objetivo'] || '').slice(0, 10); return p && p < hoyISO() ? p : ''; }
 
 function _tarjetasPlanificables(ts, opts) {
   return ts.filter(function (t) {
@@ -56,8 +60,9 @@ function _tarjetasPlanificables(ts, opts) {
 }
 
 function _enriquecer(t, st) {
-  const d = duracionDe(t, st), p = personasDe(t, st), pt = puntaje(t), modo = modoDe(t);
+  const d = duracionDe(t, st), p = personasDe(t, st), pt = puntaje(t), modo = modoDe(t), est = estimarPorHistorial(t, st);
   return { t: t, id: t['ID'], dur: d.v, durFuente: d.fuente, n: p.v, nFuente: p.fuente, pts: pt.total, ptsTxt: textoPuntaje(pt),
+    est: est, espSug: t['Especialidad'] ? '' : est.especialidad, repSug: t['Repuestos'] ? '' : est.repuestos.join(', '),
     modo: modo, areaResp: areaRespDe(t),
     // en modo supervisor se asigna 1 persona (el supervisor) que consume duracion x personas de su gente
     nAsig: modo === 'supervisor' ? 1 : p.v, horasPorAsig: modo === 'supervisor' ? d.v * p.v : d.v };
@@ -87,11 +92,11 @@ function capacidadDiaria(nombre) {
 function planificarMarcha(ts, opts) {
   opts = opts || {};
   const D = opts.dias || 10, fijos = opts.fijos || {};
-  const st = estadisticasEstimacion(ts);
+  const st = estadisticasEstimacion(ts, opts.hist);
   const dias = diasHabiles(D, opts.findes);
   const cand = _tarjetasPlanificables(ts, opts).filter(function (t) {
     const c = condicionDe(t);
-    if (t['Parada objetivo']) return false;   // ya va a una parada
+    if (paradaVigente(t)) return false;   // ya va a una parada futura
     return c === 'Maquina en marcha' || (c === 'A definir' && opts.incluirADefinir);
   }).map(function (t) { return _enriquecer(t, st); }).sort(function (a, b) { return (b.pts - a.pts) || (b.t.diasAbierta - a.t.diasAbierta); });
 
@@ -107,7 +112,7 @@ function planificarMarcha(ts, opts) {
     const H = x.horasPorAsig;
     let hecho = false;
     for (let d = 0; d < D && !hecho; d++) {
-      const opciones = _ordenarPool(pool, x.t, libreTotal, x.preferido).map(function (p) {
+      const opciones = _ordenarPool(pool, x.t, libreTotal, x.preferido, x.espSug).map(function (p) {
         const c = capDe(p); if (c[d] <= 0) return null;
         let resta = H, k = d;
         while (k < D && resta > 1e-9) { resta -= c[k]; k++; }
@@ -117,9 +122,10 @@ function planificarMarcha(ts, opts) {
       opciones.sort(function (a, b) { return (a.fin - b.fin) || ((a.p === x.preferido ? 0 : 1) - (b.p === x.preferido ? 0 : 1)); });
       if (opciones.length < n) continue;
       const elegidos = opciones.slice(0, n);
+      x.tramos = [];   // para el Gantt: persona, dia y horas de cada tramo
       elegidos.forEach(function (o) {
         const c = capDe(o.p); let resta = H, k = d;
-        while (resta > 1e-9) { const u = Math.min(c[k], resta); c[k] -= u; resta -= u; k++; }
+        while (resta > 1e-9) { const u = Math.min(c[k], resta); if (u > 1e-9) x.tramos.push({ p: o.p, d: k, h: u }); c[k] -= u; resta -= u; k++; }
       });
       x.dia = d; x.fin = Math.max.apply(null, elegidos.map(function (o) { return o.fin; }));
       x.fecha = dias[d]; x.fechaFin = dias[x.fin]; x.ejecutores = elegidos.map(function (o) { return o.p; });
@@ -143,16 +149,17 @@ function planificarParada(ts, parada, opts) {
   opts = opts || {};
   const fijos = opts.fijos || {};
   const W = parseFloat(parada && parada.duracion) || 8;
-  const st = estadisticasEstimacion(ts);
+  const st = estadisticasEstimacion(ts, opts.hist);
   const cand = _tarjetasPlanificables(ts, opts).filter(function (t) {
-    const c = condicionDe(t);
-    if (parada && t['Parada objetivo'] && t['Parada objetivo'] !== parada.fecha) return false;   // asignada a otra parada
-    return c === 'Maquina parada' || (c === 'A definir' && opts.incluirADefinir) || (parada && t['Parada objetivo'] === parada.fecha);
+    const c = condicionDe(t), pv = paradaVigente(t);
+    if (parada && pv && pv !== parada.fecha) return false;   // asignada a otra parada futura
+    return c === 'Maquina parada' || (c === 'A definir' && opts.incluirADefinir) || (parada && pv === parada.fecha);
   }).map(function (t) { return _enriquecer(t, st); })
     .sort(function (a, b) {
       // primero las ya asignadas a esta parada, despues por puntaje
-      const fa = parada && a.t['Parada objetivo'] === parada.fecha ? 0 : 1, fb = parada && b.t['Parada objetivo'] === parada.fecha ? 0 : 1;
-      return (fa - fb) || (b.pts - a.pts);
+      // 1) las ya asignadas a esta parada, 2) las que quedaron de una parada anterior, 3) por puntaje
+      const rango = function (x) { return parada && paradaVigente(x.t) === parada.fecha ? 0 : paradaVencida(x.t) ? 1 : 2; };
+      return (rango(a) - rango(b)) || (b.pts - a.pts);
     });
 
   const libre = {};

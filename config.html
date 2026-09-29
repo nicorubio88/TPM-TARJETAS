@@ -86,7 +86,7 @@
   var $ = function(id){ return document.getElementById(id); };
   function msg(t, ok){ $('msg').innerHTML = '<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'; window.scrollTo(0,0); }
   $('params').innerHTML = [
-    ['Meta de tarjetas por persona por mes', CONFIG.META_TARJETAS_PERSONA_MES],
+    ['Objetivo por persona por mes', CONFIG.OBJETIVO_MES.Roja + ' rojas · ' + CONFIG.OBJETIVO_MES.Azul + ' azul · ' + CONFIG.OBJETIVO_MES.Verde + ' verde (total ' + CONFIG.META_TARJETAS_PERSONA_MES + ')'],
     ['Ventana para marcar repetición (días)', CONFIG.DIAS_REPETICION],
     ['Tarjetas en 90 días para candidato Kaizen', CONFIG.UMBRAL_KAIZEN],
     ['Personas en la nómina actual', todasLasPersonas().length],

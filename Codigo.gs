@@ -127,6 +127,7 @@ function handle_(e) {
       case 'maestros':        out = maestros_(); break;
       case 'sembrarMaestros': out = sembrarMaestros_(req.personas, req.arbol, req.forzar); break;
       case 'derivarEHS':      out = derivarEHSManual_(req.id, usuario); break;
+      case 'historialEstimacion': out = { ok: true, filas: historialEstimacion_() }; break;
       default:                out = { ok: false, error: 'Accion desconocida: ' + action };
     }
   } catch (err) {
@@ -292,6 +293,7 @@ function crear_(d, usuario) {
   fila['Sector detector'] = d.sectorDetector || '';
   fila['Horas estimadas'] = d.horasEstimadas || '';
   fila['Personas necesarias'] = d.personasNecesarias || '';
+  fila['Especialidad'] = d.especialidad || ''; fila['Repuestos'] = d.repuestos || '';
   fila['Cliente ID'] = d.clienteId || '';
   fila['Area responsable'] = d.areaResponsable;
   // Responsable: el elegido; si no, el menos cargado del equipo del area responsable
@@ -809,4 +811,31 @@ function derivarEHSManual_(id, usuario) {
   escribir_(id, { 'Enviado a EHS': res });
   log_(id, 'Derivada a EHS', 'Enviado a EHS', t['Enviado a EHS'], res, usuario);
   return { ok: true, id: id, ehs: res };
+}
+
+
+/* ============================ HISTORIAL PARA ESTIMAR ============================
+   Cierres con horas reales de los ultimos 3 anos, solo los campos que usa la estimacion
+   (liviano: se cachea en el celular). */
+var CAMPOS_EST = ['ID', 'Tipo', 'Categoria', 'Area equipo', 'Equipo', 'Componente/Ubicacion', 'Descripcion', 'Accion de cierre',
+  'Horas reales', 'Personas reales', 'Horas estimadas', 'Personas necesarias', 'Especialidad', 'Repuestos', 'Area responsable',
+  'Condicion intervencion', 'Cerrado por', 'Ejecutores', 'Estado', 'Fecha cierre'];
+function historialEstimacion_() {
+  var sh = getSheet_(), last = sh.getLastRow();
+  if (last < 2) return [];
+  var v = sh.getRange(2, 1, last - 1, HEADERS.length).getValues();
+  var idx = CAMPOS_EST.map(function (c) { return HEADERS.indexOf(c); });
+  var limite = new Date(); limite.setFullYear(limite.getFullYear() - 3);
+  var iE = HEADERS.indexOf('Estado'), iH = HEADERS.indexOf('Horas reales'), iF = HEADERS.indexOf('Fecha cierre');
+  var out = [];
+  for (var r = v.length - 1; r >= 0 && out.length < 3000; r--) {
+    var f = v[r];
+    if (!f[0] || (f[iE] !== 'Cerrada' && f[iE] !== 'Verificada') || !(parseFloat(f[iH]) > 0)) continue;
+    var fc = f[iF] ? parseFecha_(f[iF]) : null;
+    if (fc && fc < limite) continue;
+    var o = {};
+    CAMPOS_EST.forEach(function (c, i) { var val = f[idx[i]]; o[c] = (c === 'Descripcion' || c === 'Accion de cierre') ? String(val || '').slice(0, 200) : fmt_(val, c); });
+    out.push(o);
+  }
+  return out;
 }

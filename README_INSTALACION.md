@@ -179,3 +179,13 @@ Las estimaciones futuras usan lo real.
 
 Columnas nuevas en *Tarjetas*: Area responsable · Horas reales · Personas reales. Hoja nueva: *Responsables*.
 La hoja *Areas* queda solo para la criticidad A/B/C.
+
+## v10 · Estimación por historial, Gantt, órdenes de trabajo y objetivo por persona
+**Archivos que cambian:** `Codigo.gs` (acción nueva `historialEstimacion`; al crear guarda especialidad y repuestos sugeridos), `comun.js`, `planificador.js`, `planificacion.html`, `formulario.html`, `seguimiento.html`, `dashboard.html`, `mis-tarjetas.html`, `config.html`, `estilos.css`, `sw.js`.
+En Apps Script: pegar `Codigo.gs` y publicar una **nueva versión** de la implementación.
+
+- **Estimación por historial:** para cada tarjeta se buscan cierres parecidos y se usa lo REAL (horas, personas, especialidad, repuestos, marcha/parada). Orden: mismo equipo y mismo trabajo → mismo trabajo en otro equipo (ej. "cambio de bomba") → mismo equipo → color y tipo de anomalía → valor por defecto. Mientras más tarjetas se cierren con horas reales, mejor estima.
+- **Al cargar la tarjeta** (paso 10) aparece "Según el historial: 3 casos… ~4 h × 2 personas · Mecánica · repuestos usados…" con un botón para usarlo. En Seguimiento › gestión, "Completar los vacíos con esto".
+- **Planificación:** vista **Gantt por persona** (días en marcha, horas en parada) y botón **📄 Órdenes de trabajo**: una hoja de ruta por persona y una orden de trabajo por tarea (la lleva el primero de los ejecutores), lista para imprimir y entregar.
+- **Corrección:** las tarjetas asignadas a una parada que ya pasó y no se hicieron vuelven a entrar primero en la próxima parada (antes quedaban fuera de todo plan).
+- **Objetivo por persona:** 2 rojas + 1 azul + 1 verde por mes (`CONFIG.OBJETIVO_MES` en comun.js). Dashboard bloque 2 → "Objetivo por persona" con mes, sector, búsqueda y quiénes cumplen. Seguimiento → filtro **Persona** con rol (la detectó / responsable / ejecuta / la resolvió) y ficha con su avance del mes. Mis tarjetas muestra el avance por color.

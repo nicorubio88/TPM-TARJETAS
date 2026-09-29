@@ -25,6 +25,28 @@
   .gantt-esc{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px}
   th .gantt-esc{color:#EAF0E0;font-weight:700;letter-spacing:0;text-transform:none}
   .criterio td{padding:5px 8px;font-size:12.5px}
+  .vista{display:inline-flex;border:2px solid var(--line);border-radius:12px;overflow:hidden}
+  .vista button{border:0;background:#fff;padding:9px 16px;font-weight:800;font-size:13px;cursor:pointer;color:var(--muted)}
+  .vista button.on{background:var(--verde);color:#fff}
+  .gt{border-collapse:collapse;width:100%;font-size:12px}
+  .gt th,.gt td{border:1px solid var(--line);padding:4px;vertical-align:top}
+  .gt th{background:var(--verde);color:#fff;font-size:11.5px;white-space:nowrap}
+  .gt th .gp-esc{color:#EAF0E0}
+  .gt td.pers{white-space:nowrap;font-weight:700;background:#fff;position:sticky;left:0;z-index:1;min-width:150px}
+  .gt .blq{display:block;border-radius:5px;color:#fff;font-size:10.5px;font-weight:700;padding:2px 5px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+  .gt td.gd{min-width:92px}
+  .gt td.full{background:#FBEFEA}
+  .gp-fila{position:relative;height:30px;background:var(--soft);border-radius:6px;min-width:520px}
+  .gp-fila div{position:absolute;top:3px;bottom:3px;border-radius:5px;color:#fff;font-size:10.5px;font-weight:700;padding:5px 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .gp-esc{position:relative;height:16px;min-width:520px;font-size:10px;color:var(--muted)}
+  .gp-esc span{position:absolute;transform:translateX(-50%)}
+  .gp-esc span:first-child{transform:none}
+  .gp-esc span:last-child{transform:translateX(-100%)}
+  .ruta{page-break-after:always;break-after:page;font-family:Arial,sans-serif}
+  .ruta h2{font-size:18px;margin:0 0 4px} .ruta table{width:100%;border-collapse:collapse;font-size:11px} .ruta th,.ruta td{border:1px solid #D7DECC;padding:5px 6px;text-align:left;vertical-align:top}
+  .ruta th{background:#548235;color:#fff}
+  body.print-ot .wrap,body.print-ot .topbar{display:none!important}
+  body.print-ot #printArea{display:block!important}
   @media print{ .topbar,.no-print,.tabs{display:none!important} body{background:#fff} .wrap{padding:0;max-width:none} .card{border:none;box-shadow:none;padding:0}
     select{border:none;background:none;-webkit-appearance:none;appearance:none;padding:0} *{-webkit-print-color-adjust:exact;print-color-adjust:exact} @page{margin:10mm;size:landscape} }
 </style>
@@ -36,7 +58,8 @@
     <div><h1>Planificación estimada</h1><p class="sub" style="margin:0">El sistema ordena por criterio, estima tiempos y asigna gente. Vos ajustás y aplicás.</p></div>
     <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" id="aplicar">✔ Aplicar plan</button>
-      <button class="btn sec" id="imprimir">🖨 Imprimir</button>
+      <button class="btn sec" id="ordenes" title="Hoja de ruta por persona y una orden de trabajo por tarea">📄 Órdenes de trabajo</button>
+      <button class="btn sec" id="imprimir">🖨 Imprimir plan</button>
     </div>
   </div>
   <div id="msg"></div>
@@ -63,12 +86,17 @@
 
   <div class="kpis" id="kpis" style="margin-top:16px"></div>
   <div id="avisos"></div>
-  <div class="card" style="margin-top:16px;overflow-x:auto"><div id="plan"></div></div>
+  <div class="no-print" style="margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div class="vista" id="vista"><button data-v="lista" class="on">☰ Lista</button><button data-v="gantt">▦ Gantt por persona</button></div>
+    <span class="mini" id="histInfo"></span>
+  </div>
+  <div class="card" style="margin-top:10px;overflow-x:auto"><div id="plan"></div></div>
   <div class="grid cols-2" style="margin-top:16px">
     <div class="card"><h2 style="margin-top:0">Carga por persona</h2><div id="carga"></div></div>
     <div class="card"><h2 style="margin-top:0" id="tituloFuera">Sin capacidad en el horizonte</h2><div id="fuera"></div></div>
   </div>
 </div>
+<div id="printArea" class="print-solo"></div>
 
 <script src="arbol.js"></script>
 <script src="personas.js"></script>
@@ -76,7 +104,7 @@
 <script src="planificador.js"></script>
 <script>
   var $ = function(id){ return document.getElementById(id); };
-  var TODAS = [], PARADAS = [], MODO = 'marcha', FIJOS = {}, PLAN = null, confirmar = false;
+  var TODAS = [], PARADAS = [], HIST = [], MODO = 'marcha', VISTA = 'lista', FIJOS = {}, PLAN = null, confirmar = false;
   $('area').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
   $('areaResp').innerHTML = '<option value="">Todas</option>' + opciones(areasResponsables().map(function(a){ return a.Area; }));
 
@@ -84,7 +112,7 @@
   function colorPts(p){ return p >= 60 ? '#B8402A' : p >= 40 ? '#E8871A' : p >= 25 ? '#548235' : '#7A8A6E'; }
   function fechaTxt(d){ return d.toLocaleDateString('es-AR', { weekday:'short', day:'2-digit', month:'2-digit' }); }
   function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-  var ICONO = { tarjeta: '✎ cargado', historial: '≈ historial', defecto: '· por defecto' };
+  var ICONO = { tarjeta: '✎ cargado', historial: '📊 historial', defecto: '· por defecto' };
 
   function pintarCriterio(){
     var P = CONFIG.PESOS;
@@ -129,8 +157,12 @@
       '<td><a href="seguimiento.html?id='+encodeURIComponent(x.id)+'" style="font-family:monospace;font-size:11.5px">'+esc(x.id)+'</a><br>'+badgeTipo(t['Tipo'])+' '+badgeRepetida(t)+'</td>'+
       '<td><b>'+esc(t['Equipo']||t['Area equipo'])+'</b>'+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'<br><span class="mini">'+esc(String(t['Descripcion']).slice(0,90))+'</span>'+
         '<div class="fuente">👷 '+esc(x.areaResp || 'sin área')+(x.modo==='supervisor'?' · a un supervisor':'')+(t['Area responsable']?'':' <b style="color:#B8402A">(tarjeta sin área: se usó la del color)</b>')+'</div>'+
+        (paradaVencida(t) ? '<div class="fuente" style="color:#8A5A0A"><b>↩ quedó de la parada del '+esc(paradaVencida(t).split('-').reverse().join('/'))+'</b></div>' : '')+
+        ((x.espSug || x.repSug) ? '<div class="fuente">🔧 '+(x.espSug ? 'Recurso: <b>'+esc(x.espSug)+'</b>' : '')+(x.repSug ? (x.espSug?' · ':'')+'repuestos usados antes: '+esc(x.repSug) : '')+'</div>' : '')+
         '<div class="fuente" title="'+esc(x.ptsTxt)+'">'+esc(x.ptsTxt)+'</div></td>'+
-      '<td style="white-space:nowrap">'+x.dur+' h × '+x.n+'<div class="fuente">'+ICONO[x.durFuente]+(x.nFuente!==x.durFuente?' / '+ICONO[x.nFuente]:'')+'</div><b>'+(x.dur*x.n).toFixed(0)+' HH</b></td>'+
+      '<td style="white-space:nowrap" title="'+esc(textoEstimacion(x.est))+'">'+x.dur+' h × '+x.n+'<div class="fuente">'+ICONO[x.durFuente]+(x.nFuente!==x.durFuente?' / '+ICONO[x.nFuente]:'')+
+        (x.durFuente==='historial' && x.est.n ? ' · '+x.est.n+(x.est.n===1?' caso':' casos') : '')+'</div>'+
+        (x.durFuente==='historial' && x.est.hMax > x.est.hMin ? '<div class="fuente">entre '+x.est.hMin+' y '+x.est.hMax+' h</div>' : '')+'<b>'+(x.dur*x.n).toFixed(0)+' HH</b></td>'+
       (extra || '')+
       '<td>'+selectsEjecutores(x)+'</td></tr>';
   }
@@ -146,7 +178,7 @@
   }
 
   function render(){
-    var opts = { area: $('area').value, areaResp: $('areaResp').value, incluirADefinir: $('aDefinir').checked, incluirVerdes: $('verdes').checked, findes: $('findes').checked, fijos: FIJOS };
+    var opts = { hist: HIST, area: $('area').value, areaResp: $('areaResp').value, incluirADefinir: $('aDefinir').checked, incluirVerdes: $('verdes').checked, findes: $('findes').checked, fijos: FIJOS };
     $('boxDias').style.display = MODO === 'marcha' ? '' : 'none';
     $('boxFindes').style.display = MODO === 'marcha' ? '' : 'none';
     $('boxParada').style.display = MODO === 'parada' ? '' : 'none';
@@ -172,6 +204,7 @@
           xs.map(function(x){ return fila(x, '<td class="mini">'+(x.fin===x.dia?'mismo día':fechaTxt(x.fechaFin))+'</td>'); }).join('')+'</tbody></table>';
       });
       $('plan').innerHTML = html || '<p class="mini">No hay tarjetas en marcha para planificar con estos filtros.'+(PLAN.aDefinir?' Probá "Incluir las A definir".':'')+'</p>';
+      if (VISTA === 'gantt' && PLAN.asignadas.length) $('plan').innerHTML = ganttMarcha();
       $('tituloFuera').textContent = 'No entran en el horizonte (' + PLAN.sinCapacidad.length + ')';
       $('fuera').innerHTML = PLAN.sinCapacidad.length ? '<table class="pl"><tbody>'+PLAN.sinCapacidad.map(function(x){ return '<tr><td><span class="pts" style="background:'+colorPts(x.pts)+'">'+x.pts+'</span></td><td>'+esc(x.id)+'<br><span class="mini">'+esc(x.t['Equipo']||'')+'</span></td><td>'+x.dur+' h × '+x.n+'</td></tr>'; }).join('')+'</tbody></table><p class="mini">Ampliá el horizonte, sumá gente en Configuración o revisá las estimaciones.</p>' : '<p class="mini">Todo entra. 👍</p>';
     } else {
@@ -195,6 +228,9 @@
             '<div class="mini" style="margin-top:3px"><b>'+horaMas(hi, x.ini)+' – '+horaMas(hi, x.finH)+'</b>'+(x.t['LOTO / Permiso'] && x.t['LOTO / Permiso']!=='No requiere' ? ' · 🔒 '+esc(x.t['LOTO / Permiso']) : '')+'</div></td>';
           return fila(x, g);
         }).join('')+'</tbody></table>' + (PLAN.asignadas.length ? '' : '<p class="mini">No hay tarjetas que requieran parada con estos filtros.</p>');
+      if (VISTA === 'gantt' && PLAN.asignadas.length) $('plan').innerHTML = ganttParada(par);
+      var vencidas = PLAN.asignadas.concat(PLAN.noEntran).filter(function(x){ return paradaVencida(x.t); }).length;
+      if (vencidas) avisos += '<div class="msg" style="background:var(--amber-soft);color:var(--amber-ink)">↩ '+vencidas+' tarjeta(s) estaban asignadas a una parada anterior y no se hicieron: vuelven a entrar primero.</div>';
       $('tituloFuera').textContent = 'No entran en esta parada (' + PLAN.noEntran.length + ')';
       $('fuera').innerHTML = PLAN.noEntran.length ? '<table class="pl"><tbody>'+PLAN.noEntran.map(function(x){ return '<tr><td><span class="pts" style="background:'+colorPts(x.pts)+'">'+x.pts+'</span></td><td>'+esc(x.id)+'<br><span class="mini">'+esc(x.t['Equipo']||'')+'</span></td><td>'+x.dur+' h × '+x.n+'</td></tr>'; }).join('')+'</tbody></table>' : '<p class="mini">Todo entra en la parada. 👍</p>';
     }
@@ -210,6 +246,86 @@
     document.querySelectorAll('[data-suelta]').forEach(function(a){ a.onclick = function(e){ e.preventDefault(); delete FIJOS[a.dataset.suelta]; render(); }; });
     confirmar = false; $('aplicar').textContent = '✔ Aplicar plan';
   }
+
+
+  /* ---------- Gantt por persona ---------- */
+  function personasDelPlan(){
+    var set = {};
+    PLAN.asignadas.forEach(function(x){ (x.ejecutores||[]).forEach(function(p){ set[p] = 1; }); });
+    return Object.keys(set).sort(function(a,b){ return (especialidadDe(a)||'').localeCompare(especialidadDe(b)||'') || a.localeCompare(b); });
+  }
+  function bloque(x, txt){ return '<a class="blq" href="seguimiento.html?id='+encodeURIComponent(x.id)+'" style="background:'+colorTipo(x.t['Tipo'])+'" title="'+esc(x.id+' · '+(x.t['Equipo']||'')+' · '+String(x.t['Descripcion']||'').slice(0,80))+'">'+esc(txt)+'</a>'; }
+  function ganttMarcha(){
+    var pers = personasDelPlan(); if (!pers.length) return '<p class="mini">No hay tareas asignadas.</p>';
+    var ult = Math.max.apply(null, PLAN.asignadas.map(function(x){ return x.fin; }));
+    var dias = PLAN.dias.slice(0, ult + 1);
+    var h = '<table class="gt"><thead><tr><th>Persona</th>'+dias.map(function(d){ return '<th>'+esc(fechaTxt(d))+'</th>'; }).join('')+'</tr></thead><tbody>';
+    pers.forEach(function(p){
+      var cap = capacidadDiaria(p);
+      h += '<tr><td class="pers">'+esc(p)+'<div class="mini">'+esc(especialidadDe(p)||'')+' · '+cap+' h/día</div></td>';
+      dias.forEach(function(d, i){
+        var tr = []; PLAN.asignadas.forEach(function(x){ (x.tramos||[]).forEach(function(q){ if (q.p === p && q.d === i) tr.push({ x: x, h: q.h }); }); });
+        var tot = tr.reduce(function(s,q){ return s + q.h; }, 0);
+        h += '<td class="gd'+(tot >= cap - 1e-9 ? ' full' : '')+'">'+tr.map(function(q){ return bloque(q.x, q.x.id.slice(-6)+' · '+(Math.round(q.h*10)/10)+' h'); }).join('')+(tot?'<div class="mini">'+(Math.round(tot*10)/10)+' / '+cap+' h</div>':'')+'</td>';
+      });
+      h += '</tr>';
+    });
+    return h + '</tbody></table><p class="mini" style="margin-top:8px">Cada bloque es una tarjeta (color = tipo). Rojo claro: la persona tiene el día completo. Tocá un bloque para abrir la tarjeta.</p>';
+  }
+  function ganttParada(par){
+    var pers = personasDelPlan(); if (!pers.length) return '<p class="mini">No hay tareas asignadas.</p>';
+    var W = PLAN.ventana, hi = par.horaInicio || '06:00', paso = W > 12 ? 2 : 1, esc2 = '';
+    for (var k = 0; k <= W; k += paso) esc2 += '<span style="left:'+(k/W*100)+'%">'+horaMas(hi, k).replace(' (+1d)','⁺')+'</span>';
+    var h = '<table class="gt"><thead><tr><th>Persona</th><th style="min-width:540px"><div class="gp-esc">'+esc2+'</div></th></tr></thead><tbody>';
+    pers.forEach(function(p){
+      var xs = PLAN.asignadas.filter(function(x){ return (x.ejecutores||[]).indexOf(p) > -1; });
+      h += '<tr><td class="pers">'+esc(p)+'<div class="mini">'+esc(especialidadDe(p)||'')+'</div></td><td><div class="gp-fila">'+
+        xs.map(function(x){ return '<div style="left:'+(x.ini/W*100)+'%;width:'+Math.max(2,(x.finH-x.ini)/W*100)+'%;background:'+colorTipo(x.t['Tipo'])+'" title="'+esc(x.id+' · '+horaMas(hi,x.ini)+'–'+horaMas(hi,x.finH)+' · '+(x.t['Equipo']||''))+'">'+esc(x.id.slice(-6)+' '+(x.t['Equipo']||''))+'</div>'; }).join('')+'</div></td></tr>';
+    });
+    return h + '</tbody></table><p class="mini" style="margin-top:8px">Horario de la parada ('+esc(hi)+' → '+esc(horaMas(hi, W))+'). Cada barra es una tarjeta; las tareas de varias personas aparecen en la fila de cada una.</p>';
+  }
+
+  /* ---------- Ordenes de trabajo: hoja de ruta por persona + una OT por tarea ---------- */
+  function datosPlan(x){
+    if (PLAN.tipo === 'marcha') return { ejecutores: x.ejecutores, fecha: iso(x.fecha), horario: x.fin === x.dia ? '' : 'hasta ' + fechaTxt(x.fechaFin), est: x.est, dur: x.dur, n: x.n };
+    var hi = PLAN.parada.horaInicio || '06:00';
+    return { ejecutores: x.ejecutores, fecha: PLAN.parada.fecha, parada: PLAN.parada.fecha, horario: horaMas(hi, x.ini) + '–' + horaMas(hi, x.finH), est: x.est, dur: x.dur, n: x.n };
+  }
+  function ordenesHTML(){
+    var pers = personasDelPlan(), out = '';
+    var periodo = PLAN.tipo === 'marcha' ? 'Máquina en marcha · ' + fechaTxt(PLAN.dias[0]) + ' a ' + fechaTxt(PLAN.dias[PLAN.dias.length-1])
+      : 'Parada del ' + PLAN.parada.fecha.split('-').reverse().join('/') + (PLAN.parada.descripcion ? ' · ' + PLAN.parada.descripcion : '');
+    pers.forEach(function(p){
+      var xs = PLAN.asignadas.filter(function(x){ return (x.ejecutores||[]).indexOf(p) > -1; })
+        .sort(function(a,b){ return PLAN.tipo === 'marcha' ? (a.dia - b.dia) || (b.pts - a.pts) : a.ini - b.ini; });
+      var hh = xs.reduce(function(s,x){ return s + x.dur; }, 0);
+      out += '<div class="ruta"><div class="orden-header"><div><div class="orden-brand">HOJA DE RUTA · TARJETAS TPM — Planta Tornquist</div><h2>'+esc(p)+'</h2>'+
+        '<div style="font-size:12px">'+esc(especialidadDe(p)||'')+' · '+esc(periodo)+'</div></div><div style="text-align:right;font-size:11px">Impreso: '+new Date().toLocaleDateString('es-AR')+'<br><b>'+xs.length+' tareas · '+hh+' h</b></div></div>'+
+        '<table><thead><tr><th>#</th><th>Cuándo</th><th>Tarjeta</th><th>Equipo · qué hacer</th><th>Horas</th><th>Con</th><th>LOTO · repuestos</th><th>Hecho</th></tr></thead><tbody>'+
+        xs.map(function(x, i){
+          var d = datosPlan(x), con = x.ejecutores.filter(function(q){ return q !== p; });
+          var lider = x.ejecutores[0] === p;
+          return '<tr><td>'+(i+1)+'</td><td style="white-space:nowrap">'+(PLAN.tipo==='marcha' ? esc(fechaTxt(x.fecha))+(d.horario?'<br>'+esc(d.horario):'') : esc(d.horario))+'</td>'+
+            '<td style="white-space:nowrap"><b>'+esc(x.id)+'</b><br>'+esc(x.t['Tipo'])+(lider?'<br><i>tenés la OT</i>':'')+'</td>'+
+            '<td><b>'+esc(x.t['Equipo']||x.t['Area equipo']||'')+'</b>'+(x.t['Componente/Ubicacion']?' › '+esc(x.t['Componente/Ubicacion']):'')+'<br>'+esc(String(x.t['Descripcion']||'').slice(0,140))+'</td>'+
+            '<td>'+x.dur+'</td><td>'+(con.length?esc(con.map(function(q){ return q.split(',')[0]; }).join(', ')):'—')+'</td>'+
+            '<td>'+esc(x.t['LOTO / Permiso']||'—')+'<br>'+esc(x.t['Repuestos']||x.repSug||'—')+'</td><td style="width:40px"></td></tr>';
+        }).join('')+'</tbody></table>'+
+        '<p style="font-size:11px;margin-top:10px">Al terminar cada tarea: completá la orden de trabajo (qué se hizo, causa, horas y personas reales) y cerrala en el sistema. Si algo no se pudo hacer, avisale a tu supervisor.</p></div>';
+      xs.filter(function(x){ return x.ejecutores[0] === p; }).forEach(function(x){ out += htmlOrdenTrabajo(x.t, datosPlan(x)); });
+    });
+    return out;
+  }
+  $('ordenes').onclick = function(){
+    if (!PLAN || !PLAN.asignadas.length) return msg('No hay tareas en el plan para generar órdenes de trabajo.', false);
+    $('printArea').innerHTML = ordenesHTML();
+    document.body.classList.add('print-ot');
+    setTimeout(function(){ window.print(); }, 100);
+  };
+  window.addEventListener('afterprint', function(){ document.body.classList.remove('print-ot'); });
+  document.querySelectorAll('#vista button').forEach(function(b){ b.onclick = function(){
+    VISTA = b.dataset.v; document.querySelectorAll('#vista button').forEach(function(x){ x.classList.toggle('on', x === b); }); render();
+  }; });
 
   document.querySelectorAll('.tab').forEach(function(tb){ tb.onclick = function(){
     MODO = tb.dataset.m; document.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('on', x === tb); }); render();
@@ -242,6 +358,10 @@
       if (!r.ok) return msg(esc(r.error), false);
       TODAS = marcarRepeticiones(r.tarjetas); PARADAS = r.paradas || [];
       opcionesParada(); render();
+      HIST = await cargarHistorialEstimacion();
+      var nCasos = estadisticasEstimacion(TODAS, HIST).casos.length;
+      $('histInfo').textContent = '📊 Estimaciones con ' + nCasos + ' cierres con horas reales' + (nCasos < 20 ? ' (a medida que se cierren tarjetas, la estimación mejora)' : '');
+      render();
     } catch(e) { msg('Error de conexión: ' + esc(e.message), false); }
   }
   cargar();

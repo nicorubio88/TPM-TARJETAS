@@ -82,6 +82,7 @@
     <div class="condsel" id="condsel"></div>
 
     <div class="paso"><span class="pn">10</span>¿Cuánto lleva resolverlo y cuántas personas? <span class="mini" style="font-weight:600">(si lo sabés)</span></div>
+    <div id="sugHist" class="sug"></div>
     <div class="chips" id="chTiempo"></div>
     <div id="boxMasHoras" style="display:none;margin-top:8px"><input id="masHoras" type="number" min="9" step="1" placeholder="¿Cuántas horas? (9 o más)" style="max-width:260px"></div>
     <div class="chips" id="chPersonas" style="margin-top:10px"></div>
@@ -281,6 +282,29 @@
   }
   $('masHoras').addEventListener('input', actualizar);
 
+  /* ---------- estimacion por historial: tarjetas parecidas ya cerradas ---------- */
+  var ST_HIST = null, EST = null, estUsada = null;
+  cargarHistorialEstimacion().then(function(h){ ST_HIST = estadisticasEstimacion([], h); actualizar(); });
+  function pintarEstimacion(){
+    EST = null;
+    var desc = $('descripcion').value.trim();
+    if (!ST_HIST || desc.length < 8 || !$('areaEquipo').value) { $('sugHist').innerHTML = ''; return; }
+    EST = estimarPorHistorial({ Tipo: tipoSel, Categoria: $('categoria').value, 'Area equipo': $('areaEquipo').value, Equipo: $('equipo').value,
+      'Componente/Ubicacion': $('componente').value, Descripcion: desc }, ST_HIST);
+    if (EST.nivel === 'defecto' || EST.nivel === 'mismo color y tipo de anomalía') { EST = null; $('sugHist').innerHTML = ''; return; }
+    var usada = estUsada && String(tiempoSel) === String(EST.h > 8 ? 'mas' : EST.h);
+    $('sugHist').innerHTML = '📊 <b>Según el historial</b>: ' + esc(textoEstimacion(EST)) + '. ' +
+      (usada ? '<b>✔ Usando esta estimación</b>' : '<a href="#" id="usarEst">Usar esta estimación</a>');
+    var a = $('usarEst'); if (a) a.onclick = function(e){
+      e.preventDefault();
+      if (EST.h > 8) { tiempoSel = 'mas'; $('masHoras').value = EST.h; $('boxMasHoras').style.display = 'block'; } else { tiempoSel = EST.h; $('boxMasHoras').style.display = 'none'; }
+      if (EST.p) personasSel = Math.min(EST.p, 4);
+      if (EST.condicion && condSel === 'A definir') { condSel = EST.condicion; pintarCondicion(); }
+      estUsada = { especialidad: EST.especialidad || '', repuestos: EST.repuestos.join('; ') };
+      pintarChips(); actualizar();
+    };
+  }
+
   /* ---------- sugerencias, avance y resumen ---------- */
   function actualizar(){
     var sc = colorSugerido();
@@ -293,6 +317,7 @@
     document.querySelectorAll('[data-sa]').forEach(function(a){ a.onclick = function(e){ e.preventDefault(); areaRespSel = a.dataset.sa; pintarAreas(); actualizar(); }; });
     document.querySelectorAll('[data-sp]').forEach(function(a){ a.onclick = function(e){ e.preventDefault(); $('prioridad').value = a.dataset.sp; pintarPrioridad(); actualizar(); }; });
     pintarResponsables();
+    pintarEstimacion();
 
     var area = $('areaEquipo').value, sub = $('equipo').value;
     var dondeOk = !!(area && sub && (!(ARBOL_EQUIPO[area] && (ARBOL_EQUIPO[area][sub]||[]).length) || $('componente').value));
@@ -364,7 +389,7 @@
     ['categoria','etapaMa','dimensionMejora','turno','prioridad'].forEach(function(id){ $(id).value=''; });
     $('responsable').value = '';
     $('foto').value=''; $('fotoGaleria').value=''; $('fotoPrev').innerHTML=''; fotoDataURL='';
-    condSel = 'A definir'; tiempoSel = ''; personasSel = ''; $('boxMasHoras').style.display = 'none';
+    condSel = 'A definir'; tiempoSel = ''; personasSel = ''; estUsada = null; $('boxMasHoras').style.display = 'none';
     elegirTipo(''); pintarPrioridad(); pintarCondicion(); pintarChips();
     $('masDatos').open = false;
     if (!mantenerUbicacion) { $('buscaEquipo').value=''; $('areaEquipo').value=''; llenarSub(''); $('qrInfo').innerHTML=''; }
@@ -402,6 +427,7 @@
       responsable: $('responsable').value, fechaCompromiso: $('fechaCompromiso').value,
       fotoData: fotoDataURL, costo: $('costo').value, etapaMa: $('etapaMa').value, dimensionMejora: $('dimensionMejora').value,
       condicion: condSel, horasEstimadas: horasElegidas(), personasNecesarias: personasSel,
+      especialidad: estUsada ? estUsada.especialidad : '', repuestos: estUsada ? estUsada.repuestos : '',
       clienteId: Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
     };
     var btn = $('guardar'); btn.disabled = true; btn.textContent = 'Guardando...';

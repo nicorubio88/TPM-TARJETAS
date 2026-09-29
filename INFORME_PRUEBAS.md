@@ -77,3 +77,10 @@ Con Node 18+: `cd pruebas && node backend.test.js`
 - Al cargar la tarjeta y al resolverla hay dos botones: **📷 Sacar foto** (abre la cámara) y **🖼️ Subir desde el celular / dispositivo** (galería o archivos, también desde la PC).
 - Se puede quitar la foto elegida. La foto sigue siendo opcional.
 - Pruebas: backend 99/99, frontend 207/207 (4 nuevas de foto).
+
+## v10 · Estimación por historial, Gantt, órdenes de trabajo, objetivo por persona (29/09/2026)
+- Backend 103/103 (nuevas: historial compacto, crear con especialidad y repuestos).
+- Motor de estimación 12/12 (niveles mismo equipo+trabajo, trabajo parecido en otro equipo, defecto; sinónimos y plurales; lo cargado manda).
+- Frontend 207/207 (recorrido completo, desborde en celular, XSS, errores JS).
+- Flujo v10 21/21: Gantt en marcha y en parada, órdenes de trabajo (una hoja de ruta por persona y una OT por tarea), parada vencida que vuelve a entrar, sugerencia al cargar y "usar estimación", filtro por persona y rol, objetivo en dashboard y Mis tarjetas, Gantt y dashboard en celular sin desborde.
+- Lint sin errores nuevos.

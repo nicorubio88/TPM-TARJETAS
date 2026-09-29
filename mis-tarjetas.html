@@ -87,14 +87,13 @@
     $('titulo').textContent = 'Mis tarjetas · ' + yo.split(',')[0];
     var mias = TODAS.filter(function(t){ return t['Detectado por'] === yo; });
     var hoyD = new Date(), mesIni = new Date(hoyD.getFullYear(), hoyD.getMonth(), 1);
-    var delMes = mias.filter(function(t){ var d = fechaDe(t['Fecha alta']); return d && d >= mesIni; }).length;
     // ranking del mes
     var cnt = {}; TODAS.forEach(function(t){ var d = fechaDe(t['Fecha alta']); if (d && d >= mesIni && t['Detectado por']) cnt[t['Detectado por']] = (cnt[t['Detectado por']]||0)+1; });
     var orden = Object.keys(cnt).sort(function(a,b){ return cnt[b]-cnt[a]; }), pos = orden.indexOf(yo) + 1;
     var resueltasMias = mias.filter(esResuelta).length;
-    var meta = CONFIG.META_TARJETAS_PERSONA_MES;
+    var obj = objetivoPorPersona(TODAS, mesActual())[yo] || evaluarObjetivo({ Roja: 0, Azul: 0, Verde: 0, total: 0 });
     $('resumen').innerHTML =
-      '<div class="kpi'+(delMes>=meta?'':' amber')+'"><div class="n">'+delMes+' / '+meta+'</div><div class="l">Tarjetas este mes (meta)</div></div>'+
+      '<div class="kpi'+(obj.cumple?'':' amber')+'"><div class="n" style="font-size:15px;line-height:1.9">'+htmlObjetivo(obj, true)+'</div><div class="l">Objetivo del mes: 2 rojas · 1 azul · 1 verde'+(obj.cumple?' · ✓ cumplido':'')+'</div></div>'+
       '<div class="kpi"><div class="n">'+(pos ? pos+'°' : '—')+'</div><div class="l">Puesto del mes en la planta</div></div>'+
       '<div class="kpi"><div class="n">'+mias.length+'</div><div class="l">Reportadas (últimos 12 meses)</div></div>'+
       '<div class="kpi"><div class="n">'+resueltasMias+'</div><div class="l">Ya resueltas gracias a vos</div></div>';
