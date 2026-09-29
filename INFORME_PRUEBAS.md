@@ -77,3 +77,7 @@ Con Node 18+: `cd pruebas && node backend.test.js`
 - Al cargar la tarjeta y al resolverla hay dos botones: **📷 Sacar foto** (abre la cámara) y **🖼️ Subir desde el celular / dispositivo** (galería o archivos, también desde la PC).
 - Se puede quitar la foto elegida. La foto sigue siendo opcional.
 - Pruebas: backend 99/99, frontend 207/207 (4 nuevas de foto).
+
+## v10 · Exámenes con QR (29/09/2026)
+- `examen.html` (rendir / QR para proyectar / resultados) + `examenes.js` + acciones `examen` y `examenes` + hoja Examenes.
+- Pruebas: backend 105/105 (6 nuevas), frontend 247/247 (páginas de examen incluidas en el recorrido de desborde, XSS y errores), flujo de examen 19/19 (validación de persona, nota, registro, resultados, QR, envío sin señal y reintento).
