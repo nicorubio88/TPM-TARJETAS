@@ -24,7 +24,7 @@
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
-const APP_URL = '';             // URL publica del frontend (DigitalOcean), ej 'https://tarjetas-xxxx.ondigitalocean.app/'
+const APP_URL = 'https://coral-app-gpzhd.ondigitalocean.app/';             // URL publica del frontend (DigitalOcean), ej 'https://tarjetas-xxxx.ondigitalocean.app/'
                                 // se usa para poner links en los emails
 
 // Aviso de tarjeta NUEVA por grupo responsable (email o Google Group, opcional)
