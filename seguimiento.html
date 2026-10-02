@@ -53,7 +53,11 @@
       <div><label>Área que resuelve</label><select id="fAreaResp"></select></div>
       <div><label>Especialidad</label><select id="fEsp"></select></div>
       <div><label>Etapa MA</label><select id="fEtapa"></select></div>
-      <div><label>Buscar</label><input id="fTexto" placeholder="ID, equipo, texto, OT..."></div>
+      <div><label>Código de tarjeta (ID)</label><input id="fID" placeholder="ej: ROJ-261002 o KKC" autocomplete="off"></div>
+      <div><label>Sector (de quien la cargó)</label><select id="fSector"></select></div>
+      <div><label>Prioridad</label><select id="fPrio"><option value="">Todas</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
+      <div><label>Ordenar por</label><select id="fOrden"><option value="fecha">Más recientes</option><option value="condprio">Máquina (marcha / parada) y prioridad</option><option value="puntaje">Puntaje de planificación</option><option value="dias">Más antiguas</option></select></div>
+      <div><label>Buscar</label><input id="fTexto" placeholder="Equipo, texto, OT..."></div>
       <div><label>Persona</label><input id="fPersona" placeholder="Apellido..."></div>
       <div><label>Rol de la persona</label><select id="fRol"><option value="">Cualquier rol</option><option value="det">La detectó</option><option value="resp">Responsable</option><option value="ejec">Ejecuta</option><option value="cerro">La resolvió</option></select></div>
     </div>
@@ -75,7 +79,7 @@
       <table>
         <thead><tr>
           <th style="width:28px"><input type="checkbox" id="selTodas" title="Seleccionar todas"></th>
-          <th title="Puntaje de prioridad para planificar">Pts</th><th>ID</th><th>Color</th><th>Cond.</th><th>Ubicación</th><th>Descripción</th>
+          <th title="Puntaje de prioridad para planificar">Pts</th><th>ID</th><th>Color</th><th>Máquina · prioridad</th><th>Ubicación</th><th>Descripción</th>
           <th>Responsable</th><th>Parada</th><th>Días</th><th>Estado</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
@@ -95,6 +99,28 @@
       <button class="btn sec sm" id="mCerrarX">✕</button>
     </div>
     <div id="mDetalle"></div>
+
+    <!-- HISTORIAL: que se cambio y quien -->
+    <div class="seccion" id="secHist" style="margin-top:10px">
+      <div style="font-weight:800;font-size:13px;margin-bottom:6px">🕘 Historial: qué se cambió y quién</div>
+      <div id="hist" class="hist"></div>
+    </div>
+
+    <!-- CORREGIR LA CARGA -->
+    <details class="mas" id="secCorr"><summary>✏️ Corregir datos de la carga (si hubo un error al crearla)</summary>
+      <div class="grid cols-2">
+        <div><label>Detectado por</label><input id="cDet" placeholder="Apellido..."></div>
+        <div><label>Turno</label><select id="cTurno"></select></div>
+      </div>
+      <div class="grid cols-3">
+        <div><label>Área</label><select id="cArea"></select></div>
+        <div><label>Subárea / equipo</label><select id="cSub"></select></div>
+        <div><label>Equipo específico</label><select id="cComp"></select></div>
+      </div>
+      <label>Descripción</label><textarea id="cDesc" rows="3"></textarea>
+      <div class="mini" style="margin:6px 0">Color, tipo de anomalía y prioridad se cambian en "Gestión". Cada corrección queda en el historial con quién la hizo.</div>
+      <button class="btn" id="cGuardar">Guardar corrección</button>
+    </details>
 
     <!-- VERIFICAR -->
     <div id="secVerificar" class="seccion verif">
@@ -192,7 +218,6 @@
       <button class="btn" id="rCerrar" style="width:100%;margin-top:12px">Marcar como resuelta</button>
     </div>
 
-    <details class="mas" id="secHist"><summary>Historial de la tarjeta</summary><div id="hist" class="hist"></div></details>
   </div>
 </div>
 
@@ -228,6 +253,7 @@
   var optCond = Object.keys(CONDICIONES).map(function(c){ return '<option value="'+c+'">'+CONDICIONES[c].icono+' '+CONDICIONES[c].corto+'</option>'; }).join('');
   $('fCond').innerHTML = '<option value="">Todas</option>' + optCond;
   $('fArea').innerHTML = '<option value="">Todas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
+  $('fSector').innerHTML = '<option value="">Todos</option>' + opciones(Object.keys(PERSONAS_POR_SECTOR).sort());
   $('fEsp').innerHTML = '<option value="">Todas</option>' + opciones(ESPECIALIDADES);
   $('fAreaResp').innerHTML = '<option value="">Todas</option><option value="_sin">Sin área asignada</option>' + opciones(areasResponsables().map(function(a){ return a.Area; }));
   $('fEtapa').innerHTML = '<option value="">Todas</option>' + opciones(ETAPAS_MA);
@@ -299,15 +325,26 @@
     }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
   }
 
+  var ORD_COND = { 'Maquina en marcha': 0, 'Maquina parada': 1, 'A definir': 2 }, ORD_PRIO = { Alta: 0, Media: 1, Baja: 2 };
+  function ordenar(a, b){
+    var o = $('fOrden').value, fecha = String(b['Fecha alta']).localeCompare(String(a['Fecha alta']));
+    if (o === 'condprio') return (ORD_COND[condicionDe(a)] - ORD_COND[condicionDe(b)]) || ((ORD_PRIO[a['Prioridad']] ?? 1) - (ORD_PRIO[b['Prioridad']] ?? 1)) || (puntaje(b).total - puntaje(a).total) || fecha;
+    if (o === 'puntaje') return (puntaje(b).total - puntaje(a).total) || fecha;
+    if (o === 'dias') return (+b.diasAbierta || 0) - (+a.diasAbierta || 0) || fecha;
+    return fecha;
+  }
   function filtradas(){
     var v = function(id){ return $(id).value; };
     var e=v('fEstado'), c=v('fColor'), fc=v('fCond'), fa=v('fArea'), fp=v('fParada'), fe=v('fEsp'), et=v('fEtapa'),
-        tx=v('fTexto').toLowerCase(), yo=getYo(), fper=personaValida(v('fPersona').trim()) ? v('fPersona').trim() : '', frol=v('fRol');
+        tx=v('fTexto').toLowerCase(), yo=getYo(), fid=v('fID').trim().toUpperCase(), fsec=v('fSector'), fpr=v('fPrio'), fper=personaValida(v('fPersona').trim()) ? v('fPersona').trim() : '', frol=v('fRol');
     var dp = +v('fPeriodo'), lim = dp ? desdeISO(dp) : '';
     return TODAS.filter(function(t){
       if(lim && !esAbierta(t) && t['Estado']!=='Cerrada' && String(t['Fecha alta']).slice(0,10) < lim && String(t['Fecha cierre']||'').slice(0,10) < lim) return false;
       if(e==='_abiertas' ? !esAbierta(t) : (e && t['Estado']!==e)) return false;
       if(c && t['Tipo']!==c) return false;
+      if(fid && String(t['ID']).toUpperCase().indexOf(fid)===-1) return false;
+      if(fsec && (t['Sector detector'] || sectorDe(t['Detectado por'])) !== fsec) return false;
+      if(fpr && (t['Prioridad']||'Media') !== fpr) return false;
       if(fc && condicionDe(t)!==fc) return false;
       if(fa && t['Area equipo']!==fa) return false;
       if(fp==='_sin' ? !!t['Parada objetivo'] : (fp && t['Parada objetivo']!==fp)) return false;
@@ -324,7 +361,7 @@
       }
       if(tx){ var blob=[t['ID'],t['Equipo'],t['Descripcion'],t['Responsable asignado'],t['Componente/Ubicacion'],t['Repuestos'],t['N OT'],t['Detectado por']].join(' ').toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
       return true;
-    }).sort(function(a,b){ return String(b['Fecha alta']).localeCompare(String(a['Fecha alta'])); });
+    }).sort(ordenar);
   }
 
   function pintarFichaPersona(){
@@ -348,7 +385,7 @@
         '<td><span class="pts-mini" title="'+esc(textoPuntaje(puntaje(t)))+'">'+(esAbierta(t)?puntaje(t).total:'')+'</span></td>'+
         '<td style="font-family:monospace;font-size:12px">'+esc(t['ID'])+'</td>'+
         '<td>'+badgeTipo(t['Tipo'])+'</td>'+
-        '<td>'+badgeCondicion(condicionDe(t))+'</td>'+
+        '<td>'+badgeCondicion(condicionDe(t))+'<div style="margin-top:4px">'+badgePrioridad(t['Prioridad'])+'</div></td>'+
         '<td>'+esc(t['Area equipo']||'—')+(t['Equipo']?'<br><span class="mini">'+esc(t['Equipo'])+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</span>':'')+'</td>'+
         '<td>'+esc(d.slice(0,70))+(d.length>70?'…':'')+(t.repetidaDe?' '+badgeRepetida(t):'')+'</td>'+
         '<td>'+esc(t['Responsable asignado']||'—')+'<br><span class="mini">'+esc(t['Area responsable']||'sin área')+'</span>'+(t['Ejecutores']?'<br><span class="mini">👷 '+esc(listaNombres(t['Ejecutores']).map(function(n){return n.split(',')[0];}).join(', '))+'</span>':'')+
@@ -454,7 +491,7 @@
     pintarChipsCierre();
     $('rFoto').value = ''; $('rFotoGal').value = ''; $('rFotoPrev').innerHTML = ''; fotoDespues = ''; $('rMP').checked = false; $('rEstd').checked = false;
     $('vQuien').value = getYo(); $('vCom').value = '';
-    $('secHist').open = false; $('hist').innerHTML = '';
+    cargarCorreccion(t); cargarHistorial(t['ID']);
     $('modal').classList.add('show');
   }
   function cerrarModal(){ $('modal').classList.remove('show'); actual = null; history.replaceState(null, '', location.pathname); }
@@ -462,15 +499,59 @@
   $('modal').addEventListener('click', function(e){ if(e.target.id==='modal') cerrarModal(); });
   $('gEstado').addEventListener('change', function(){ $('boxMotivo').style.display = (this.value==='Anulada' && actual && actual['Estado']!=='Anulada') ? 'block' : 'none'; });
 
-  $('secHist').addEventListener('toggle', async function(){
-    if (!this.open || !actual || $('hist').innerHTML) return;
+  var ACCION_TXT = { 'Alta': 'Creó la tarjeta', 'Cambio': 'Cambió', 'Correccion': '✏️ Corrigió', 'Cierre': 'Marcó como resuelta', 'Verificacion': 'Verificó', 'Reapertura': 'Reabrió' };
+  async function cargarHistorial(id){
     $('hist').innerHTML = '<span class="mini">Cargando...</span>';
-    try { var r = await api('historial', { id: actual['ID'] });
+    try { var r = await api('historial', { id: id });
+      if (!actual || actual['ID'] !== id) return;
       $('hist').innerHTML = (r.historial||[]).length ? r.historial.slice().reverse().map(function(h){
-        return '<div><span class="mini">'+esc(h['Fecha'])+' · '+esc(h['Usuario']||'—')+'</span><br><b>'+esc(h['Accion'])+'</b> '+
-          (h['Campo']?esc(h['Campo'])+': ':'')+(h['Antes']?'<s>'+esc(h['Antes'])+'</s> → ':'')+esc(h['Despues'])+'</div>';
-      }).join('') : '<span class="mini">Sin movimientos registrados (las tarjetas anteriores a la v3 no tienen historial).</span>';
-    } catch(e) { $('hist').innerHTML = '<span class="mini">No se pudo cargar.</span>'; }
+        var acc = ACCION_TXT[h['Accion']] || h['Accion'];
+        return '<div><span class="mini">'+esc(h['Fecha'])+' · <b>'+esc(h['Usuario']||'sin identificar')+'</b></span><br>'+esc(acc)+' '+
+          (h['Campo']?'<b>'+esc(h['Campo'])+'</b>: ':'')+(h['Antes']?'<s>'+esc(h['Antes'])+'</s> → ':'')+esc(h['Despues'])+'</div>';
+      }).join('') : '<span class="mini">Sin movimientos registrados todavía.</span>';
+    } catch(e) { $('hist').innerHTML = '<span class="mini">No se pudo cargar el historial (sin conexión).</span>'; }
+  }
+
+  /* ---------- corregir datos de la carga ---------- */
+  $('cTurno').innerHTML = '<option value="">—</option>' + opciones(TURNOS);
+  montarBuscadorPersona($('cDet'));
+  function cargarCorreccion(t){
+    $('cDet').value = t['Detectado por'] || ''; $('cTurno').value = t['Turno'] || ''; $('cDesc').value = t['Descripcion'] || '';
+    $('cArea').innerHTML = opciones(Object.keys(ARBOL_EQUIPO), t['Area equipo']);
+    if (t['Area equipo'] && !ARBOL_EQUIPO[t['Area equipo']]) $('cArea').innerHTML = '<option>'+esc(t['Area equipo'])+'</option>' + $('cArea').innerHTML;
+    $('cArea').value = t['Area equipo'] || ''; pintarSub(t['Equipo'], t['Componente/Ubicacion']);
+    $('secCorr').open = false;
+  }
+  function pintarSub(sub, comp){
+    var subs = Object.keys(ARBOL_EQUIPO[$('cArea').value] || {});
+    $('cSub').innerHTML = '<option value="">—</option>' + opciones(subs, sub);
+    if (sub && subs.indexOf(sub) === -1) $('cSub').innerHTML += '<option selected>'+esc(sub)+'</option>';
+    pintarComp(comp);
+  }
+  function pintarComp(comp){
+    var eqs = ((ARBOL_EQUIPO[$('cArea').value] || {})[$('cSub').value]) || [];
+    $('cComp').innerHTML = '<option value="">—</option>' + opciones(eqs, comp);
+    if (comp && eqs.indexOf(comp) === -1) $('cComp').innerHTML += '<option selected>'+esc(comp)+'</option>';
+    $('cComp').disabled = !eqs.length && !comp;
+  }
+  $('cArea').addEventListener('change', function(){ pintarSub('', ''); });
+  $('cSub').addEventListener('change', function(){ pintarComp(''); });
+  $('cGuardar').addEventListener('click', async function(){
+    if (!actual) return;
+    if (!getYo()) { abrirQuienSoy(); return msg('Identificate primero: queda registrado quién hace la corrección.', false); }
+    var det = $('cDet').value.trim();
+    if (!personaValida(det)) return msg('Elegí de la lista quién detectó la anomalía.', false);
+    if (!$('cDesc').value.trim()) return msg('La descripción no puede quedar vacía.', false);
+    var eqs = ((ARBOL_EQUIPO[$('cArea').value] || {})[$('cSub').value]) || [];
+    if (!$('cArea').value || !$('cSub').value || (eqs.length && !$('cComp').value)) return msg('Completá la ubicación: área, subárea y equipo.', false);
+    var cambios = { detectadoPor: det, sectorDetector: sectorDe(det), turno: $('cTurno').value, areaEquipo: $('cArea').value, equipo: $('cSub').value,
+      componente: $('cComp').value, descripcion: $('cDesc').value.trim() };
+    var b = this; b.disabled = true;
+    try { var r = await api('actualizar', { id: actual['ID'], cambios: cambios });
+      if (r.ok) { var id = actual['ID']; msg('Corrección guardada en '+esc(id)+'. Quedó en el historial.', true); await cargar(); abrir(id); }
+      else msg(esc(r.error || 'error'), false);
+    } catch(e) { msg('Error: '+esc(e.message), false); }
+    b.disabled = false;
   });
 
   $('gGuardar').addEventListener('click', async function(){
@@ -587,7 +668,8 @@
   });
 
   ['fPeriodo'].forEach(function(id){ $(id).addEventListener('change', cargar); });
-  ['fColor','fEstado','fCond','fArea','fParada','fAreaResp','fEsp','fEtapa','fVencidas','fRepetidas','fSeguridad','fMias'].forEach(function(id){ $(id).addEventListener('change', render); });
+  ['fColor','fEstado','fCond','fArea','fParada','fAreaResp','fEsp','fEtapa','fVencidas','fRepetidas','fSeguridad','fMias','fSector','fPrio','fOrden'].forEach(function(id){ $(id).addEventListener('change', render); });
+  $('fID').addEventListener('input', render);
   $('fTexto').addEventListener('input', render);
   montarBuscadorPersona($('fPersona'), new URLSearchParams(location.search).get('persona') || '');
   if (new URLSearchParams(location.search).get('persona')) $('fEstado').value = '';   // desde el dashboard: todas sus tarjetas

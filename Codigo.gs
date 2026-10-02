@@ -21,10 +21,11 @@
 
 /* ============================ CONFIGURACION ============================ */
 
+const VERSION_BACKEND = 11; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
-const APP_URL = 'https://coral-app-gpzhd.ondigitalocean.app/';             // URL publica del frontend (DigitalOcean), ej 'https://tarjetas-xxxx.ondigitalocean.app/'
+const APP_URL = 'https://seal-app-27qrt.ondigitalocean.app/';             // URL publica del frontend (DigitalOcean), ej 'https://tarjetas-xxxx.ondigitalocean.app/'
                                 // se usa para poner links en los emails
 
 // Aviso de tarjeta NUEVA por grupo responsable (email o Google Group, opcional)
@@ -111,7 +112,7 @@ function handle_(e) {
       lock.waitLock(25000);
     }
     switch (action) {
-      case 'ping':            out = { ok: true, ts: ahora_() }; break;
+      case 'ping':            out = { ok: true, ts: ahora_(), version: VERSION_BACKEND }; break;
       case 'setup':           out = setup(); break;
       case 'crear':           out = crear_(req.data || req, usuario); break;
       case 'listar':          out = { ok: true, tarjetas: listar_(req.desde), paradas: listarParadas_() }; break;
@@ -426,8 +427,12 @@ const MAPA_CAMPOS = {
   repuestos: 'Repuestos', paradaObjetivo: 'Parada objetivo', nOT: 'N OT', loto: 'LOTO / Permiso',
   tipo: 'Tipo', dimensionMejora: 'Dimension mejora', costo: 'Costo estimado',
   personas: 'Personas necesarias', ejecutores: 'Ejecutores', fechaPlanificada: 'Fecha planificada', horario: 'Horario planificado',
-  areaResponsable: 'Area responsable'
+  areaResponsable: 'Area responsable',
+  // correcciones de la carga (se registran en el Historial como "Corrección", con quien la hizo)
+  descripcion: 'Descripcion', areaEquipo: 'Area equipo', equipo: 'Equipo', componente: 'Componente/Ubicacion',
+  detectadoPor: 'Detectado por', turno: 'Turno'
 };
+const CAMPOS_CORRECCION = ['descripcion', 'areaEquipo', 'equipo', 'componente', 'detectadoPor', 'turno'];
 
 function actualizar_(id, cambios, usuario) {
   var t = leer_(id);
@@ -446,6 +451,14 @@ function actualizar_(id, cambios, usuario) {
     cambios.responsable = menosCargado_(poolResponsable_(cambios.areaResponsable || t['Area responsable'], cambios.poolResponsable), id);
   }
   if (cambios.tipo !== undefined && !GRUPO_POR_COLOR[cambios.tipo]) delete cambios.tipo;
+  if (cambios.descripcion !== undefined && !String(cambios.descripcion).trim()) throw new Error('La descripcion no puede quedar vacia.');
+  if (cambios.detectadoPor !== undefined && !String(cambios.detectadoPor).trim()) throw new Error('Indica quien detecto la anomalia.');
+  if (cambios.areaEquipo !== undefined && !String(cambios.areaEquipo).trim()) throw new Error('La ubicacion (area) no puede quedar vacia.');
+  // una correccion real (cambia un dato de la carga) exige saber quien la hace
+  var corrige = CAMPOS_CORRECCION.some(function (k) {
+    return cambios[k] !== undefined && MAPA_CAMPOS[k] && String(t[MAPA_CAMPOS[k]] == null ? '' : t[MAPA_CAMPOS[k]]) !== String(cambios[k] == null ? '' : cambios[k]);
+  });
+  if (corrige && !String(usuario || '').trim()) throw new Error('Para corregir una tarjeta identificate (quien hace el cambio queda registrado).');
 
   var valores = {};
   Object.keys(cambios).forEach(function (k) {
@@ -455,7 +468,9 @@ function actualizar_(id, cambios, usuario) {
     var despues = String(cambios[k] == null ? '' : cambios[k]);
     if (antes === despues) return;
     valores[col] = cambios[k];
-    log_(id, 'Cambio', col, antes, despues, usuario);
+    log_(id, CAMPOS_CORRECCION.indexOf(k) > -1 ? 'Correccion' : 'Cambio', col, antes, despues, usuario);
+    if (k === 'areaEquipo') valores['Sector'] = cambios[k];   // compatibilidad: Sector = area del equipo
+    if (k === 'detectadoPor') valores['Sector detector'] = cambios.sectorDetector || '';
     if (k === 'fechaCompromiso' && antes) valores['Reprogramaciones'] = (Number(t['Reprogramaciones']) || 0) + 1;
     if (k === 'tipo') valores['Grupo responsable'] = GRUPO_POR_COLOR[cambios.tipo];
   });
