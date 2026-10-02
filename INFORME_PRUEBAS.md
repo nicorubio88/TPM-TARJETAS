@@ -1,4 +1,18 @@
-# Informe de pruebas · Tarjetas TPM v6
+# Informe de pruebas · Tarjetas TPM v11
+
+## v11 · 02/10/2026
+
+| Batería | Resultado |
+|---|---|
+| Backend (incluye correcciones con historial e identificación obligatoria) | **109 / 109 OK** |
+| Estimación por historial | **12 / 12 OK** |
+| Frontend general (12 páginas, vacía y con datos, escritorio y celular) | **207 / 207 OK** |
+| Planificación v10 (Gantt, órdenes, objetivo mensual) | **21 / 21 OK** |
+| v11 (lugares, Intendencia, condición→prioridad, Ingeniería, filtros ID/sector/prioridad, corrección + historial, aviso de backend viejo) | **19 / 19 OK** |
+
+---
+
+# Informe anterior · v6
 
 Fecha: 27/09/2026. Todo se probó antes de entregar, contra el `Codigo.gs` real ejecutándose sobre una planilla simulada
 (Sheets, Drive, Mail, Lock, Properties y UrlFetch simulados e instrumentados) y las páginas reales en Chromium.

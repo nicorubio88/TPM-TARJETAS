@@ -97,7 +97,7 @@ const LS = {
    Fuente: hojas "Personas" y "Arbol" de la planilla (si tienen datos);
    si no, personas.js / arbol.js. Se cachean en el dispositivo.
    ============================================================ */
-const ALTAS_NUEVAS = { 'Gerencia de Planta': ['Rubio, Nicolas'] };
+const ALTAS_NUEVAS = { 'Gerencia de Planta': ['Rubio, Nicolas'], 'Ingeniería': ['Belarra, Marcelo', 'Fernandez, Diego', 'Guglielmo, Simon', 'Poulain, Mauro'] };
 (function aplicarMaestrosCache() {
   const m = LS.get('tpm_maestros', null);
   if (!m) return;
@@ -177,6 +177,8 @@ function responsablesPorDefecto() {
       Ayuda: 'Instrumentos y control: transmisores, válvulas de control, lazos, PLC, sensores de proceso.' },
     { Area: 'Ingeniería', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^Ingenier/i).join('; '),
       Ayuda: 'Proyectos y modificaciones: cambios de diseño, montajes, obras, ingeniería de equipos.' },
+    { Area: 'Intendencia', Colores: 'Roja', Modo: 'equipo', HorasDia: 4, Personas: _personasDeSectores(/^Intendencia$/i).join('; '),
+      Ayuda: 'Edificios e instalaciones: techos, pisos, aberturas, sanitarios, iluminación general, oficinas.' },
     { Area: 'Mantenimiento (a derivar)', Colores: 'Roja', Modo: 'supervisor', HorasDia: 8, Personas: _personasDeSectores(/^Mantenimiento$/i).join('; '),
       Ayuda: 'No sé quién lo resuelve: lo deriva el jefe de mantenimiento.' },
     { Area: 'Producción', Colores: 'Azul', Modo: 'supervisor', HorasDia: 6, Personas: _personasDeSectores(/^Producci/i).join('; '),
@@ -185,7 +187,7 @@ function responsablesPorDefecto() {
       Ayuda: 'Ideas de mejora: la toma el equipo de Mejora Enfocada.' }
   ];
 }
-const AREAS_NUEVAS = ['ICOPRO', 'Ingeniería'];
+const AREAS_NUEVAS = ['ICOPRO', 'Ingeniería', 'Intendencia'];
 function areasResponsables() {
   const cfg = (window.RESP_CFG || []).filter(function (r) { return r.Area; });
   const base = responsablesPorDefecto();
@@ -750,6 +752,8 @@ function badgeCondicion(c, largo) {
     d.icono + (largo === false ? '' : ' ' + d.corto) + '</span>';
 }
 
+const PRIO_BADGE = { Alta: ['#B8402A', '#FBE6E1'], Media: ['#8A5A0A', '#FDF0DC'], Baja: ['#3D5F26', '#E7F2DC'] };
+function badgePrioridad(p) { p = p || 'Media'; const c = PRIO_BADGE[p] || PRIO_BADGE.Media; return '<span class="cond" style="background:' + c[1] + ';color:' + c[0] + '">Prioridad ' + esc(p) + '</span>'; }
 function badgeRepetida(t) { return t.repetidaDe ? '<span class="cond" style="background:#FDF0DC;color:#8A5A0A" title="Repite ' + esc(t.repetidaDe) + '">↻ Repetida</span>' : ''; }
 
 function esc(s) {
@@ -935,3 +939,24 @@ document.addEventListener('DOMContentLoaded', function () {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
 });
+
+/* ---------- Aviso si el Apps Script publicado es viejo ----------
+   Pegar el código y guardar no alcanza: hay que publicar "Nueva versión" de la implementación.
+   Si el backend no responde la versión esperada, se avisa arriba de la página (una vez por sesión). */
+const VERSION_BACKEND_MIN = 11;
+async function verificarBackend() {
+  try {
+    if (!CONFIG.API_URL || sessionStorage.getItem('tpm_backend_ok') === '1') return;
+    const r = await api('ping');
+    if (r && r.ok && (+r.version || 0) >= VERSION_BACKEND_MIN) { sessionStorage.setItem('tpm_backend_ok', '1'); return; }
+    const d = document.createElement('div');
+    d.id = 'avisoBackend';
+    d.style.cssText = 'background:#C0392B;color:#fff;padding:10px 14px;font:600 14px/1.35 system-ui,sans-serif;text-align:center';
+    d.textContent = '⚠ El servidor (Apps Script) tiene una versión vieja publicada: no se guardan condición de máquina, prioridad ni área responsable. ' +
+      'En Apps Script: Implementar → Administrar implementaciones → Editar → Versión: Nueva versión → Implementar.';
+    document.body.insertBefore(d, document.body.firstChild);
+  } catch (e) { /* sin señal: no avisar */ }
+}
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  window.addEventListener('load', function () { setTimeout(verificarBackend, 400); });
+}

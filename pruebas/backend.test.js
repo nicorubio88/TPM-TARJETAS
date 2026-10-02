@@ -177,4 +177,25 @@ const base={tipo:'Roja',detectadoPor:'Perez, Juan',areaEquipo:'PULPERS',equipo:'
   const t=E.call({action:'listar'}).tarjetas[0]; ok(/Email/.test(t['Enviado a EHS']),'estado EHS guardado');
   const r2=E.call({action:'derivarEHS',id:r.id}); ok(r2.ok,'derivar manual');
 }
+/* ---------- historial para estimar ---------- */
+{ const E=makeEnv(); E.call({action:'setup'});
+  const a=E.call({action:'crear',data:Object.assign({},base,{descripcion:'Cambio de bomba de vacío',especialidad:'Mecanica',repuestos:'Sello 45'})}); ok(a.ok,'crear con especialidad y repuestos');
+  const b=E.call({action:'crear',data:Object.assign({},base,{descripcion:'otra'})});
+  E.call({action:'cerrar',id:a.id,accion:'Se cambió la bomba',cerradoPor:'Mec, A',horasReales:5,personasReales:2,causa:'Desgaste natural'});
+  let r=E.call({action:'historialEstimacion'}); ok(r.ok && r.filas.length===1,'historial solo trae cerradas con horas reales');
+  const f=r.filas[0]; ok(f['Horas reales']==5 && f['Especialidad']==='Mecanica' && f['Repuestos']==='Sello 45' && /bomba/.test(f['Accion de cierre']),'historial trae horas, especialidad, repuestos y acción');
+  ok(!('Foto URL' in f) && !('Notas' in f),'historial es compacto');
+}
+/* ---------- correcciones con historial ---------- */
+{ const E=makeEnv(); E.call({action:'setup'});
+  const a=E.call({action:'crear',data:Object.assign({},base,{descripcion:'mal cargada'})});
+  let r=E.call({action:'actualizar',id:a.id,cambios:{descripcion:'bien cargada',areaEquipo:'LABORATORIO',equipo:'LABORATORIO DE CALIDAD',componente:''},usuario:''});
+  ok(!r.ok && /identificate/i.test(r.error),'corrección exige identificarse');
+  r=E.call({action:'actualizar',id:a.id,cambios:{descripcion:'bien cargada',areaEquipo:'LABORATORIO',equipo:'LABORATORIO DE CALIDAD',componente:''},usuario:'Rubio, Nicolas'});
+  ok(r.ok,'corrige descripción y ubicación');
+  const t=E.call({action:'listar'}).tarjetas.find(x=>x.ID===a.id); ok(t['Descripcion']==='bien cargada' && t['Area equipo']==='LABORATORIO' && t['Sector']==='LABORATORIO','datos corregidos');
+  const h=E.call({action:'historial',id:a.id}).historial; ok(h.some(x=>x.Accion==='Correccion' && x.Campo==='Descripcion' && x.Antes==='mal cargada' && x.Usuario==='Rubio, Nicolas'),'historial: qué, antes, después y quién');
+  ok(!E.call({action:'actualizar',id:a.id,cambios:{descripcion:'  '},usuario:'X'}).ok,'no deja descripción vacía');
+  ok(E.call({action:'actualizar',id:a.id,cambios:{prioridad:'Alta',tipo:'Roja'},usuario:''}).ok,'gestión sin cambiar datos de carga no exige identificarse');
+}
 console.log('BACKEND: '+pass+' OK, '+fail+' FALLAS'); fails.forEach(f=>console.log('  ✖ '+f));

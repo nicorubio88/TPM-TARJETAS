@@ -4,7 +4,7 @@
    Fuente unica compartida por Tarjetas TPM, EHS y Causa Raiz.
    Generado desde la nomina oficial (personas.js del sistema TPM).
 
-   17 sectores | 158 personas
+   17 sectores | 162 personas
 
    Sectores normalizados con acentos y unificados con EHS:
      "I+d"                  -> "I+D"
@@ -48,7 +48,11 @@ const PERSONAS_POR_SECTOR = {
   "Ingeniería": [
     "Echeguia, Martin Alberto",
     "Hernandez Mascaro, Sergio Javier",
-    "Urriaga, Marcelo Alejandro"
+    "Urriaga, Marcelo Alejandro",
+    "Belarra, Marcelo",
+    "Fernandez, Diego",
+    "Guglielmo, Simon",
+    "Poulain, Mauro"
   ],
   "Intendencia": [
     "Vallejos, Jose Luis"

@@ -73,13 +73,14 @@
     <!-- ============ BLOQUE C ============ -->
     <div class="bloque-t">C · Para planificar</div>
 
-    <div class="paso"><span class="pn">8</span>¿Qué prioridad tiene? <span class="oblig">obligatorio</span></div>
+    <div class="paso"><span class="pn">8</span>¿Se puede resolver con la máquina en marcha?</div>
+    <div class="condsel" id="condsel"></div>
+
+    <div class="paso"><span class="pn">9</span><span id="prioTit">¿Qué prioridad tiene?</span> <span class="oblig">obligatorio</span></div>
+    <div class="ayuda" id="prioAyuda" style="margin-top:-4px"></div>
     <div class="prisel" id="prisel"></div>
     <input type="hidden" id="prioridad">
     <div id="sugPrio" class="sug"></div>
-
-    <div class="paso"><span class="pn">9</span>¿Se puede resolver con la máquina en marcha?</div>
-    <div class="condsel" id="condsel"></div>
 
     <div class="paso"><span class="pn">10</span>¿Cuánto lleva resolverlo y cuántas personas? <span class="mini" style="font-weight:600">(si lo sabés)</span></div>
     <div id="sugHist" class="sug"></div>
@@ -262,6 +263,10 @@
         '<div class="t" style="color:'+c.color+'">'+titulo+'</div><div class="a">'+c.ayuda+'</div></div>';
     }).join('');
     document.querySelectorAll('#condsel .op').forEach(function(el){ el.addEventListener('click', function(){ condSel = el.getAttribute('data-c'); pintarCondicion(); actualizar(); }); });
+    // la prioridad se define dentro de su grupo: entre las de marcha, entre las de parada
+    $('prioTit').textContent = condSel === 'Maquina en marcha' ? '¿Qué prioridad tiene entre las de máquina en marcha?' :
+      condSel === 'Maquina parada' ? '¿Qué prioridad tiene entre las de máquina parada?' : '¿Qué prioridad tiene?';
+    $('prioAyuda').textContent = condSel === 'A definir' ? 'Si sabés si es con máquina en marcha o parada, marcalo arriba: la prioridad se ordena dentro de cada grupo.' : '';
   }
 
   /* ---------- tiempo (de a 1 hora) y personas ---------- */
@@ -416,7 +421,7 @@
     if (!$('categoria').value) return msg('Elegí el tipo de anomalía (paso 4).', false);
     if (!tipoSel) return msg('Elegí el color de la tarjeta (paso 5).', false);
     if (!areaRespSel) return msg('Elegí qué área lo resuelve (paso 6).', false);
-    if (!$('prioridad').value) return msg('Elegí la prioridad (paso 8).', false);
+    if (!$('prioridad').value) return msg('Elegí la prioridad (paso 9).', false);
     if (tiempoSel === 'mas' && !horasElegidas()) return msg('Indicá cuántas horas (9 o más) o elegí "No sé" (paso 10).', false);
 
     if (getYo() !== det) setYo(det);

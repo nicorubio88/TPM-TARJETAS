@@ -1,4 +1,24 @@
-# Sistema de Tarjetas TPM — Planta Tornquist · v6
+# Sistema de Tarjetas TPM — Planta Tornquist · v11
+
+## ⚠️ Importante al actualizar el backend (por qué no aparecía "máquina en marcha / parada")
+
+Pegar el `Codigo.gs` y guardar **no alcanza**: la URL `/exec` sigue corriendo la versión publicada anterior.
+Después de pegar el código: **Implementar → Administrar implementaciones → ✏️ Editar → Versión: _Nueva versión_ → Implementar**.
+No crear una implementación nueva (cambia la URL y habría que tocar `config.js`).
+Para comprobarlo: abrir `seguimiento.html`; si el backend está viejo, todas las pantallas muestran una franja roja avisándolo y
+las tarjetas nuevas guardan Condición, Prioridad, Área responsable y Cliente ID.
+
+## Novedades v11
+
+- Lugares nuevos: Alistamiento → **Zona Cortadora** y **Depósito**; área **Laboratorio** (Laboratorio de Calidad, Equipos de ensayo).
+- **Intendencia** como área que resuelve tarjetas rojas (edificios e instalaciones).
+- Al elegir **máquina en marcha / parada**, el paso siguiente pide la **prioridad Alta / Media / Baja dentro de ese estado**.
+  Seguimiento ordena por "Condición + prioridad" y muestra la etiqueta en la tabla.
+- Ingeniería: Marcelo Belarra, Diego Fernandez, Simon Guglielmo, Mauro Poulain.
+- Seguimiento: filtros por **código de tarjeta (ID)**, **sector de quien la cargó** y **prioridad**.
+- **Corregir datos de la carga** (quién, turno, lugar, descripción) desde la tarjeta. Pide identificarse y queda en el
+  **historial** de la tarjeta (qué cambió, de qué a qué, quién y cuándo), visible al abrirla.
+
 
 Registrar anomalías, planificarlas (en marcha / con parada), resolverlas, verificarlas en el equipo
 y medir apertura vs. cierre, lugares críticos, participación y repeticiones.
