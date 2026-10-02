@@ -48,7 +48,7 @@ const CATEGORIAS_SEGURIDAD = ['Condicion insegura'];
 //  - OT abierta en el EAM  -> la tarjeta toma N OT, responsable, fecha programada, horas y personas.
 //  - OT "Terminado"        -> la tarjeta se cierra sola como Verificada con los datos reales del EAM.
 //  Para activarlo: correr UNA VEZ instalarDisparadorEAM() desde el editor (pide permiso de Drive).
-const EAM_CSV_ID = '1pv3fd4cnA8nFIbsn74FJCIF2Qy5QioT8';   // ot_cerradas_tarjetas.csv (se puede cambiar en Propiedades: EAM_CSV_ID)
+const EAM_CSV_ID = '1GmR74AUz5E2GS5LE1x3ZKNEOzFFYck1H';   // ot_cerradas_tarjetas.csv (export automatico del EAM) (se puede cambiar en Propiedades: EAM_CSV_ID)
 const EAM_ESTADOS_CERRADOS = ['terminado', 'cerrado', 'cerrada', 'finalizado', 'completado'];
 const EAM_ESTADOS_SIN_PROGRAMA = ['listo para planificar', 'pendiente', 'solicitado', 'abierto', ''];
 const CAUSA_EAM_PENDIENTE = 'A completar (cerrada desde EAM)';
@@ -973,6 +973,41 @@ function eamPersonas_(s) {   // "ARRIETA JUAN CRUZ, MARCONI JORGE" -> ["Arrieta,
   return String(s || '').split(/[,;\/]| y /).map(eamNombre_).filter(String);
 }
 
+// Agrupa las filas del CSV por ID_Tarjeta. Con varias OT para la misma tarjeta:
+//  - N OT = todas ("159471; 159472")
+//  - se considera Terminada solo cuando TODAS las OT estan terminadas: fecha de cierre = la ultima,
+//    horas reales = suma, empleados = todos, comentarios = todos
+//  - si alguna sigue abierta, manda la programacion de esa OT abierta (la mas avanzada)
+function eamCombinar_(rows, C, g) {
+  var grupos = {}, orden = [];
+  rows.forEach(function (r) {
+    var id = g(r, 'id').toUpperCase();
+    if (!id) return;
+    if (!grupos[id]) { grupos[id] = []; orden.push(id); }
+    grupos[id].push(r);
+  });
+  var cerr = function (r) { return EAM_ESTADOS_CERRADOS.indexOf(g(r, 'est').toLowerCase()) > -1; };
+  var uniq = function (arr) { var o = []; arr.forEach(function (x) { x = String(x || '').trim(); if (x && o.indexOf(x) === -1) o.push(x); }); return o; };
+  return orden.map(function (id) {
+    var rs = grupos[id];
+    if (rs.length === 1) return rs[0];
+    var abiertas = rs.filter(function (r) { return !cerr(r); });
+    var base = abiertas.length
+      ? (abiertas.filter(function (r) { return EAM_ESTADOS_SIN_PROGRAMA.indexOf(g(r, 'est').toLowerCase()) === -1; })[0] || abiertas[0])
+      : rs.slice().sort(function (a, b) { return eamFecha_(g(b, 'fCierre')).localeCompare(eamFecha_(g(a, 'fCierre'))); })[0];
+    var out = base.slice();
+    var set = function (k, v) { if (C[k] > -1) out[C[k]] = v; };
+    set('ot', uniq(rs.map(function (r) { return g(r, 'ot'); })).join('; '));
+    set('desc', uniq(rs.map(function (r) { return g(r, 'desc'); })).join(' / '));
+    if (!abiertas.length) {
+      set('com', uniq(rs.map(function (r) { return g(r, 'com'); })).join(' / '));
+      set('emp', uniq([].concat.apply([], rs.map(function (r) { return g(r, 'emp').split(/[,;]/); }))).join(', '));
+      set('hsReal', rs.reduce(function (s, r) { return s + eamNum_(g(r, 'hsReal')); }, 0));
+    }
+    return out;
+  });
+}
+
 function sincronizarEAM_(origen) {
   var filas = eamLeerArchivo_();
   if (filas.length < 1) throw new Error('El CSV del EAM esta vacio.');
@@ -996,7 +1031,8 @@ function sincronizarEAM_(origen) {
   var res = { ok: true, fecha: ahora_(), origen: origen, leidas: filas.length - 1, cruzadas: 0, cerradas: 0, actualizadas: 0, sinTarjeta: [], errores: [] };
   var quien = 'EAM';
 
-  filas.slice(1).forEach(function (r) {
+  // una tarjeta puede tener varias OT: se combinan en una sola fila antes de aplicar
+  eamCombinar_(filas.slice(1), C, g).forEach(function (r) {
     var id = g(r, 'id').toUpperCase();
     if (!id) return;
     var i = porId[id];

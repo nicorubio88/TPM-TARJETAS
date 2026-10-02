@@ -71,4 +71,15 @@ ok(E.st.lockErrors===0,'sin locks anidados');
   ok(E2.call({action:'historial',id:a}).historial.some(x=>x.Accion==='Cierre EAM'),'disparador escribe el historial');
   E2.PROPS.__ERR='1'; const r4=E2.call({action:'__trig'}); ok(!r4.ok && JSON.parse(E2.PROPS.EAM_ULTIMA).ok===false,'error del disparador queda registrado para mostrarlo');
 }
+// una tarjeta con dos OT
+{ const E3=makeEnv(mock); const m=E3.call({action:'crear',data:Object.assign({},base,{clienteId:'m'})}).id;
+  E3.PROPS.__CSV=H+'\n'+m+'\t159471\tcambiar rele\tx\tx\t1\t1\t\t2026-09-30 0:00\tLOPEZ PEDRO\t1\t2026-10-01 09:00\tSe cambió relé\tTerminado\n'+
+    m+'\t159472\tcambiar contactor\tx\tx\t2\t2\tMARCONI JORGE\t2026-10-06 0:00\t\t0\t\t\tPlanificado';
+  let r=E3.call({action:'sincronizarEAM'}); let x=E3.call({action:'listar'}).tarjetas[0];
+  ok(r.ok && r.cruzadas===1 && x.Estado==='En proceso' && String(x['N OT'])==='159471; 159472' && x['Fecha planificada']==='2026-10-06' && x['Responsable asignado']==='Marconi, Jorge','2 OT, una abierta: sigue en proceso con la programación de la abierta');
+  E3.PROPS.__CSV=H+'\n'+m+'\t159471\tcambiar rele\tx\tx\t1\t1\t\t2026-09-30 0:00\tLOPEZ PEDRO\t1\t2026-10-01 09:00\tSe cambió relé\tTerminado\n'+
+    m+'\t159472\tcambiar contactor\tx\tx\t2\t2\tMARCONI JORGE\t2026-10-06 0:00\tMARCONI JORGE, LOPEZ PEDRO\t2,5\t2026-10-06 15:30\tSe cambió contactor\tTerminado';
+  r=E3.call({action:'sincronizarEAM'}); x=E3.call({action:'listar'}).tarjetas[0];
+  ok(r.cerradas===1 && x.Estado==='Verificada' && x['Fecha cierre']==='2026-10-06 15:30' && +x['Horas reales']===3.5 && x['Accion de cierre']==='Se cambió relé / Se cambió contactor' && x['Ejecutores']==='Lopez, Pedro; Marconi, Jorge' && +x['Personas reales']===2 && x['Verificado por']==='EAM · OT 159471; 159472','2 OT terminadas: cierre combinado ('+[x['Fecha cierre'],x['Horas reales'],x['Ejecutores']]+')');
+}
 console.log('EAM: '+pass+' OK, '+fail+' FALLAS'); fails.forEach(f=>console.log('  ✖ '+f));

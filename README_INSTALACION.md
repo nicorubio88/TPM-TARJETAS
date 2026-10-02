@@ -29,6 +29,9 @@ y cruza **ID_Tarjeta** con el ID de la tarjeta:
 | **Terminado** | queda **Verificada**: acción = Comentario_Cierre, fecha = Fecha_Cierre, ejecutores = Empleados, horas y personas reales. Verificado por "EAM · OT n". Causa: "A completar (cerrada desde EAM)" |
 | Terminado y la tarjeta ya estaba resuelta a mano | se verifica sin pisar el cierre; solo completa lo que falte |
 
+Si una tarjeta tiene **varias OT**, se guardan todas ("159471; 159472") y se cierra recién cuando todas están terminadas (horas sumadas, todos los ejecutores, la última fecha de cierre).
+CSV actual: `1GmR74AUz5E2GS5LE1x3ZKNEOzFFYck1H` (export automático del EAM).
+
 Todo queda en el historial de la tarjeta ("Cierre EAM", usuario "EAM · OT n"). Volver a leer el mismo CSV no cambia nada.
 En Seguimiento: franja con la última lectura (OT leídas, cerradas, sin tarjeta, errores), botón **↻ Sincronizar con EAM**,
 filtro **Cerradas por EAM · causa a completar** y, dentro de la tarjeta, el recuadro para completar la causa.
