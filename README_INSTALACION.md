@@ -8,6 +8,26 @@ No crear una implementación nueva (cambia la URL y habría que tocar `config.js
 Para comprobarlo: abrir `seguimiento.html`; si el backend está viejo, todas las pantallas muestran una franja roja avisándolo y
 las tarjetas nuevas guardan Condición, Prioridad, Área responsable y Cliente ID.
 
+## Novedades v13 · Integración con el EAM
+
+El EAM exporta `ot_cerradas_tarjetas.csv` a Drive (siempre el mismo archivo, se pisa). Cada 15 minutos el Apps Script lo lee
+y cruza **ID_Tarjeta** con el ID de la tarjeta:
+
+| Estado en el EAM | Qué pasa en la tarjeta |
+|---|---|
+| Listo para planificar | se carga el N° de OT |
+| Planificado (o cualquier otro estado vivo) | N° de OT, responsable (Asignado_A), fecha planificada, horas y personas estimadas; pasa a **En proceso** |
+| **Terminado** | queda **Verificada**: acción = Comentario_Cierre, fecha = Fecha_Cierre, ejecutores = Empleados, horas y personas reales. Verificado por "EAM · OT n". Causa: "A completar (cerrada desde EAM)" |
+| Terminado y la tarjeta ya estaba resuelta a mano | se verifica sin pisar el cierre; solo completa lo que falte |
+
+Todo queda en el historial de la tarjeta ("Cierre EAM", usuario "EAM · OT n"). Volver a leer el mismo CSV no cambia nada.
+En Seguimiento: franja con la última lectura (OT leídas, cerradas, sin tarjeta, errores), botón **↻ Sincronizar con EAM**,
+filtro **Cerradas por EAM · causa a completar** y, dentro de la tarjeta, el recuadro para completar la causa.
+
+**Activación (una sola vez):** pegar `Codigo.gs`, publicar *Nueva versión* y en el editor elegir la función
+`instalarDisparadorEAM` → ▶ Ejecutar → aceptar los permisos (Drive). Si el CSV cambia de archivo, poner el nuevo ID
+en Configuración del proyecto → Propiedades del script → `EAM_CSV_ID`.
+
 ## Novedades v12
 
 - 4° casillero en el paso 8: **📅 Para parada planificada**. Prioridad dentro de ese grupo:

@@ -42,10 +42,11 @@
     </div>
   </div>
   <div id="msg"></div>
+  <div class="eam" id="eamBar" style="display:none"><span id="eamTxt"></span> <button class="btn sec sm" id="eamSync">↻ Sincronizar con EAM</button></div>
   <div class="card">
     <div class="filtros">
       <div><label>Período</label><select id="fPeriodo"><option value="90">Últimos 90 días</option><option value="180">Últimos 6 meses</option><option value="365" selected>Últimos 12 meses</option><option value="0">Todo</option></select></div>
-      <div><label>Estado</label><select id="fEstado"><option value="_abiertas">Abiertas + en proceso</option><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="Anulada">Anuladas</option><option value="">Todas</option></select></div>
+      <div><label>Estado</label><select id="fEstado"><option value="_abiertas">Abiertas + en proceso</option><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="_causaEAM">Cerradas por EAM · causa a completar</option><option value="Anulada">Anuladas</option><option value="">Todas</option></select></div>
       <div><label>Color</label><select id="fColor"><option value="">Todos</option><option>Roja</option><option>Azul</option><option>Verde</option></select></div>
       <div><label>Condición máquina</label><select id="fCond"></select></div>
       <div><label>Área equipo</label><select id="fArea"></select></div>
@@ -99,6 +100,16 @@
       <button class="btn sec sm" id="mCerrarX">✕</button>
     </div>
     <div id="mDetalle"></div>
+
+    <!-- CAUSA PENDIENTE (cerrada desde el EAM) -->
+    <div class="seccion" id="secCausa" style="display:none;margin-top:10px;border-left:4px solid #C98A0B;background:#FFF8E8">
+      <div style="font-weight:800;font-size:13px">⚠ Cerrada desde el EAM: falta la causa</div>
+      <div class="mini" style="margin:2px 0 6px">El EAM no informa la causa. Completala para que cuente en el análisis de fallas y repeticiones.</div>
+      <div class="grid cols-2"><div><label>Causa *</label><select id="kCausa"></select></div>
+        <div style="padding-top:18px"><label class="chk"><input type="checkbox" id="kMP"> Agregar al plan preventivo</label>
+        <label class="chk"><input type="checkbox" id="kStd"> Actualizar estándar / LUP</label></div></div>
+      <button class="btn sm" id="kGuardar" style="margin-top:6px">Guardar causa</button>
+    </div>
 
     <!-- HISTORIAL: que se cambio y quien -->
     <div class="seccion" id="secHist" style="margin-top:10px">
@@ -279,6 +290,7 @@
     $('gResponsable').value = sel || '__auto__';
   }
   $('rCausa').innerHTML = '<option value="">—</option>' + opciones(CAUSAS);
+  $('kCausa').innerHTML = '<option value="">—</option>' + opciones(CAUSAS);
   $('bResp').innerHTML = '<option value="">Responsable: sin cambio</option><option value="__auto__">Responsable: automático (menos cargado del área)</option>' + opcionesGrupos(PERSONAS_POR_SECTOR);
   $('bCond').innerHTML = '<option value="">Condición: sin cambio</option>' + optCond;
   montarBuscadorPersona($('rPor')); montarBuscadorPersona($('vQuien'));
@@ -322,8 +334,46 @@
       cargarHistorialEstimacion().then(function(h){ HIST_EST = h; });
       var id = new URLSearchParams(location.search).get('id');
       if (id && !actual) abrir(id);
+      estadoEAM();
     }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
   }
+
+  /* ---------- integración EAM ---------- */
+  function textoEAM(u){
+    if(!u) return '🔗 EAM: todavía no se sincronizó. Corré instalarDisparadorEAM() una vez en Apps Script.';
+    if(!u.ok) return '⚠ EAM: falló la última lectura ('+esc(u.fecha||'')+'): '+esc(u.error||'');
+    var pend = TODAS.filter(function(t){ return t['Causa']===CAUSA_EAM_PENDIENTE; }).length;
+    return '🔗 EAM · última lectura '+esc(u.fecha)+' ('+esc(u.origen||'')+'): '+u.leidas+' OT, '+u.cruzadas+' con tarjeta, <b>'+u.cerradas+' cerradas</b>, '+u.actualizadas+' actualizadas'+
+      (u.sinTarjeta && u.sinTarjeta.length ? ' · <span title="'+esc(u.sinTarjeta.join(', '))+'">'+u.sinTarjeta.length+' sin tarjeta</span>' : '')+
+      (u.errores && u.errores.length ? ' · <span style="color:#B3261E" title="'+esc(u.errores.join(' | '))+'">'+u.errores.length+' con error</span>' : '')+
+      (pend ? ' · <a href="#" id="eamPend">'+pend+' con causa a completar</a>' : '');
+  }
+  async function estadoEAM(){
+    try{
+      var r = await api('estadoEAM');
+      if(!r || !r.ok) return;   // backend viejo: no se muestra
+      $('eamBar').style.display = 'flex'; $('eamTxt').innerHTML = textoEAM(r.ultima);
+      var a = $('eamPend'); if(a) a.addEventListener('click', function(ev){ ev.preventDefault(); $('fEstado').value='_causaEAM'; render(); });
+    }catch(e){}
+  }
+  $('eamSync').addEventListener('click', async function(){
+    var b = this; b.disabled = true; b.textContent = 'Leyendo EAM…';
+    try{
+      var r = await api('sincronizarEAM');
+      if(!r.ok){ msg('EAM: '+esc(r.error||'error'), false); estadoEAM(); }
+      else { msg('EAM leído: '+r.cerradas+' tarjetas cerradas, '+r.actualizadas+' actualizadas.', true); await cargar(); }
+    }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
+    b.disabled = false; b.textContent = '↻ Sincronizar con EAM';
+  });
+  $('kGuardar').addEventListener('click', async function(){
+    if(!$('kCausa').value) return msg('Elegí la causa.', false);
+    if(!getYo()) { abrirQuienSoy(); return; }
+    try{
+      var r = await api('completarCausa', { id: actual['ID'], causa: $('kCausa').value, agregarMP: $('kMP').checked, actualizarEstandar: $('kStd').checked });
+      if(!r.ok) return msg(esc(r.error||'error'), false);
+      msg('Causa guardada.', true); var id = actual['ID']; await cargar(); abrir(id);
+    }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
+  });
 
   var ORD_COND = { 'Maquina en marcha': 0, 'Maquina parada': 1, 'Parada planificada': 2, 'A definir': 3 }, ORD_PRIO = { Alta: 0, Media: 1, Baja: 2 };
   function ordenar(a, b){
@@ -340,7 +390,7 @@
     var dp = +v('fPeriodo'), lim = dp ? desdeISO(dp) : '';
     return TODAS.filter(function(t){
       if(lim && !esAbierta(t) && t['Estado']!=='Cerrada' && String(t['Fecha alta']).slice(0,10) < lim && String(t['Fecha cierre']||'').slice(0,10) < lim) return false;
-      if(e==='_abiertas' ? !esAbierta(t) : (e && t['Estado']!==e)) return false;
+      if(e==='_abiertas' ? !esAbierta(t) : e==='_causaEAM' ? t['Causa']!==CAUSA_EAM_PENDIENTE : (e && t['Estado']!==e)) return false;
       if(c && t['Tipo']!==c) return false;
       if(fid && String(t['ID']).toUpperCase().indexOf(fid)===-1) return false;
       if(fsec && (t['Sector detector'] || sectorDe(t['Detectado por'])) !== fsec) return false;
@@ -459,6 +509,7 @@
       (t['Notas']?'<div class="kv" style="white-space:pre-line"><b>Notas:</b> '+esc(t['Notas'])+'</div>':'')+
       '<div class="fotos">'+foto(t['Foto URL'],'Antes')+foto(t['Foto cierre URL'],'Después')+'</div>';
 
+    $('secCausa').style.display = t['Causa'] === CAUSA_EAM_PENDIENTE ? 'block' : 'none';
     $('secVerificar').style.display = est === 'Cerrada' ? 'block' : 'none';
     $('secResolver').style.display = esAbierta(t) ? 'block' : 'none';
     $('secGestion').style.display = (est === 'Verificada') ? 'none' : 'block';

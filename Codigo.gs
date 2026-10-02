@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 12; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 13; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -42,6 +42,17 @@ const NOTIF = {
 const EHS_EMAIL = '';
 const EHS_API_URL = '';
 const CATEGORIAS_SEGURIDAD = ['Condicion insegura'];
+
+// Integracion con el EAM (ordenes de trabajo conectadas a SAP).
+//  El EAM exporta un CSV a Drive (siempre el mismo archivo, se pisa). Un disparador cada 15 min lo lee:
+//  - OT abierta en el EAM  -> la tarjeta toma N OT, responsable, fecha programada, horas y personas.
+//  - OT "Terminado"        -> la tarjeta se cierra sola como Verificada con los datos reales del EAM.
+//  Para activarlo: correr UNA VEZ instalarDisparadorEAM() desde el editor (pide permiso de Drive).
+const EAM_CSV_ID = '1pv3fd4cnA8nFIbsn74FJCIF2Qy5QioT8';   // ot_cerradas_tarjetas.csv (se puede cambiar en Propiedades: EAM_CSV_ID)
+const EAM_ESTADOS_CERRADOS = ['terminado', 'cerrado', 'cerrada', 'finalizado', 'completado'];
+const EAM_ESTADOS_SIN_PROGRAMA = ['listo para planificar', 'pendiente', 'solicitado', 'abierto', ''];
+const CAUSA_EAM_PENDIENTE = 'A completar (cerrada desde EAM)';
+const EAM_MINUTOS = 15;
 
 /* ============================ ESTRUCTURA ============================ */
 
@@ -93,7 +104,7 @@ var _EN_WEBAPP = false;
 function doGet(e)  { _EN_WEBAPP = true; return handle_(e); }
 function doPost(e) { _EN_WEBAPP = true; return handle_(e); }
 
-const ACCIONES_ESCRITURA = ['guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
+const ACCIONES_ESCRITURA = ['sincronizarEAM', 'completarCausa', 'guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
 
 function handle_(e) {
   var req = {};
@@ -128,6 +139,9 @@ function handle_(e) {
       case 'maestros':        out = maestros_(); break;
       case 'sembrarMaestros': out = sembrarMaestros_(req.personas, req.arbol, req.forzar); break;
       case 'derivarEHS':      out = derivarEHSManual_(req.id, usuario); break;
+      case 'sincronizarEAM':  out = sincronizarEAMSeguro_(usuario || 'manual'); break;
+      case 'estadoEAM':       out = estadoEAM_(); break;
+      case 'completarCausa':  out = completarCausa_(req, usuario); break;
       case 'historialEstimacion': out = { ok: true, filas: historialEstimacion_() }; break;
       default:                out = { ok: false, error: 'Accion desconocida: ' + action };
     }
@@ -752,7 +766,7 @@ function notificar_(grupo, id, tipo, d, fotoUrl) {
 }
 
 // Cierre del circulo: quien detecto se entera de que se resolvio y se le pide verificar.
-function avisarDetector_(t, accion, cerradoPor, fotoCierre) {
+function avisarDetector_(t, accion, cerradoPor, fotoCierre, verificada) {
   var mail = emailDe_(t['Detectado por']);
   if (!mail) return;
   var link = linkApp_('mis-tarjetas.html');
@@ -766,8 +780,9 @@ function avisarDetector_(t, accion, cerradoPor, fotoCierre) {
     (t['Foto URL'] ? '<td style="padding-right:8px"><div style="font-size:11px;color:#777">Antes</div><img src="' + t['Foto URL'] + '" width="240"></td>' : '') +
     (fotoCierre ? '<td><div style="font-size:11px;color:#777">Después</div><img src="' + fotoCierre + '" width="240"></td>' : '') +
     '</tr></table>' +
-    '<p>¿Quedó bien? Verificalo en el equipo y confirmalo' + (link ? ' en <a href="' + link + '">Mis tarjetas</a>' : ' en la app, sección Mis tarjetas') + '.</p></div>';
-  MailApp.sendEmail({ to: mail, subject: '✔ Tu tarjeta ' + t['ID'] + ' fue resuelta — verificala', htmlBody: html });
+    (verificada ? '<p>La orden de trabajo quedó cerrada en el EAM. Si ves que el problema sigue, cargá una tarjeta nueva.</p></div>'
+      : '<p>¿Quedó bien? Verificalo en el equipo y confirmalo' + (link ? ' en <a href="' + link + '">Mis tarjetas</a>' : ' en la app, sección Mis tarjetas') + '.</p></div>');
+  MailApp.sendEmail({ to: mail, subject: '✔ Tu tarjeta ' + t['ID'] + ' fue resuelta' + (verificada ? '' : ' — verificala'), htmlBody: html });
 }
 
 function avisarReapertura_(t, quien, comentario) {
@@ -853,4 +868,223 @@ function historialEstimacion_() {
     out.push(o);
   }
   return out;
+}
+
+
+/* ============================ INTEGRACION EAM ============================ */
+
+// Para el disparador de tiempo (sin web app): toma el lock y escribe el historial al final.
+function sincronizarEAM() {
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(25000); } catch (e) { return { ok: false, error: 'ocupado' }; }
+  try { return sincronizarEAMSeguro_('automatico'); }
+  finally { flushLog_(); try { lock.releaseLock(); } catch (e2) {} }
+}
+
+// Corre la lectura y, si falla, deja el error guardado para mostrarlo en Seguimiento.
+function sincronizarEAMSeguro_(origen) {
+  try { return sincronizarEAM_(origen); }
+  catch (err) {
+    var m = String(err && err.message ? err.message : err);
+    if (/permis|authoriz|autoriz/i.test(m)) m = 'Falta autorizar Drive: en el editor de Apps Script corré instalarDisparadorEAM() una vez y aceptá los permisos. (' + m + ')';
+    else if (/no se encontr|not found|no item|no existe|does not exist/i.test(m)) m = 'No se encuentra el CSV del EAM en Drive (ID ' + (PropertiesService.getScriptProperties().getProperty('EAM_CSV_ID') || EAM_CSV_ID) + '). ' + m;
+    var r = { ok: false, error: m, fecha: ahora_(), origen: origen };
+    PropertiesService.getScriptProperties().setProperty('EAM_ULTIMA', JSON.stringify(r));
+    return r;
+  }
+}
+
+// Correr UNA VEZ desde el editor de Apps Script: crea el disparador cada 15 minutos (y autoriza Drive).
+function instalarDisparadorEAM() {
+  ScriptApp.getProjectTriggers().forEach(function (tr) {
+    if (tr.getHandlerFunction() === 'sincronizarEAM') ScriptApp.deleteTrigger(tr);
+  });
+  ScriptApp.newTrigger('sincronizarEAM').timeBased().everyMinutes(EAM_MINUTOS).create();
+  return sincronizarEAM();
+}
+
+function estadoEAM_() {
+  var p = PropertiesService.getScriptProperties().getProperty('EAM_ULTIMA');
+  return { ok: true, ultima: p ? JSON.parse(p) : null, cada: EAM_MINUTOS };
+}
+
+function eamNorm_(s) {
+  return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+// CSV con separador detectado (tab, ; o ,) y comillas RFC 4180.
+function eamParseCsv_(txt) {
+  txt = String(txt || '').replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  var primera = txt.split('\n')[0], sep = ',';
+  [['\t', (primera.match(/\t/g) || []).length], [';', (primera.match(/;/g) || []).length], [',', (primera.match(/,/g) || []).length]]
+    .reduce(function (m, x) { if (x[1] > m) { sep = x[0]; return x[1]; } return m; }, 0);
+  var filas = [], fila = [], campo = '', q = false;
+  for (var i = 0; i < txt.length; i++) {
+    var c = txt[i];
+    if (q) {
+      if (c === '"') { if (txt[i + 1] === '"') { campo += '"'; i++; } else q = false; }
+      else campo += c;
+    } else if (c === '"' && campo === '') q = true;
+    else if (c === sep) { fila.push(campo); campo = ''; }
+    else if (c === '\n') { fila.push(campo); filas.push(fila); fila = []; campo = ''; }
+    else campo += c;
+  }
+  if (campo !== '' || fila.length) { fila.push(campo); filas.push(fila); }
+  return filas.filter(function (f) { return f.some(function (x) { return String(x).trim(); }); });
+}
+
+function eamLeerArchivo_() {
+  var id = PropertiesService.getScriptProperties().getProperty('EAM_CSV_ID') || EAM_CSV_ID;
+  var f = DriveApp.getFileById(id);
+  if (f.getMimeType && f.getMimeType() === 'application/vnd.google-apps.spreadsheet') {
+    return SpreadsheetApp.openById(id).getSheets()[0].getDataRange().getDisplayValues();
+  }
+  var blob = f.getBlob(), txt = blob.getDataAsString('UTF-8');
+  if (txt.indexOf('�') > -1) txt = blob.getDataAsString('ISO-8859-1');   // export de Windows / Excel
+  return eamParseCsv_(txt);
+}
+
+// "2026-10-01 10:20" | "01/10/2026 10:20" | Date -> "yyyy-MM-dd HH:mm" ('' si no se entiende)
+function eamFecha_(v, soloDia) {
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, soloDia ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm');
+  var s = String(v || '').trim(), m, p = function (n) { return ('0' + n).slice(-2); };
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/))) {
+    return m[1] + '-' + p(m[2]) + '-' + p(m[3]) + (soloDia ? '' : ' ' + p(m[4] || 0) + ':' + (m[5] || '00'));
+  }
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/))) {
+    return m[3] + '-' + p(m[2]) + '-' + p(m[1]) + (soloDia ? '' : ' ' + p(m[4] || 0) + ':' + (m[5] || '00'));
+  }
+  return '';
+}
+function eamNum_(v) { var n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isNaN(n) ? 0 : n; }
+
+// "MARCONI JORGE" -> "Marconi, Jorge" (el primer termino es el apellido, como exporta el EAM)
+function eamNombre_(s) {
+  var w = String(s || '').trim().replace(/\s+/g, ' ');
+  if (!w) return '';
+  if (w.indexOf(',') > -1) return w;
+  var cap = function (x) { return x.toLowerCase().replace(/(^|[\s'-])(\S)/g, function (a, b, c) { return b + c.toUpperCase(); }); };
+  var partes = w.split(' ');
+  return partes.length === 1 ? cap(w) : cap(partes[0]) + ', ' + cap(partes.slice(1).join(' '));
+}
+function eamPersonas_(s) {   // "ARRIETA JUAN CRUZ, MARCONI JORGE" -> ["Arrieta, Juan Cruz", "Marconi, Jorge"]
+  return String(s || '').split(/[,;\/]| y /).map(eamNombre_).filter(String);
+}
+
+function sincronizarEAM_(origen) {
+  var filas = eamLeerArchivo_();
+  if (filas.length < 1) throw new Error('El CSV del EAM esta vacio.');
+  var h = filas[0].map(eamNorm_), ix = function () {
+    for (var i = 0; i < arguments.length; i++) { var k = h.indexOf(arguments[i]); if (k > -1) return k; } return -1;
+  };
+  var C = {
+    id: ix('idtarjeta', 'tarjeta', 'id'), ot: ix('oteam', 'ot', 'orden', 'nroot'), desc: ix('descripcionot', 'descripcion'),
+    hsEst: ix('hsestimadas', 'horasestimadas'), pers: ix('personasnecesarias'), asig: ix('asignadoa', 'asignado'),
+    fProg: ix('fechainicioprogramada', 'fechaprogramada'), emp: ix('empleados'), hsReal: ix('hsreales', 'horasreales'),
+    fCierre: ix('fechacierre'), com: ix('comentariocierre', 'comentario'), est: ix('estado')
+  };
+  if (C.id === -1 || C.est === -1) throw new Error('El CSV del EAM no tiene las columnas ID_Tarjeta y Estado.');
+  var g = function (r, k) { return C[k] === -1 ? '' : String(r[C[k]] == null ? '' : r[C[k]]).trim(); };
+
+  var sh = getSheet_(), n = sh.getLastRow() - 1;
+  var datos = n > 0 ? sh.getRange(2, 1, n, HEADERS.length).getValues() : [];
+  var porId = {};
+  datos.forEach(function (r, i) { porId[String(r[0]).trim().toUpperCase()] = i; });
+  var col = function (nombre) { return HEADERS.indexOf(nombre); };
+  var res = { ok: true, fecha: ahora_(), origen: origen, leidas: filas.length - 1, cruzadas: 0, cerradas: 0, actualizadas: 0, sinTarjeta: [], errores: [] };
+  var quien = 'EAM';
+
+  filas.slice(1).forEach(function (r) {
+    var id = g(r, 'id').toUpperCase();
+    if (!id) return;
+    var i = porId[id];
+    if (i === undefined) { res.sinTarjeta.push(id); return; }
+    res.cruzadas++;
+    try {
+      var fila = datos[i], v = {}, antes = {};
+      var val = function (c) { return fmt_(fila[col(c)], c); };
+      var poner = function (c, x) {
+        if (x === '' || x == null) return;
+        if (String(val(c) == null ? '' : val(c)) === String(x)) return;
+        antes[c] = val(c); v[c] = x;
+      };
+      var ot = g(r, 'ot'), estEAM = g(r, 'est'), estN = estEAM.toLowerCase(), estado = String(val('Estado') || '');
+      var abierta = ESTADOS_ABIERTOS.indexOf(estado) > -1 || estado === '';
+      poner('N OT', ot);
+
+      if (EAM_ESTADOS_CERRADOS.indexOf(estN) > -1) {
+        if (estado === 'Verificada' || estado === 'Anulada') { /* ya cerrada: solo el N OT */ }
+        else {
+          var emp = eamPersonas_(g(r, 'emp')), hs = eamNum_(g(r, 'hsReal'));
+          var por = emp.length ? emp.join('; ') : eamNombre_(g(r, 'asig')) || 'EAM';
+          if (abierta) {
+            var accion = g(r, 'com') || ('OT ' + ot + ' terminada en el EAM' + (g(r, 'desc') ? ': ' + g(r, 'desc') : ''));
+            poner('Accion de cierre', accion);
+            poner('Fecha cierre', eamFecha_(g(r, 'fCierre')) || ahora_());
+            poner('Cerrado por', por);
+            if (emp.length) poner('Ejecutores', emp.join('; '));
+            if (hs > 0) poner('Horas reales', hs);
+            poner('Personas reales', emp.length || (hs > 0 ? 1 : ''));
+            poner('Causa', CAUSA_EAM_PENDIENTE);
+          } else {
+            // resuelta a mano y pendiente de verificar: se completan solo los datos que falten
+            if (!val('Horas reales') && hs > 0) poner('Horas reales', hs);
+            if (!val('Personas reales') && emp.length) poner('Personas reales', emp.length);
+            if (!val('Ejecutores') && emp.length) poner('Ejecutores', emp.join('; '));
+          }
+          poner('Estado', 'Verificada');
+          poner('Verificado por', 'EAM · OT ' + ot);
+          poner('Fecha verificacion', ahora_());
+          var nota = '[EAM] OT ' + ot + ' terminada' + (g(r, 'fCierre') ? ' el ' + (eamFecha_(g(r, 'fCierre')) || g(r, 'fCierre')) : '') + ' → tarjeta verificada automaticamente.';
+          poner('Notas', (val('Notas') ? val('Notas') + '\n' : '') + nota);
+          res.cerradas++;
+        }
+      } else if (abierta) {
+        // OT viva en el EAM: el EAM manda en la programacion
+        poner('Responsable asignado', eamNombre_(g(r, 'asig')));
+        var hsE = eamNum_(g(r, 'hsEst')), pe = parseInt(eamNum_(g(r, 'pers')), 10);
+        if (hsE > 0) poner('Horas estimadas', hsE);
+        if (pe > 0) poner('Personas necesarias', pe);
+        if (EAM_ESTADOS_SIN_PROGRAMA.indexOf(estN) === -1) {
+          var fp = eamFecha_(g(r, 'fProg'), true);
+          poner('Fecha planificada', fp);
+          if (!val('Fecha compromiso')) poner('Fecha compromiso', fp);
+          if (estado === 'Abierta' || estado === '') poner('Estado', 'En proceso');
+        }
+      }
+
+      var cols = Object.keys(v);
+      if (!cols.length) return;
+      cols.forEach(function (c) { fila[col(c)] = v[c]; });
+      sh.getRange(i + 2, 1, 1, HEADERS.length).setValues([fila]);
+      var accLog = v['Estado'] === 'Verificada' ? 'Cierre EAM' : 'EAM';
+      cols.forEach(function (c) { if (c !== 'Notas') log_(id, accLog, c, antes[c], v[c], quien + (ot ? ' · OT ' + ot : '')); });
+      if (v['Estado'] !== 'Verificada') res.actualizadas++;
+      else if (abierta) {
+        var t = {}; HEADERS.forEach(function (hh, k) { t[hh] = fmt_(fila[k], hh); });
+        try { avisarDetector_(t, t['Accion de cierre'], t['Cerrado por'], '', true); } catch (e) {}
+      }
+    } catch (err) {
+      res.errores.push(id + ': ' + (err.message || err));
+    }
+  });
+  res.sinTarjeta = res.sinTarjeta.slice(0, 30);
+  PropertiesService.getScriptProperties().setProperty('EAM_ULTIMA', JSON.stringify(res));
+  return res;
+}
+
+// Completar la causa de una tarjeta cerrada desde el EAM (el EAM no la exporta).
+function completarCausa_(req, usuario) {
+  var quien = String(usuario || '').trim();
+  if (!quien) throw new Error('Identificate para completar la causa.');
+  var causa = String(req.causa || '').trim();
+  if (!causa) throw new Error('Indica la causa.');
+  var t = leer_(req.id);
+  if (ESTADOS_RESUELTOS.indexOf(t['Estado']) === -1) throw new Error('La tarjeta todavia no esta resuelta.');
+  var v = { 'Causa': causa };
+  if (req.agregarMP) v['Agregar a MP'] = 'Si';
+  if (req.actualizarEstandar) v['Actualizar estandar'] = 'Si';
+  escribir_(req.id, v);
+  Object.keys(v).forEach(function (c) { log_(req.id, 'Correccion', c, t[c], v[c], quien); });
+  return { ok: true, id: req.id };
 }

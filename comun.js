@@ -82,6 +82,7 @@ const CONDICIONES = {
 
 const ESPECIALIDADES = ['Mecanica', 'Electrica', 'Instrumentacion', 'Lubricacion', 'Operacion', 'Contratista'];
 const LOTO_OPCIONES = ['No requiere', 'LOTO (bloqueo de energia)', 'Permiso trabajo en caliente', 'Permiso trabajo en altura', 'Permiso espacio confinado', 'LOTO + permiso'];
+const CAUSA_EAM_PENDIENTE = 'A completar (cerrada desde EAM)';   // igual que en Codigo.gs
 const CAUSAS = ['Falta de limpieza / inspeccion', 'Falta de lubricacion', 'Desgaste natural', 'Operacion incorrecta', 'Falla de diseño / instalacion', 'Montaje / reparacion anterior deficiente', 'Condicion ambiental (polvo, humedad, temperatura)', 'Repuesto / material fuera de especificacion', 'Otra'];
 const DIMENSIONES_MEJORA = ['Seguridad', 'Calidad', 'Productividad', 'Costo', 'Ergonomia', 'Medio Ambiente', 'Facilidad de operacion / limpieza'];
 
@@ -947,7 +948,7 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ---------- Aviso si el Apps Script publicado es viejo ----------
    Pegar el código y guardar no alcanza: hay que publicar "Nueva versión" de la implementación.
    Si el backend no responde la versión esperada, se avisa arriba de la página (una vez por sesión). */
-const VERSION_BACKEND_MIN = 12;
+const VERSION_BACKEND_MIN = 13;
 async function verificarBackend() {
   try {
     if (!CONFIG.API_URL || sessionStorage.getItem('tpm_backend_ok') === '1') return;

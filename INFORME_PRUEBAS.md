@@ -1,5 +1,11 @@
 # Informe de pruebas · Tarjetas TPM v11
 
+## v13 · 02/10/2026 · integración EAM
+
+EAM backend 31/31 (cierre, planificado, ya resuelta a mano, OT sin tarjeta, idempotencia, separador ; y comillas,
+fechas dd/mm/aaaa, decimales con coma, errores de archivo y columnas, disparador con lock, completar causa) ·
+EAM pantalla 10/10 · Backend 111/111 · Frontend general 207/207 · v10 21/21 · v11 19/19 · v12 19/19.
+
 ## v12 · 02/10/2026
 
 Backend 111/111 · Estimación 12/12 · Frontend general 207/207 · v10 21/21 · v11 19/19 ·
