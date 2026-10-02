@@ -40,8 +40,9 @@ h2{font-size:16.5px;font-weight:800;margin:20px 0 12px;color:var(--verde-d)}
 .card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 1px 3px rgba(40,60,25,.04)}
 .grid{display:grid;gap:16px}
 .cols-3{grid-template-columns:repeat(3,1fr)}
+.cols-4{grid-template-columns:repeat(4,1fr)}
 .cols-2{grid-template-columns:repeat(2,1fr)}
-@media(max-width:760px){.cols-3,.cols-2{grid-template-columns:1fr}}
+@media(max-width:760px){.cols-3,.cols-2{grid-template-columns:1fr}.cols-4{grid-template-columns:1fr 1fr}}
 
 label{display:block;font-size:12.5px;font-weight:700;color:var(--verde-d);margin:14px 0 6px}
 input,select,textarea{
@@ -146,11 +147,12 @@ tr.clic:hover{background:var(--soft)}
 
 /* ── v2: condicion de maquina (marcha / parada) ── */
 .cond{font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px;display:inline-block;white-space:nowrap}
-.condsel{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0}
+.condsel{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0}
 .condsel .op{border:2px solid var(--line);border-radius:14px;padding:12px 10px;cursor:pointer;text-align:center;background:#fff;transition:.15s}
 .condsel .op .t{font-weight:800;font-size:14px}
 .condsel .op .a{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
 .condsel .op.sel{box-shadow:0 0 0 3px var(--verde-soft)}
+@media (max-width:900px){ .condsel{grid-template-columns:1fr 1fr} }
 @media (max-width:600px){ .condsel{grid-template-columns:1fr} .condsel .op .a{display:none} }
 .plan-grupo{margin:14px 0 4px;font-size:12px;font-weight:bold;color:#263528;border-bottom:2px solid #548235;padding-bottom:3px;display:flex;justify-content:space-between}
 
@@ -225,7 +227,7 @@ table.areas .btn{white-space:nowrap}
 .prisel .op .t{font-weight:800;font-size:15px}
 .prisel .op .a{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
 .prisel .op.sel{box-shadow:0 0 0 3px var(--verde-soft)}
-@media (max-width:600px){ .prisel .op .a{display:none} }
+@media (max-width:600px){ .prisel{gap:6px} .prisel .op{padding:10px 6px} .prisel .op .a{font-size:10.5px;margin-top:3px} }
 /* v6: formulario por bloques */
 .bloque-t{margin:26px 0 -4px;padding-top:14px;border-top:2px solid var(--line);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .bloque-t:first-of-type{border-top:none;margin-top:10px;padding-top:0}

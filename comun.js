@@ -74,6 +74,8 @@ const CONDICIONES = {
     ayuda: 'Se resuelve sin parar: ajuste exterior, limpieza fuera de zona de riesgo, cambio de algo sin partes en movimiento ni energia peligrosa.' },
   'Maquina parada':    { corto: 'Parada',    icono: '■', color: '#B3261E', soft: '#FBE4E2',
     ayuda: 'Necesita parar: abrir guardas, bloqueo de energia (LOTO), desarme, cambio de piezas en movimiento, trabajo en zona de riesgo.' },
+  'Parada planificada': { corto: 'Parada planificada', icono: '📅', color: '#1F5FA8', soft: '#E3ECF7',
+    ayuda: 'Se deja para una parada programada de la línea (parada general o de mantenimiento). No hace falta parar antes.' },
   'A definir':         { corto: 'A definir', icono: '?', color: '#7A7F76', soft: '#EEF0EC',
     ayuda: 'No estoy seguro. Lo define mantenimiento o el planificador.' }
 };
@@ -326,7 +328,7 @@ function estimarPorHistorial(t, st) {
         p: ps.length ? Math.max(1, Math.round(_mediana(ps))) : 0,
         especialidad: _moda(ts.map(function (x) { return x['Especialidad'] || especialidadDe(listaNombres(x['Ejecutores'])[0] || x['Cerrado por'] || ''); })),
         areaResp: _moda(ts.map(function (x) { return x['Area responsable']; })),
-        condicion: _moda(ts.map(function (x) { const c = x['Condicion intervencion']; return c === 'Maquina en marcha' || c === 'Maquina parada' ? c : ''; })),
+        condicion: _moda(ts.map(function (x) { const c = x['Condicion intervencion']; return c === 'Maquina en marcha' || esCondParada(c) ? c : ''; })),
         repuestos: Object.keys(rep).sort(function (a, b) { return rep[b] - rep[a]; }).slice(0, 3),
         casos: ts.slice(0, 5).map(function (x) { return x['ID']; })
       };
@@ -347,7 +349,7 @@ function textoEstimacion(e) {
   if (e.hMax > e.hMin) s += ' (entre ' + e.hMin + ' y ' + e.hMax + ' h)';
   if (e.especialidad) s += ' · ' + e.especialidad;
   if (e.repuestos.length) s += ' · repuestos usados: ' + e.repuestos.join(', ');
-  if (e.condicion) s += ' · suele hacerse ' + (e.condicion === 'Maquina parada' ? 'con máquina parada' : 'en marcha');
+  if (e.condicion) s += ' · suele hacerse ' + (e.condicion === 'Maquina parada' ? 'con máquina parada' : e.condicion === 'Parada planificada' ? 'en parada planificada' : 'en marcha');
   return s;
 }
 function duracionDe(t, st) {
@@ -510,6 +512,8 @@ function fechaDe(v) {
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
+/* requiere parar la máquina: parada puntual o parada programada */
+function esCondParada(c) { return c === 'Maquina parada' || c === 'Parada planificada'; }
 function condicionDe(t) { const c = t['Condicion intervencion']; return CONDICIONES[c] ? c : 'A definir'; }
 const CATEGORIAS_LEGADO = { 'Anomalia electrica / instrumentacion': '4 · Deterioro / pequena deficiencia' };
 function grupoCategoria(cat) {
@@ -573,7 +577,7 @@ function calcularKPIs(tarjetas, desde) {
     porSector: {}, porGrupo: {}, porEtapa: {}, porDetector: {}, porResolvedor: {}, porSectorDetector: {},
     porArea: {}, porAreaAbiertas: {}, porEquipo: {}, porCategoria: {},
     aging: { d7: 0, d30: 0, dmas: 0 }, detectoresUnicos: 0,
-    porCondicion: { 'Maquina en marcha': { n: 0, h: 0, sinH: 0 }, 'Maquina parada': { n: 0, h: 0, sinH: 0 }, 'A definir': { n: 0, h: 0, sinH: 0 } },
+    porCondicion: { 'Maquina en marcha': { n: 0, h: 0, sinH: 0 }, 'Maquina parada': { n: 0, h: 0, sinH: 0 }, 'Parada planificada': { n: 0, h: 0, sinH: 0 }, 'A definir': { n: 0, h: 0, sinH: 0 } },
     pilares: { maAzules: 0, mpDerivadas: 0, estandares: 0, calidad: 0, verdes: 0, ahorroUSD: 0, seguridad: 0 }
   };
   let sumAnt = 0, nAnt = 0, sumCierre = 0, nCierre = 0, azul = 0, roja = 0;
@@ -943,7 +947,7 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ---------- Aviso si el Apps Script publicado es viejo ----------
    Pegar el código y guardar no alcanza: hay que publicar "Nueva versión" de la implementación.
    Si el backend no responde la versión esperada, se avisa arriba de la página (una vez por sesión). */
-const VERSION_BACKEND_MIN = 11;
+const VERSION_BACKEND_MIN = 12;
 async function verificarBackend() {
   try {
     if (!CONFIG.API_URL || sessionStorage.getItem('tpm_backend_ok') === '1') return;

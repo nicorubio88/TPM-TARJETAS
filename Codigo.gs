@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 11; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 12; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -48,7 +48,7 @@ const CATEGORIAS_SEGURIDAD = ['Condicion insegura'];
 const SHEET_NAME = 'Tarjetas';
 const GRUPO_POR_COLOR = { 'Roja': 'Mantenimiento', 'Azul': 'Operacion', 'Verde': 'Mejora Enfocada' };
 const PREFIJO_COLOR   = { 'Roja': 'ROJ', 'Azul': 'AZU', 'Verde': 'VER' };
-const CONDICIONES = ['Maquina en marcha', 'Maquina parada', 'A definir'];
+const CONDICIONES = ['Maquina en marcha', 'Maquina parada', 'Parada planificada', 'A definir'];
 const PRIORIDADES = ['Alta', 'Media', 'Baja'];
 const ESTADOS_ABIERTOS = ['Abierta', 'En proceso'];
 // 'Cerrada' = resuelta, pendiente de verificacion por el sector. 'Verificada' = cierre definitivo.

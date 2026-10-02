@@ -1,5 +1,10 @@
 # Informe de pruebas · Tarjetas TPM v11
 
+## v12 · 02/10/2026
+
+Backend 111/111 · Estimación 12/12 · Frontend general 207/207 · v10 21/21 · v11 19/19 ·
+v12 (parada planificada: 4 casilleros, ayudas de prioridad, dashboard, filtro, plan de parada; escritorio y celular) 19/19.
+
 ## v11 · 02/10/2026
 
 | Batería | Resultado |

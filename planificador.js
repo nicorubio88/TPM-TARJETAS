@@ -153,7 +153,7 @@ function planificarParada(ts, parada, opts) {
   const cand = _tarjetasPlanificables(ts, opts).filter(function (t) {
     const c = condicionDe(t), pv = paradaVigente(t);
     if (parada && pv && pv !== parada.fecha) return false;   // asignada a otra parada futura
-    return c === 'Maquina parada' || (c === 'A definir' && opts.incluirADefinir) || (parada && pv === parada.fecha);
+    return c === 'Maquina parada' || c === 'Parada planificada' || (c === 'A definir' && opts.incluirADefinir) || (parada && pv === parada.fecha);
   }).map(function (t) { return _enriquecer(t, st); })
     .sort(function (a, b) {
       // primero las ya asignadas a esta parada, despues por puntaje

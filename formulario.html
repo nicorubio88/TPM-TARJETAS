@@ -243,10 +243,12 @@
   $('responsable').addEventListener('change', actualizar);
 
   /* ---------- prioridad ---------- */
-  var PRIO_AYUDA = { Alta: 'Riesgo de parada, de seguridad o de calidad: hay que atenderla ya.', Media: 'Hay que resolverla pronto, dentro de la semana.', Baja: 'Puede esperar a la planificación normal.' };
+  var PRIO_AYUDA_STD = { Alta: 'Riesgo de parada, de seguridad o de calidad: hay que atenderla ya.', Media: 'Hay que resolverla pronto, dentro de la semana.', Baja: 'Puede esperar a la planificación normal.' };
+  var PRIO_AYUDA_PP = { Alta: 'Próxima parada sí o sí.', Media: 'Puede esperar una parada más.', Baja: 'Puede esperar más de 2 paradas.' };
   var PRIO_COLOR = { Alta: '#B8402A', Media: '#C77D11', Baja: '#5E6B5A' };
   function pintarPrioridad(){
     var sel = $('prioridad').value;
+    var PRIO_AYUDA = (typeof condSel !== 'undefined' && condSel === 'Parada planificada') ? PRIO_AYUDA_PP : PRIO_AYUDA_STD;
     $('prisel').innerHTML = PRIORIDADES.map(function(p){
       var on = p === sel;
       return '<div class="op'+(on?' sel':'')+'" data-p="'+p+'" style="'+(on?'border-color:'+PRIO_COLOR[p]+';background:#FBFCF8':'')+'"><div class="t" style="color:'+PRIO_COLOR[p]+'">'+p+'</div><div class="a">'+PRIO_AYUDA[p]+'</div></div>';
@@ -258,14 +260,16 @@
   function pintarCondicion(){
     $('condsel').innerHTML = Object.keys(CONDICIONES).map(function(k){
       var c = CONDICIONES[k], sel = (k === condSel);
-      var titulo = k === 'A definir' ? '? No sé' : c.icono + ' ' + (k === 'Maquina en marcha' ? 'Sí, en marcha' : 'No, requiere parada');
+      var titulo = k === 'A definir' ? '? No sé' : c.icono + ' ' + (k === 'Maquina en marcha' ? 'Sí, en marcha' : k === 'Parada planificada' ? 'Para parada planificada' : 'No, requiere parada');
       return '<div class="op'+(sel?' sel':'')+'" data-c="'+k+'" style="'+(sel?'border-color:'+c.color+';background:'+c.soft:'')+'">'+
         '<div class="t" style="color:'+c.color+'">'+titulo+'</div><div class="a">'+c.ayuda+'</div></div>';
     }).join('');
     document.querySelectorAll('#condsel .op').forEach(function(el){ el.addEventListener('click', function(){ condSel = el.getAttribute('data-c'); pintarCondicion(); actualizar(); }); });
     // la prioridad se define dentro de su grupo: entre las de marcha, entre las de parada
     $('prioTit').textContent = condSel === 'Maquina en marcha' ? '¿Qué prioridad tiene entre las de máquina en marcha?' :
-      condSel === 'Maquina parada' ? '¿Qué prioridad tiene entre las de máquina parada?' : '¿Qué prioridad tiene?';
+      condSel === 'Maquina parada' ? '¿Qué prioridad tiene entre las de máquina parada?' :
+      condSel === 'Parada planificada' ? '¿Qué prioridad tiene entre las de parada planificada?' : '¿Qué prioridad tiene?';
+    pintarPrioridad();
     $('prioAyuda').textContent = condSel === 'A definir' ? 'Si sabés si es con máquina en marcha o parada, marcalo arriba: la prioridad se ordena dentro de cada grupo.' : '';
   }
 

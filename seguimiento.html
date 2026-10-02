@@ -325,7 +325,7 @@
     }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
   }
 
-  var ORD_COND = { 'Maquina en marcha': 0, 'Maquina parada': 1, 'A definir': 2 }, ORD_PRIO = { Alta: 0, Media: 1, Baja: 2 };
+  var ORD_COND = { 'Maquina en marcha': 0, 'Maquina parada': 1, 'Parada planificada': 2, 'A definir': 3 }, ORD_PRIO = { Alta: 0, Media: 1, Baja: 2 };
   function ordenar(a, b){
     var o = $('fOrden').value, fecha = String(b['Fecha alta']).localeCompare(String(a['Fecha alta']));
     if (o === 'condprio') return (ORD_COND[condicionDe(a)] - ORD_COND[condicionDe(b)]) || ((ORD_PRIO[a['Prioridad']] ?? 1) - (ORD_PRIO[b['Prioridad']] ?? 1)) || (puntaje(b).total - puntaje(a).total) || fecha;
@@ -764,9 +764,9 @@
     var asign, sin;
     if (parada) {
       asign = todasAb.filter(function(t){ return t['Parada objetivo']===parada.fecha; });
-      sin = todasAb.filter(function(t){ return condicionDe(t)==='Maquina parada' && !t['Parada objetivo']; });
+      sin = todasAb.filter(function(t){ return esCondParada(condicionDe(t)) && !t['Parada objetivo']; });
     } else {
-      asign = base.filter(function(t){ return condicionDe(t)==='Maquina parada'; }); sin = [];
+      asign = base.filter(function(t){ return esCondParada(condicionDe(t)); }); sin = [];
     }
     var sinDef = todasAb.filter(function(t){ return condicionDe(t)==='A definir'; }).length;
     if(!asign.length && !sin.length){ msg('No hay tarjetas abiertas para el plan de parada con los filtros actuales.', false); return; }

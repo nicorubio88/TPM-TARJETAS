@@ -8,6 +8,13 @@ No crear una implementación nueva (cambia la URL y habría que tocar `config.js
 Para comprobarlo: abrir `seguimiento.html`; si el backend está viejo, todas las pantallas muestran una franja roja avisándolo y
 las tarjetas nuevas guardan Condición, Prioridad, Área responsable y Cliente ID.
 
+## Novedades v12
+
+- 4° casillero en el paso 8: **📅 Para parada planificada**. Prioridad dentro de ese grupo:
+  **Alta** = próxima parada sí o sí · **Media** = puede esperar una parada más · **Baja** = puede esperar más de 2 paradas.
+  Entra al plan de parada igual que "requiere parada"; tiene su filtro en Seguimiento y su tarjeta en el Dashboard.
+- Requiere publicar **Nueva versión** del Apps Script (si no, la franja roja lo avisa y la condición se guarda como "A definir").
+
 ## Novedades v11
 
 - Lugares nuevos: Alistamiento → **Zona Cortadora** y **Depósito**; área **Laboratorio** (Laboratorio de Calidad, Equipos de ensayo).

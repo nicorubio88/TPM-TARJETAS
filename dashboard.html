@@ -137,7 +137,7 @@
   <div class="bloque">
     <h2><span class="nro">8</span>Planificación</h2>
     <p class="sub">Qué se puede resolver con la máquina en marcha y qué hay que llevar a la parada. <a href="planificacion.html"><b>Ir a Planificación →</b></a></p>
-    <div class="grid cols-3" id="porCondicion"></div>
+    <div class="grid cols-4" id="porCondicion"></div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="card"><b>Colgadas por área que resuelve</b><div id="porAreaResp" style="margin-top:8px"></div></div>
       <div class="card"><b>Carga por responsable</b><p class="mini" style="margin:2px 0 6px">Tarjetas colgadas a nombre de cada uno: muestra si el reparto es parejo.</p><div id="porResp"></div></div>
@@ -321,7 +321,7 @@
     var abiertasCal = ts.filter(function(t){ return esAbierta(t) && grupoCategoria(t['Categoria']).indexOf('5 ')===0; }).length;
     var pil = [
       ['Mantenimiento Autónomo', '#2D6CB5', k.pilares.maAzules, 'azules resueltas por operación', 'Autonomía ' + k.autonomia + '% · ' + ETAPAS_MA.map(function(e){ return (k.porEtapa[e]||0) + ' ' + e.split(' · ')[0].replace('Paso ','P'); }).join(' · ')],
-      ['Mantenimiento Planificado', '#C0392B', k.porColor.Roja.ab, 'rojas colgadas', k.pilares.mpDerivadas + ' cierres pasaron al preventivo · ' + k.porCondicion['Maquina parada'].h.toFixed(0) + ' HH para parada'],
+      ['Mantenimiento Planificado', '#C0392B', k.porColor.Roja.ab, 'rojas colgadas', k.pilares.mpDerivadas + ' cierres pasaron al preventivo · ' + (k.porCondicion['Maquina parada'].h + k.porCondicion['Parada planificada'].h).toFixed(0) + ' HH para parada'],
       ['Calidad', '#8A5A0A', k.pilares.calidad, 'tarjetas de defecto de calidad', abiertasCal + ' colgadas'],
       ['Mejora Enfocada', '#4E9A2F', k.pilares.verdes, 'verdes (mejoras)', 'Ahorro estimado USD ' + Math.round(k.pilares.ahorroUSD).toLocaleString('es-AR') + ' · ' + cand.length + ' candidatos Kaizen'],
       ['Estandarización', '#548235', k.pilares.estandares, 'cierres que actualizan estándar / LUP', 'Paso 3 del Autónomo'],
