@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 13; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 14; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -82,7 +82,9 @@ const HEADERS = [
   // v5 — control de duplicados de la cola sin conexion
   'Cliente ID',
   // v6 — area que resuelve y datos reales del cierre
-  'Area responsable', 'Horas reales', 'Personas reales'
+  'Area responsable', 'Horas reales', 'Personas reales',
+  // v13 — integracion EAM: ultimo estado de la OT y cuando cambio algo desde el EAM
+  'Estado EAM', 'Actualizado EAM'
 ];
 const COLS_FECHAHORA = ['Fecha alta', 'Fecha cierre', 'Fecha verificacion'];
 const COLS_FECHA = ['Fecha compromiso', 'Parada objetivo', 'Fecha planificada'];
@@ -1011,6 +1013,7 @@ function sincronizarEAM_(origen) {
       var ot = g(r, 'ot'), estEAM = g(r, 'est'), estN = estEAM.toLowerCase(), estado = String(val('Estado') || '');
       var abierta = ESTADOS_ABIERTOS.indexOf(estado) > -1 || estado === '';
       poner('N OT', ot);
+      poner('Estado EAM', estEAM || '(sin estado)');
 
       if (EAM_ESTADOS_CERRADOS.indexOf(estN) > -1) {
         if (estado === 'Verificada' || estado === 'Anulada') { /* ya cerrada: solo el N OT */ }
@@ -1055,7 +1058,9 @@ function sincronizarEAM_(origen) {
 
       var cols = Object.keys(v);
       if (!cols.length) return;
+      v['Actualizado EAM'] = ahora_();
       cols.forEach(function (c) { fila[col(c)] = v[c]; });
+      fila[col('Actualizado EAM')] = v['Actualizado EAM'];
       sh.getRange(i + 2, 1, 1, HEADERS.length).setValues([fila]);
       var accLog = v['Estado'] === 'Verificada' ? 'Cierre EAM' : 'EAM';
       cols.forEach(function (c) { if (c !== 'Notas') log_(id, accLog, c, antes[c], v[c], quien + (ot ? ' · OT ' + ot : '')); });

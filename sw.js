@@ -2,7 +2,7 @@
    HTML/JS/CSS se sirven de la red cuando hay conexion (siempre la version nueva)
    y del cache cuando no hay. Las llamadas al Apps Script (POST) no se tocan:
    las tarjetas cargadas sin señal quedan en la cola de comun.js. */
-const CACHE = 'tpm-v14';
+const CACHE = 'tpm-v15';
 const ARCHIVOS = ['./', 'index.html', 'formulario.html', 'mis-tarjetas.html', 'seguimiento.html', 'dashboard.html',
   'como-funciona.html', 'guias.html', 'tv.html', 'qr.html', 'config.html', 'estilos.css', 'comun.js', 'personas.js',
   'arbol.js', 'qrcode.js', 'planificador.js', 'planificacion.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];

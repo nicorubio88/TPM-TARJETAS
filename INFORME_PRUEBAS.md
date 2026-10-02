@@ -1,5 +1,9 @@
 # Informe de pruebas · Tarjetas TPM v11
 
+## v14 · 02/10/2026 · planificadas y estado EAM
+
+EAM backend 33/33 · EAM pantalla 24/24 (filtros planificadas, sin planificar, EAM, desfasadas; etiquetas; planificador excluye las del EAM) · Backend 111/111 · Frontend 207/207 · v10 21/21 · v11 19/19 · v12 19/19.
+
 ## v13 · 02/10/2026 · integración EAM
 
 EAM backend 31/31 (cierre, planificado, ya resuelta a mano, OT sin tarjeta, idempotencia, separador ; y comillas,

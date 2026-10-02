@@ -33,9 +33,13 @@ ok(t[B].Estado==='En proceso' && t[B]['Responsable asignado']==='Marconi, Jorge'
 ok(t[B]['Fecha planificada']==='2026-10-05' && +t[B]['Horas estimadas']===6 && +t[B]['Personas necesarias']===2 && String(t[B]['N OT'])==='159459','B fecha, horas, personas, OT');
 ok(t[C].Estado==='Verificada' && t[C]['Accion de cierre']==='Se limpio a mano' && t[C].Causa==='Otra','C (resuelta a mano) se verifica sin pisar el cierre');
 ok(t[D].Estado==='Abierta' && String(t[D]['N OT'])==='159463' && !t[D]['Fecha planificada'],'D listo para planificar: solo N OT');
+ok(t[B]['Estado EAM']==='Planificado' && t[D]['Estado EAM']==='Listo para planificar' && t[A]['Estado EAM']==='Terminado','guarda el estado de la OT en el EAM');
+ok(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(t[B]['Actualizado EAM']),'marca cuándo actualizó el EAM');
 let h=E.call({action:'historial',id:A}).historial;
 ok(h.some(x=>x.Accion==='Cierre EAM' && x.Campo==='Estado' && x.Despues==='Verificada' && /EAM · OT 159460/.test(x.Usuario)),'historial registra cierre EAM');
 const nHist=E.SHEETS.Historial.getLastRow();
+// cambio de estado en el EAM (Planificado -> En ejecucion) se registra
+
 r=E.call({action:'sincronizarEAM'});
 ok(r.ok && r.cerradas===0 && r.actualizadas===0 && E.SHEETS.Historial.getLastRow()===nHist,'segunda lectura no cambia nada (idempotente)');
 // trigger (sin web app)

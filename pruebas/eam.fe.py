@@ -15,7 +15,7 @@ async def main():
     pg=await ctx.new_page(); errs=[]; pg.on('pageerror', lambda e: errs.append(str(e)))
     await pg.goto(B+'seguimiento.html'); await pg.wait_for_timeout(2200)
     ok(await pg.is_visible('#eamBar'),'barra EAM visible')
-    ok('todavía no se sincronizó' in await pg.inner_text('#eamTxt'),'texto sin sincronizar')
+    _b=await pg.inner_text('#eamTxt'); ok('todavía no se sincronizó' in _b or 'falló' in _b,'texto de estado EAM')
     ok(await pg.locator('#fEstado option[value="_causaEAM"]').count()==1,'filtro causa a completar')
     id=await pg.evaluate("(()=>{var t=TODAS.find(x=>x.Estado==='Verificada'); t.Causa=CAUSA_EAM_PENDIENTE; t['Verificado por']='EAM · OT 159460'; render(); return t.ID})()")
     await pg.select_option('#fEstado','_causaEAM'); await pg.wait_for_timeout(200)
@@ -42,6 +42,39 @@ async def main():
     ok(not await pg.is_visible('#secCausa'),'bloque oculto en tarjetas normales')
     await pg.click('#mCerrarX')
     await pg.screenshot(path='/tmp/claude-0/eam_bar.png', clip={'x':0,'y':0,'width':1350,'height':330})
+    # ---- planificadas / EAM
+    await pg.select_option('#fEstado','_abiertas'); await pg.wait_for_timeout(150)
+    ab=await pg.evaluate("TODAS.filter(esAbierta).map(t=>t.ID)")
+    await pg.evaluate("""(()=>{var a=TODAS.filter(esAbierta); a.forEach(t=>{t['Fecha planificada']='';t['Parada objetivo']='';t['Estado EAM']='';});
+      a[0]['Estado EAM']='Planificado'; a[0]['N OT']='159459'; a[0]['Fecha planificada']='2026-10-05';
+      a[1]['Estado EAM']='Listo para planificar'; a[1]['N OT']='159461';
+      a[2]['Fecha planificada']='2026-10-07';
+      var r=TODAS.find(t=>t.Estado==='Cerrada'); r['Estado EAM']='Listo para planificar'; r['N OT']='9';
+      window.__ids=[a[0].ID,a[1].ID,a[2].ID,r.ID]; render(); })()""")
+    i0,i1,i2,ir=await pg.evaluate("window.__ids")
+    await pg.select_option('#fEstado','_planEAM'); await pg.wait_for_timeout(150)
+    ok(await pg.evaluate('filtradas().map(t=>t.ID)')==[i0],'filtro planificadas en EAM')
+    await pg.select_option('#fEstado','_vincEAM'); await pg.wait_for_timeout(150)
+    ok(set(await pg.evaluate('filtradas().map(t=>t.ID)'))=={i0,i1},'filtro abiertas con OT en EAM')
+    await pg.select_option('#fEstado','_plan'); await pg.wait_for_timeout(150)
+    ok(set(await pg.evaluate('filtradas().map(t=>t.ID)'))=={i0,i2},'filtro planificadas (EAM o propias)')
+    await pg.select_option('#fEstado','_sinplan'); await pg.wait_for_timeout(150)
+    f=await pg.evaluate('filtradas().map(t=>t.ID)'); ok(i0 not in f and i2 not in f and i1 in f and len(f)==len(ab)-2,'filtro sin planificar')
+    await pg.select_option('#fEstado','_desfEAM'); await pg.wait_for_timeout(150)
+    ok(await pg.evaluate('filtradas().map(t=>t.ID)')==[ir],'filtro desfasadas')
+    await pg.select_option('#fEstado','_plan'); await pg.wait_for_timeout(150)
+    txt=await pg.inner_text('#tbody')
+    ok('EAM · Planificado' in txt and '📅 05/10' in txt,'tabla muestra estado EAM y fecha planificada')
+    await pg.evaluate("abrir('%s')"%i0); await pg.wait_for_timeout(200)
+    ok('EAM · Planificado' in await pg.inner_text('#mDetalle') and '159459' in await pg.inner_text('#mDetalle'),'detalle muestra la OT y su estado en EAM')
+    await pg.click('#mCerrarX'); await pg.evaluate("abrir('%s')"%ir); await pg.wait_for_timeout(200)
+    ok('sigue abierta en el EAM' in await pg.inner_text('#mDetalle'),'detalle avisa desfasada'); await pg.click('#mCerrarX')
+    await pg.evaluate("estadoEAM()"); await pg.wait_for_timeout(600)
+    b=await pg.inner_text('#eamTxt'); ok('1 planificadas en EAM' in b and '2 abiertas con OT' in b and '1 desfasadas' in b,'franja con planificadas/vinculadas/desfasadas: '+b[-160:])
+    await pg.add_script_tag(url=B+'planificador.js')
+    ok(await pg.evaluate("_tarjetasPlanificables(TODAS,{}).every(t=>!planificadaEAM(t)) && _tarjetasPlanificables(TODAS,{}).some(t=>t.ID==='%s')"%i1),'el planificador no re-planifica las del EAM')
+    await pg.select_option('#fEstado','_plan'); await pg.wait_for_timeout(150)
+    await pg.screenshot(path='/tmp/claude-0/eam_plan.png', full_page=False)
     ok(not errs,'sin errores JS '+str(errs[:2]))
     await br.close()
   print('EAM-FE: %d OK, %d FALLAS'%(res['ok'],len(res['fail']))); [print('  ✖',f) for f in res['fail']]

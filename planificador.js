@@ -52,6 +52,8 @@ function paradaVencida(t) { const p = String(t['Parada objetivo'] || '').slice(0
 function _tarjetasPlanificables(ts, opts) {
   return ts.filter(function (t) {
     if (!esAbierta(t)) return false;
+    // las ya programadas en el EAM las planifica el EAM (manda en fecha y responsable)
+    if (!opts.incluirEAM && typeof planificadaEAM === 'function' && planificadaEAM(t)) return false;
     if (t['Tipo'] === 'Verde' && !opts.incluirVerdes) return false;
     if (opts.area && t['Area equipo'] !== opts.area) return false;
     if (opts.areaResp && areaRespDe(t) !== opts.areaResp) return false;

@@ -83,6 +83,22 @@ const CONDICIONES = {
 const ESPECIALIDADES = ['Mecanica', 'Electrica', 'Instrumentacion', 'Lubricacion', 'Operacion', 'Contratista'];
 const LOTO_OPCIONES = ['No requiere', 'LOTO (bloqueo de energia)', 'Permiso trabajo en caliente', 'Permiso trabajo en altura', 'Permiso espacio confinado', 'LOTO + permiso'];
 const CAUSA_EAM_PENDIENTE = 'A completar (cerrada desde EAM)';   // igual que en Codigo.gs
+const EAM_SIN_PROGRAMA = ['', '(sin estado)', 'listo para planificar', 'pendiente', 'solicitado', 'abierto'];
+const EAM_CERRADOS = ['terminado', 'cerrado', 'cerrada', 'finalizado', 'completado'];
+function estadoEAMDe(t) { return String(t['Estado EAM'] || '').trim(); }
+function vinculadaEAM(t) { return !!estadoEAMDe(t); }
+function planificadaEAM(t) { const e = estadoEAMDe(t).toLowerCase(); return !!e && EAM_SIN_PROGRAMA.indexOf(e) === -1 && EAM_CERRADOS.indexOf(e) === -1; }
+// planificada: abierta con fecha, parada asignada o programada en el EAM
+function esPlanificada(t) { return esAbierta(t) && !!(t['Fecha planificada'] || t['Parada objetivo'] || planificadaEAM(t)); }
+// resuelta en tarjetas pero la OT sigue abierta en el EAM (doble carga desfasada)
+function desfasadaEAM(t) { const e = estadoEAMDe(t).toLowerCase(); return !!e && e !== '(sin estado)' && !esAbierta(t) && t['Estado'] !== 'Anulada' && EAM_CERRADOS.indexOf(e) === -1; }
+function badgeEAM(t) {
+  const e = estadoEAMDe(t) || (esCerradaEAM(t) ? 'Terminado' : '');
+  if (!e) return '';
+  const cerr = EAM_CERRADOS.indexOf(e.toLowerCase()) > -1, des = desfasadaEAM(t);
+  const st = des ? 'background:#FDECD8;color:#8A4B0A' : cerr ? 'background:#E3ECF7;color:#1F5FA8' : planificadaEAM(t) ? 'background:#E3F1E1;color:#2E6B2E' : 'background:#EEF0EC;color:#5A6055';
+  return '<span class="cond" style="' + st + '" title="OT ' + esc(t['N OT'] || '') + ' en el EAM' + (t['Actualizado EAM'] ? ' · actualizada ' + esc(t['Actualizado EAM']) : '') + '">' + (des ? '⚠ ' : '🔗 ') + 'EAM · ' + esc(e) + '</span>';
+}
 function esCerradaEAM(t) { return /^EAM/.test(String(t['Verificado por'] || '')); }
 // cerrada por el EAM sin causa real (el EAM no la exporta): hay que completarla
 function causaPendienteEAM(t) { const c = String(t['Causa'] || '').trim(); return c === CAUSA_EAM_PENDIENTE || (esCerradaEAM(t) && !c); }
@@ -951,7 +967,7 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ---------- Aviso si el Apps Script publicado es viejo ----------
    Pegar el código y guardar no alcanza: hay que publicar "Nueva versión" de la implementación.
    Si el backend no responde la versión esperada, se avisa arriba de la página (una vez por sesión). */
-const VERSION_BACKEND_MIN = 13;
+const VERSION_BACKEND_MIN = 14;
 async function verificarBackend() {
   try {
     if (!CONFIG.API_URL || sessionStorage.getItem('tpm_backend_ok') === '1') return;

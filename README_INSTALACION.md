@@ -8,6 +8,15 @@ No crear una implementación nueva (cambia la URL y habría que tocar `config.js
 Para comprobarlo: abrir `seguimiento.html`; si el backend está viejo, todas las pantallas muestran una franja roja avisándolo y
 las tarjetas nuevas guardan Condición, Prioridad, Área responsable y Cliente ID.
 
+## Novedades v14 · Planificadas y estado del EAM
+
+- Cada tarjeta guarda el **Estado EAM** de su OT y cuándo llegó el último dato (columnas nuevas, se crean solas).
+- Seguimiento → Estado: **📅 Planificadas** (fecha, parada o EAM), **⏳ Sin planificar**, **🔗 Planificadas en EAM**,
+  **🔗 Abiertas con OT en EAM**, **🔗 Cerradas por EAM**, **causa a completar** y **⚠ Resueltas acá, OT abierta en EAM**.
+- La tabla muestra la etiqueta "🔗 EAM · estado" y la fecha planificada; la tarjeta abierta muestra la OT y su estado.
+- El planificador automático deja afuera las tarjetas ya programadas en el EAM (ahí manda el EAM).
+- Requiere publicar **Nueva versión** del Apps Script (no hace falta volver a correr instalarDisparadorEAM).
+
 ## Novedades v13 · Integración con el EAM
 
 El EAM exporta `ot_cerradas_tarjetas.csv` a Drive (siempre el mismo archivo, se pisa). Cada 15 minutos el Apps Script lo lee
