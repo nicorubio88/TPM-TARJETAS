@@ -46,7 +46,7 @@
   <div class="card">
     <div class="filtros">
       <div><label>Período</label><select id="fPeriodo"><option value="90">Últimos 90 días</option><option value="180">Últimos 6 meses</option><option value="365" selected>Últimos 12 meses</option><option value="0">Todo</option></select></div>
-      <div><label>Estado</label><select id="fEstado"><option value="_abiertas">Abiertas + en proceso</option><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="_causaEAM">Cerradas por EAM · causa a completar</option><option value="Anulada">Anuladas</option><option value="">Todas</option></select></div>
+      <div><label>Estado</label><select id="fEstado"><option value="_abiertas">Abiertas + en proceso</option><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="_EAM">🔗 Cerradas por EAM</option><option value="_causaEAM">🔗 Cerradas por EAM · causa a completar</option><option value="Anulada">Anuladas</option><option value="">Todas</option></select></div>
       <div><label>Color</label><select id="fColor"><option value="">Todos</option><option>Roja</option><option>Azul</option><option>Verde</option></select></div>
       <div><label>Condición máquina</label><select id="fCond"></select></div>
       <div><label>Área equipo</label><select id="fArea"></select></div>
@@ -342,10 +342,11 @@
   function textoEAM(u){
     if(!u) return '🔗 EAM: todavía no se sincronizó. Corré instalarDisparadorEAM() una vez en Apps Script.';
     if(!u.ok) return '⚠ EAM: falló la última lectura ('+esc(u.fecha||'')+'): '+esc(u.error||'');
-    var pend = TODAS.filter(function(t){ return t['Causa']===CAUSA_EAM_PENDIENTE; }).length;
+    var pend = TODAS.filter(causaPendienteEAM).length, tot = TODAS.filter(esCerradaEAM).length;
     return '🔗 EAM · última lectura '+esc(u.fecha)+' ('+esc(u.origen||'')+'): '+u.leidas+' OT, '+u.cruzadas+' con tarjeta, <b>'+u.cerradas+' cerradas</b>, '+u.actualizadas+' actualizadas'+
       (u.sinTarjeta && u.sinTarjeta.length ? ' · <span title="'+esc(u.sinTarjeta.join(', '))+'">'+u.sinTarjeta.length+' sin tarjeta</span>' : '')+
       (u.errores && u.errores.length ? ' · <span style="color:#B3261E" title="'+esc(u.errores.join(' | '))+'">'+u.errores.length+' con error</span>' : '')+
+      (tot ? ' · <a href="#" id="eamTot">'+tot+' cerradas por EAM en total</a>' : '')+
       (pend ? ' · <a href="#" id="eamPend">'+pend+' con causa a completar</a>' : '');
   }
   async function estadoEAM(){
@@ -353,7 +354,7 @@
       var r = await api('estadoEAM');
       if(!r || !r.ok) return;   // backend viejo: no se muestra
       $('eamBar').style.display = 'flex'; $('eamTxt').innerHTML = textoEAM(r.ultima);
-      var a = $('eamPend'); if(a) a.addEventListener('click', function(ev){ ev.preventDefault(); $('fEstado').value='_causaEAM'; render(); });
+      [['eamPend','_causaEAM'],['eamTot','_EAM']].forEach(function(x){ var a = $(x[0]); if(a) a.addEventListener('click', function(ev){ ev.preventDefault(); $('fEstado').value=x[1]; $('fID').value=''; render(); }); });
     }catch(e){}
   }
   $('eamSync').addEventListener('click', async function(){
@@ -390,7 +391,7 @@
     var dp = +v('fPeriodo'), lim = dp ? desdeISO(dp) : '';
     return TODAS.filter(function(t){
       if(lim && !esAbierta(t) && t['Estado']!=='Cerrada' && String(t['Fecha alta']).slice(0,10) < lim && String(t['Fecha cierre']||'').slice(0,10) < lim) return false;
-      if(e==='_abiertas' ? !esAbierta(t) : e==='_causaEAM' ? t['Causa']!==CAUSA_EAM_PENDIENTE : (e && t['Estado']!==e)) return false;
+      if(e==='_abiertas' ? !esAbierta(t) : e==='_EAM' ? !esCerradaEAM(t) : e==='_causaEAM' ? !causaPendienteEAM(t) : (e && t['Estado']!==e)) return false;
       if(c && t['Tipo']!==c) return false;
       if(fid && String(t['ID']).toUpperCase().indexOf(fid)===-1) return false;
       if(fsec && (t['Sector detector'] || sectorDe(t['Detectado por'])) !== fsec) return false;
@@ -442,7 +443,7 @@
           (t['Horas estimadas']?'<br><span class="mini">'+esc(t['Horas estimadas'])+' h × '+esc(t['Personas necesarias']||1)+'</span>':'')+'</td>'+
         '<td class="mini">'+(t['Parada objetivo']?'■ '+esc(String(t['Parada objetivo']).split('-').reverse().join('/')):(t['Fecha planificada']?'▶ '+esc(String(t['Fecha planificada']).slice(0,10).split('-').reverse().join('/')):'—'))+(t['Horario planificado']?'<br>'+esc(t['Horario planificado']):'')+'</td>'+
         '<td style="text-align:center">'+(t.diasAbierta===''?'—':t.diasAbierta)+'</td>'+
-        '<td>'+badgeEstado(t['Estado'], t.vencida)+'</td></tr>';
+        '<td>'+badgeEstado(t['Estado'], t.vencida)+(esCerradaEAM(t)?' <span class="cond" title="Cerrada automáticamente desde el EAM" style="background:#E3ECF7;color:#1F5FA8">🔗 EAM</span>':'')+'</td></tr>';
     }).join('');
     $('conteo').textContent = f.length + ' tarjetas';
     document.querySelectorAll('#tbody tr').forEach(function(tr){
@@ -509,7 +510,7 @@
       (t['Notas']?'<div class="kv" style="white-space:pre-line"><b>Notas:</b> '+esc(t['Notas'])+'</div>':'')+
       '<div class="fotos">'+foto(t['Foto URL'],'Antes')+foto(t['Foto cierre URL'],'Después')+'</div>';
 
-    $('secCausa').style.display = t['Causa'] === CAUSA_EAM_PENDIENTE ? 'block' : 'none';
+    $('secCausa').style.display = causaPendienteEAM(t) ? 'block' : 'none';
     $('secVerificar').style.display = est === 'Cerrada' ? 'block' : 'none';
     $('secResolver').style.display = esAbierta(t) ? 'block' : 'none';
     $('secGestion').style.display = (est === 'Verificada') ? 'none' : 'block';

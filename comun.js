@@ -83,6 +83,9 @@ const CONDICIONES = {
 const ESPECIALIDADES = ['Mecanica', 'Electrica', 'Instrumentacion', 'Lubricacion', 'Operacion', 'Contratista'];
 const LOTO_OPCIONES = ['No requiere', 'LOTO (bloqueo de energia)', 'Permiso trabajo en caliente', 'Permiso trabajo en altura', 'Permiso espacio confinado', 'LOTO + permiso'];
 const CAUSA_EAM_PENDIENTE = 'A completar (cerrada desde EAM)';   // igual que en Codigo.gs
+function esCerradaEAM(t) { return /^EAM/.test(String(t['Verificado por'] || '')); }
+// cerrada por el EAM sin causa real (el EAM no la exporta): hay que completarla
+function causaPendienteEAM(t) { const c = String(t['Causa'] || '').trim(); return c === CAUSA_EAM_PENDIENTE || (esCerradaEAM(t) && !c); }
 const CAUSAS = ['Falta de limpieza / inspeccion', 'Falta de lubricacion', 'Desgaste natural', 'Operacion incorrecta', 'Falla de diseño / instalacion', 'Montaje / reparacion anterior deficiente', 'Condicion ambiental (polvo, humedad, temperatura)', 'Repuesto / material fuera de especificacion', 'Otra'];
 const DIMENSIONES_MEJORA = ['Seguridad', 'Calidad', 'Productividad', 'Costo', 'Ergonomia', 'Medio Ambiente', 'Facilidad de operacion / limpieza'];
 
