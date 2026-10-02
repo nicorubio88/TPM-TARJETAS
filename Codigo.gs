@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 14; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 15; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -53,6 +53,13 @@ const EAM_ESTADOS_CERRADOS = ['terminado', 'cerrado', 'cerrada', 'finalizado', '
 const EAM_ESTADOS_SIN_PROGRAMA = ['listo para planificar', 'pendiente', 'solicitado', 'abierto', ''];
 const CAUSA_EAM_PENDIENTE = 'A completar (cerrada desde EAM)';
 const EAM_MINUTOS = 15;
+
+// Copia de seguridad diaria de la planilla (carpeta "Backups Tarjetas TPM" en el Drive del dueño del script).
+// Se guardan las copias de los ultimos BACKUP_DIAS dias + una por mes (la ultima de cada mes) durante BACKUP_MESES meses.
+const BACKUP_HORA = 3;          // 3 a.m. (hora de Argentina)
+const BACKUP_DIAS = 30;
+const BACKUP_MESES = 12;
+const BACKUP_CARPETA = 'Backups Tarjetas TPM';
 
 /* ============================ ESTRUCTURA ============================ */
 
@@ -106,7 +113,7 @@ var _EN_WEBAPP = false;
 function doGet(e)  { _EN_WEBAPP = true; return handle_(e); }
 function doPost(e) { _EN_WEBAPP = true; return handle_(e); }
 
-const ACCIONES_ESCRITURA = ['sincronizarEAM', 'completarCausa', 'guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
+const ACCIONES_ESCRITURA = ['backupAhora', 'sincronizarEAM', 'completarCausa', 'guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
 
 function handle_(e) {
   var req = {};
@@ -143,6 +150,7 @@ function handle_(e) {
       case 'derivarEHS':      out = derivarEHSManual_(req.id, usuario); break;
       case 'sincronizarEAM':  out = sincronizarEAMSeguro_(usuario || 'manual'); break;
       case 'estadoEAM':       out = estadoEAM_(); break;
+      case 'backupAhora':     out = backup_(usuario || 'manual'); break;
       case 'completarCausa':  out = completarCausa_(req, usuario); break;
       case 'historialEstimacion': out = { ok: true, filas: historialEstimacion_() }; break;
       default:                out = { ok: false, error: 'Accion desconocida: ' + action };
@@ -906,8 +914,9 @@ function instalarDisparadorEAM() {
 }
 
 function estadoEAM_() {
-  var p = PropertiesService.getScriptProperties().getProperty('EAM_ULTIMA');
-  return { ok: true, ultima: p ? JSON.parse(p) : null, cada: EAM_MINUTOS };
+  var props = PropertiesService.getScriptProperties();
+  var p = props.getProperty('EAM_ULTIMA'), b = props.getProperty('BACKUP_ULTIMO');
+  return { ok: true, ultima: p ? JSON.parse(p) : null, cada: EAM_MINUTOS, backup: b ? JSON.parse(b) : null };
 }
 
 function eamNorm_(s) {
@@ -1128,4 +1137,90 @@ function completarCausa_(req, usuario) {
   escribir_(req.id, v);
   Object.keys(v).forEach(function (c) { log_(req.id, 'Correccion', c, t[c], v[c], quien); });
   return { ok: true, id: req.id };
+}
+
+
+/* ============================ BACKUP DIARIO ============================ */
+
+// Para el disparador diario.
+function backupDiario() {
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(60000); } catch (e) { return { ok: false, error: 'ocupado' }; }
+  try { return backup_('automatico'); }
+  finally { flushLog_(); try { lock.releaseLock(); } catch (e2) {} }
+}
+
+// Correr UNA VEZ desde el editor: deja programados el backup diario y la lectura del EAM, y hace un primer backup.
+function instalarDisparadores() {
+  var quedan = { backupDiario: true, sincronizarEAM: true };
+  ScriptApp.getProjectTriggers().forEach(function (tr) {
+    if (quedan[tr.getHandlerFunction()]) ScriptApp.deleteTrigger(tr);
+  });
+  ScriptApp.newTrigger('backupDiario').timeBased().everyDays(1).atHour(BACKUP_HORA).inTimezone(TZ).create();
+  ScriptApp.newTrigger('sincronizarEAM').timeBased().everyMinutes(EAM_MINUTOS).create();
+  return { backup: backupDiario(), eam: sincronizarEAM() };
+}
+
+function carpetaBackup_() {
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty('BACKUP_FOLDER_ID');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
+  var it = DriveApp.getFoldersByName(BACKUP_CARPETA);
+  var f = it.hasNext() ? it.next() : DriveApp.createFolder(BACKUP_CARPETA);
+  props.setProperty('BACKUP_FOLDER_ID', f.getId());
+  return f;
+}
+
+// Copia todas las hojas (valores y formato, sin el script) a una planilla nueva en la carpeta de backups.
+function backup_(origen) {
+  var props = PropertiesService.getScriptProperties();
+  try {
+    var ss = ss_(), hoy = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+    var carpeta = carpetaBackup_();
+    var nombre = 'Tarjetas TPM · backup ' + hoy + (origen === 'automatico' ? '' : ' ' + Utilities.formatDate(new Date(), TZ, 'HH-mm'));
+    var dest = SpreadsheetApp.create(nombre);
+    var hojas = ss.getSheets(), filas = 0;
+    hojas.forEach(function (sh) {
+      var c = sh.copyTo(dest);
+      c.setName(sh.getName());
+      filas += Math.max(0, sh.getLastRow() - 1);
+    });
+    var vacia = dest.getSheets().filter(function (h) { return hojas.every(function (o) { return o.getName() !== h.getName(); }); });
+    vacia.forEach(function (h) { try { dest.deleteSheet(h); } catch (e) {} });
+    var file = DriveApp.getFileById(dest.getId());
+    file.moveTo(carpeta);
+    var borrados = limpiarBackups_(carpeta);
+    var r = { ok: true, fecha: ahora_(), origen: origen, nombre: nombre, url: dest.getUrl(), hojas: hojas.length, filas: filas, borrados: borrados,
+              guardados: contarBackups_(carpeta), carpeta: carpeta.getUrl ? carpeta.getUrl() : '' };
+    props.setProperty('BACKUP_ULTIMO', JSON.stringify(r));
+    return r;
+  } catch (err) {
+    var e = { ok: false, fecha: ahora_(), origen: origen, error: String(err && err.message ? err.message : err) };
+    props.setProperty('BACKUP_ULTIMO', JSON.stringify(e));
+    return e;
+  }
+}
+
+function backupsDe_(carpeta) {
+  var out = [], it = carpeta.getFiles();
+  while (it.hasNext()) {
+    var f = it.next(), m = String(f.getName()).match(/^Tarjetas TPM · backup (\d{4}-\d{2}-\d{2})/);
+    if (m) out.push({ f: f, dia: m[1] });
+  }
+  return out.sort(function (a, b) { return b.dia.localeCompare(a.dia); });
+}
+function contarBackups_(carpeta) { return backupsDe_(carpeta).length; }
+
+// Conserva: los ultimos BACKUP_DIAS dias y, mas atras, la ultima copia de cada mes por BACKUP_MESES meses. El resto va a la papelera.
+function limpiarBackups_(carpeta) {
+  var hoy = new Date(), borrados = 0;
+  var limDia = Utilities.formatDate(new Date(hoy.getTime() - BACKUP_DIAS * 86400000), TZ, 'yyyy-MM-dd');
+  var limMes = Utilities.formatDate(new Date(hoy.getFullYear(), hoy.getMonth() - BACKUP_MESES, 1), TZ, 'yyyy-MM-dd');
+  var mesesVistos = {};
+  backupsDe_(carpeta).forEach(function (b) {
+    if (b.dia > limDia) return;
+    var mes = b.dia.slice(0, 7);
+    if (b.dia >= limMes && !mesesVistos[mes]) { mesesVistos[mes] = true; return; }   // primer backup guardado de ese mes
+    try { b.f.setTrashed(true); borrados++; } catch (e) {}
+  });
+  return borrados;
 }

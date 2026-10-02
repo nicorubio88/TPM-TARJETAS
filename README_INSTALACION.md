@@ -8,6 +8,20 @@ No crear una implementación nueva (cambia la URL y habría que tocar `config.js
 Para comprobarlo: abrir `seguimiento.html`; si el backend está viejo, todas las pantallas muestran una franja roja avisándolo y
 las tarjetas nuevas guardan Condición, Prioridad, Área responsable y Cliente ID.
 
+## Backup automático diario (v15)
+
+Todos los días a las 3 a.m. se copia la planilla completa (todas las hojas, valores y formato, sin el script) a la carpeta
+de Drive **Backups Tarjetas TPM**, con el nombre `Tarjetas TPM · backup AAAA-MM-DD`.
+Se conservan los últimos **30 días** y, más atrás, **una copia por mes durante 12 meses**; las demás van a la papelera de Drive
+(se pueden recuperar 30 días más). En Seguimiento, la franja de arriba muestra el último backup, cuántas copias hay,
+el link a la carpeta y "hacer uno ahora". Si un backup falla o tiene más de un día, se marca en rojo.
+
+**Activación (una sola vez):** pegar `Codigo.gs`, publicar *Nueva versión* y en el editor ejecutar **`instalarDisparadores`**
+(deja programados el backup diario y la lectura del EAM, y hace el primer backup). Aceptar los permisos si los pide.
+
+**Restaurar:** abrir la copia del día, copiar la hoja que se necesite (clic derecho en la pestaña → Copiar a → la planilla
+original) o copiar y pegar las filas afectadas.
+
 ## Novedades v14 · Planificadas y estado del EAM
 
 - Cada tarjeta guarda el **Estado EAM** de su OT y cuándo llegó el último dato (columnas nuevas, se crean solas).

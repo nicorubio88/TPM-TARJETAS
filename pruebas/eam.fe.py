@@ -75,6 +75,7 @@ async def main():
     ok(await pg.evaluate("_tarjetasPlanificables(TODAS,{}).every(t=>!planificadaEAM(t)) && _tarjetasPlanificables(TODAS,{}).some(t=>t.ID==='%s')"%i1),'el planificador no re-planifica las del EAM')
     await pg.select_option('#fEstado','_plan'); await pg.wait_for_timeout(150)
     await pg.screenshot(path='/tmp/claude-0/eam_plan.png', full_page=False)
+    _b=await pg.inner_text('#eamTxt'); ok('Backup' in _b,'franja muestra el estado del backup')
     ok(not errs,'sin errores JS '+str(errs[:2]))
     await br.close()
   print('EAM-FE: %d OK, %d FALLAS'%(res['ok'],len(res['fail']))); [print('  ✖',f) for f in res['fail']]
