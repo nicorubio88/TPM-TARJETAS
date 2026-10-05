@@ -54,10 +54,10 @@ const EAM_ESTADOS_SIN_PROGRAMA = ['listo para planificar', 'pendiente', 'solicit
 const CAUSA_EAM_PENDIENTE = 'A completar (cerrada desde EAM)';
 const EAM_MINUTOS = 15;
 
-// Copia de seguridad diaria de la planilla (carpeta "Backups Tarjetas TPM" en el Drive del dueño del script).
-// Se guardan las copias de los ultimos BACKUP_DIAS dias + una por mes (la ultima de cada mes) durante BACKUP_MESES meses.
+// Copia de seguridad SEMANAL de la planilla: todos los domingos a las 3 a.m. (carpeta "Backups Tarjetas TPM").
+// Se guardan las copias de los ultimos BACKUP_DIAS dias (12 domingos) + una por mes durante BACKUP_MESES meses.
 const BACKUP_HORA = 3;          // 3 a.m. (hora de Argentina)
-const BACKUP_DIAS = 30;
+const BACKUP_DIAS = 84;
 const BACKUP_MESES = 12;
 const BACKUP_CARPETA = 'Backups Tarjetas TPM';
 
@@ -1142,7 +1142,8 @@ function completarCausa_(req, usuario) {
 
 /* ============================ BACKUP DIARIO ============================ */
 
-// Para el disparador diario.
+// Para el disparador semanal (domingos). Mantiene el nombre por compatibilidad con disparadores ya creados.
+function backupSemanal() { return backupDiario(); }
 function backupDiario() {
   var lock = LockService.getScriptLock();
   try { lock.waitLock(60000); } catch (e) { return { ok: false, error: 'ocupado' }; }
@@ -1150,13 +1151,13 @@ function backupDiario() {
   finally { flushLog_(); try { lock.releaseLock(); } catch (e2) {} }
 }
 
-// Correr UNA VEZ desde el editor: deja programados el backup diario y la lectura del EAM, y hace un primer backup.
+// Correr UNA VEZ desde el editor: deja programados el backup semanal (domingos) y la lectura del EAM, y hace un primer backup.
 function instalarDisparadores() {
-  var quedan = { backupDiario: true, sincronizarEAM: true };
+  var quedan = { backupDiario: true, backupSemanal: true, sincronizarEAM: true };
   ScriptApp.getProjectTriggers().forEach(function (tr) {
     if (quedan[tr.getHandlerFunction()]) ScriptApp.deleteTrigger(tr);
   });
-  ScriptApp.newTrigger('backupDiario').timeBased().everyDays(1).atHour(BACKUP_HORA).inTimezone(TZ).create();
+  ScriptApp.newTrigger('backupSemanal').timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(BACKUP_HORA).inTimezone(TZ).create();
   ScriptApp.newTrigger('sincronizarEAM').timeBased().everyMinutes(EAM_MINUTOS).create();
   return { backup: backupDiario(), eam: sincronizarEAM() };
 }
@@ -1178,14 +1179,17 @@ function backup_(origen) {
     var carpeta = carpetaBackup_();
     var nombre = 'Tarjetas TPM · backup ' + hoy + (origen === 'automatico' ? '' : ' ' + Utilities.formatDate(new Date(), TZ, 'HH-mm'));
     var dest = SpreadsheetApp.create(nombre);
+    // la planilla nueva trae una hoja vacia ("Hoja 1"/"Sheet1"): se renombra antes de copiar para que no choque
+    // con una hoja del mismo nombre en la original, y se borra al final
+    var vacias = dest.getSheets().slice();
+    vacias.forEach(function (h, k) { h.setName('__vacia_backup_' + k); });
     var hojas = ss.getSheets(), filas = 0;
     hojas.forEach(function (sh) {
       var c = sh.copyTo(dest);
       c.setName(sh.getName());
       filas += Math.max(0, sh.getLastRow() - 1);
     });
-    var vacia = dest.getSheets().filter(function (h) { return hojas.every(function (o) { return o.getName() !== h.getName(); }); });
-    vacia.forEach(function (h) { try { dest.deleteSheet(h); } catch (e) {} });
+    vacias.forEach(function (h) { try { dest.deleteSheet(h); } catch (e) {} });
     var file = DriveApp.getFileById(dest.getId());
     file.moveTo(carpeta);
     var borrados = limpiarBackups_(carpeta);

@@ -357,10 +357,10 @@
       (desf ? ' · <a href="#" id="eamDesf" style="color:#B3261E">'+desf+' desfasadas</a>' : '');
   }
   function textoBackup(b){
-    if(!b) return '<br>💾 Backup diario: todavía no corrió. En Apps Script ejecutá instalarDisparadores() una vez.';
+    if(!b) return '<br>💾 Backup semanal (domingos): todavía no corrió. En Apps Script ejecutá instalarDisparadores() una vez.';
     if(!b.ok) return '<br><span style="color:#B3261E">💾 Falló el último backup ('+esc(b.fecha||'')+'): '+esc(b.error||'')+'</span> · <a href="#" id="bkAhora">reintentar</a>';
-    var viejo = (Date.now() - new Date(String(b.fecha).replace(' ','T')).getTime()) > 36*3600*1000;
-    return '<br>'+(viejo?'<span style="color:#B3261E">⚠ ':'')+'💾 Último backup '+esc(b.fecha)+(viejo?' (hace más de un día)</span>':'')+' · '+(+b.guardados||0)+' copias guardadas'+
+    var viejo = (Date.now() - new Date(String(b.fecha).replace(' ','T')).getTime()) > 8*86400*1000;
+    return '<br>'+(viejo?'<span style="color:#B3261E">⚠ ':'')+'💾 Último backup '+esc(b.fecha)+(viejo?' (hace más de una semana)</span>':'')+' · semanal, los domingos · '+(+b.guardados||0)+' copias guardadas'+
       (b.carpeta?' · <a href="'+esc(b.carpeta)+'" target="_blank" rel="noopener">ver carpeta</a>':'')+' · <a href="#" id="bkAhora">hacer uno ahora</a>';
   }
   async function backupAhora(ev){
