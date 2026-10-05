@@ -74,7 +74,7 @@
 
   async function cargar(){
     try {
-      var r = await api('listar', { desde: desdeISO(120) });
+      await listarRapido({ desde: desdeISO(120) }, function(r){
       if (!r.ok) return;
       var ts = marcarRepeticiones(r.tarjetas).filter(function(t){ return TODA || t['Area equipo'] === AREA; });
       var ab = ts.filter(esAbierta);
@@ -104,6 +104,7 @@
         var img = t['Foto cierre URL'] || t['Foto URL'];
         return '<div>'+(img ? '<img src="'+esc(fotoSrc(img))+'">' : '<div class="sinfoto" style="border-top:.6vh solid '+colorTipo(t['Tipo'])+'">✔</div>')+'<b>'+esc(t['Equipo']||'')+'</b><br>'+esc(String(t['Accion de cierre']).slice(0,70))+'<br>— '+esc(t['Cerrado por'])+'</div>';
       }).join('') || '<p class="mini">Sin cierres recientes.</p>';
+      }, { clave: AREA || 'todas' });
     } catch(e) { /* sin conexion: se mantiene lo ultimo mostrado */ }
   }
   if (AREA) { cargar(); setInterval(cargar, 5 * 60 * 1000); }

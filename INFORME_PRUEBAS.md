@@ -1,5 +1,13 @@
 # Informe de pruebas · Tarjetas TPM
 
+## Velocidad · 05/10/2026 (servidor v19)
+
+Medido en la app real: el servidor de Google tarda ~1,3 s por pedido + 1–3 s en armar la lista; al abrir el Dashboard
+había dos pedidos en paralelo con el servidor "en frío" (9,4 s).
+Con un servidor simulado de 2,5 s por pedido: primera entrada 2,7 s, **siguientes 0,1 s** en Dashboard, Seguimiento,
+TV y Planificación (`pruebas/rapido.fe.py`, 16/16). Caché del servidor: `pruebas/cache.test.js`, 11/11.
+Regresión completa OK (incluida la prueba de punta a punta con datos reales, 70/70).
+
 ## Validación completa · 05/10/2026 (servidor v18)
 
 **1. App real, sin escribir datos** (309 tarjetas, servidor v17 publicado):

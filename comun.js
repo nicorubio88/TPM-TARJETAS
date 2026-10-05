@@ -478,7 +478,66 @@ async function api(action, body) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ action: action, usuario: getYo() }, body || {}))
   });
-  return res.json();
+  const r = await res.json();
+  if (r && r.version !== undefined) marcarVersionBackend(r.version);   // la lista trae la version: no hace falta otro pedido
+  else if (r && ((action === 'listar' && r.ok) || (r.ok === false && /Accion desconocida/i.test(String(r.error || ''))))) marcarVersionBackend(0);   // servidor viejo
+  return r;
+}
+
+/* ---------- Lista de tarjetas al instante ----------
+   Muestra enseguida la ultima lista guardada en este dispositivo y la reemplaza cuando llega la del servidor.
+   cb(r, desdeCache) se llama 1 o 2 veces. Con opts.fresco = true va directo al servidor (despues de guardar algo). */
+const CACHE_LISTA_PREFIJO = 'tpm_lc_';
+function _pillDatos(texto, color) {
+  let p = document.getElementById('pillDatos');
+  if (!texto) { if (p) p.remove(); return; }
+  if (!p) {
+    p = document.createElement('div'); p.id = 'pillDatos';
+    p.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:50;background:#fff;border:1px solid #D9E2CF;border-radius:20px;padding:6px 12px;font:600 12px system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.12)';
+    document.body.appendChild(p);
+  }
+  p.style.color = color || '#3D5F26'; p.textContent = texto;
+}
+function _guardarCacheLista(key, r) {
+  try {
+    const txt = JSON.stringify({ t: Date.now(), r: r });
+    // no ocupar el lugar de la cola sin conexion: maximo ~2,5 MB entre todas las listas guardadas
+    const claves = Object.keys(localStorage).filter(function (k) { return k.indexOf(CACHE_LISTA_PREFIJO) === 0 && k !== key; });
+    let total = txt.length; claves.forEach(function (k) { total += (localStorage.getItem(k) || '').length; });
+    claves.sort(function (a, b) { return (JSON.parse(localStorage.getItem(a) || '{"t":0}').t || 0) - (JSON.parse(localStorage.getItem(b) || '{"t":0}').t || 0); });
+    while (total > 2500000 && claves.length) { const k = claves.shift(); total -= (localStorage.getItem(k) || '').length; localStorage.removeItem(k); }
+    localStorage.setItem(key, txt);
+  } catch (e) { /* sin espacio o modo privado: se usa solo el servidor */ }
+}
+async function listarRapido(params, cb, opts) {
+  opts = opts || {};
+  const key = CACHE_LISTA_PREFIJO + (location.pathname.split('/').pop() || 'index') + '|' + (opts.clave || '');
+  let mostrado = null;
+  if (!opts.fresco) {
+    try {
+      const c = JSON.parse(localStorage.getItem(key) || 'null');
+      if (c && c.r && c.r.ok && Date.now() - c.t < 7 * 864e5) {
+        mostrado = c.t;
+        _pillDatos('⟳ Actualizando…');
+        await cb(c.r, true);
+      }
+    } catch (e) { mostrado = null; }
+  }
+  try {
+    const r = await api('listar', params);
+    _pillDatos('');
+    if (r && r.ok) _guardarCacheLista(key, r);
+    await cb(r, false);
+    return r;
+  } catch (e) {
+    if (mostrado) {
+      const d = new Date(mostrado);
+      _pillDatos('Sin conexión · datos de ' + String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), '#B3261E');
+      return null;
+    }
+    _pillDatos('');
+    throw e;
+  }
 }
 
 function desdeISO(dias) {
@@ -967,20 +1026,34 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ---------- Aviso si el Apps Script publicado es viejo ----------
    Pegar el código y guardar no alcanza: hay que publicar "Nueva versión" de la implementación.
    Si el backend no responde la versión esperada, se avisa arriba de la página (una vez por sesión). */
-const VERSION_BACKEND_MIN = 18;
-async function verificarBackend() {
+const VERSION_BACKEND_MIN = 19;
+function marcarVersionBackend(v) {
   try {
-    if (!CONFIG.API_URL || sessionStorage.getItem('tpm_backend_ok') === '1') return;
-    const r = await api('ping');
-    if (r && r.ok && (+r.version || 0) >= VERSION_BACKEND_MIN) { sessionStorage.setItem('tpm_backend_ok', '1'); return; }
-    const d = document.createElement('div');
+    if ((+v || 0) >= VERSION_BACKEND_MIN) { sessionStorage.setItem('tpm_backend_ok', '1'); const a = document.getElementById('avisoBackend'); if (a) a.remove(); return; }
+    sessionStorage.setItem('tpm_backend_ok', '0'); mostrarAvisoBackend();
+  } catch (e) {}
+}
+function mostrarAvisoBackend() {
+  if (document.getElementById('avisoBackend') || !document.body) return;
+  const d = document.createElement('div');
     d.id = 'avisoBackend';
     d.style.cssText = 'background:#C0392B;color:#fff;padding:10px 14px;font:600 14px/1.35 system-ui,sans-serif;text-align:center';
     d.textContent = '⚠ El servidor (Apps Script) tiene una versión vieja publicada: no se guardan condición de máquina, prioridad ni área responsable. ' +
       'En Apps Script: Implementar → Administrar implementaciones → Editar → Versión: Nueva versión → Implementar.';
-    document.body.insertBefore(d, document.body.firstChild);
+  document.body.insertBefore(d, document.body.firstChild);
+}
+async function verificarBackend() {
+  try {
+    if (!CONFIG.API_URL) return;
+    const s = sessionStorage.getItem('tpm_backend_ok');
+    if (s === '1') return;
+    if (s === '0') { mostrarAvisoBackend(); return; }
+    const r = await api('ping');
+    if (!(r && r.ok)) mostrarAvisoBackend();   // version vieja sin ping: api() ya marco la version si vino
+    else if (r.version === undefined) mostrarAvisoBackend();
   } catch (e) { /* sin señal: no avisar */ }
 }
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  window.addEventListener('load', function () { setTimeout(verificarBackend, 400); });
+  // se espera a que la pagina pida su lista (que ya trae la version) para no sumar un pedido en paralelo
+  window.addEventListener('load', function () { setTimeout(verificarBackend, 6000); });
 }

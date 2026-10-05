@@ -8,6 +8,14 @@ No crear una implementación nueva (cambia la URL y habría que tocar `config.js
 Para comprobarlo: abrir `seguimiento.html`; si el backend está viejo, todas las pantallas muestran una franja roja avisándolo y
 las tarjetas nuevas guardan Condición, Prioridad, Área responsable y Cliente ID.
 
+## Velocidad (v19)
+
+- Cada pantalla muestra **al instante** la última lista guardada en ese celular/PC y la actualiza sola cuando responde el
+  servidor (abajo a la derecha aparece "⟳ Actualizando…"). Sin señal, muestra los últimos datos con el aviso "Sin conexión · datos de …".
+- El servidor guarda la lista armada (comprimida) 10 minutos y la descarta apenas cambia algo: guardar, cerrar, corregir,
+  la lectura del EAM, reparaciones. Si alguien edita la planilla **a mano**, el cambio puede tardar hasta 10 minutos en verse.
+- Al abrir una pantalla se hace un solo pedido (la versión del servidor viene con la lista).
+
 ## Backup automático semanal (domingos)
 
 Todos los **domingos a las 3 a.m.** se copia la planilla completa (todas las hojas, valores y formato, sin el script) a la carpeta

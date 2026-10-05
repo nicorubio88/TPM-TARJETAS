@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 18; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 19; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -136,7 +136,7 @@ function handle_(e) {
       case 'ping':            out = { ok: true, ts: ahora_(), version: VERSION_BACKEND }; break;
       case 'setup':           out = setup(); break;
       case 'crear':           out = crear_(req.data || req, usuario); break;
-      case 'listar':          out = { ok: true, tarjetas: listar_(req.desde), paradas: listarParadas_() }; break;
+      case 'listar':          out = listarRapido_(req.desde); break;
       case 'actualizar':      out = actualizar_(req.id, req.cambios || {}, usuario); break;
       case 'actualizarLote':  out = actualizarLote_(req.items || [], usuario); break;
       case 'guardarAreas':    out = guardarAreas_(req.filas || [], usuario); break;
@@ -158,6 +158,7 @@ function handle_(e) {
   } catch (err) {
     out = { ok: false, error: String(err && err.message ? err.message : err) };
   } finally {
+    if (lock && out && out.ok !== false) invalidarCacheListar_();   // cualquier escritura invalida la lista guardada
     flushLog_();   // el historial se escribe en bloque, todavia dentro del lock
     if (lock) try { lock.releaseLock(); } catch (e2) {}
   }
@@ -225,7 +226,7 @@ function repararAuto_() {
         if (String(r[cE]).indexOf('__auto__') > -1) { r[cE] = String(r[cE]).split(';').map(function (x) { return x.trim(); }).filter(function (x) { return x && x !== '__auto__'; }).join('; '); t = true; }
         if (t) cambiadas++;
       });
-      if (cambiadas) rng.setValues(v);
+      if (cambiadas) { rng.setValues(v); invalidarCacheListar_(); }
     }
     props.setProperty('reparar_auto_v1', ahora_() + ' · ' + cambiadas + ' tarjetas');
     flushLog_();
@@ -246,7 +247,7 @@ function migrarV3_() {
       v.forEach(function (r) {
         if (r[cE] === 'Cerrada' && !r[cV]) { r[cE] = 'Verificada'; r[cV] = '(migracion v3)'; r[cFV] = r[cF]; cambiadas++; }
       });
-      if (cambiadas) rng.setValues(v);
+      if (cambiadas) { rng.setValues(v); invalidarCacheListar_(); }
     }
     props.setProperty('migracion_v3', ahora_() + ' · ' + cambiadas + ' tarjetas');
     if (cambiadas) log_('-', 'Migracion v3', 'Estado', 'Cerrada', 'Verificada (' + cambiadas + ')', 'sistema');
@@ -391,6 +392,35 @@ function guardarFoto_(dataUrl, nombre) {
 }
 
 /* ============================ LISTAR ============================ */
+
+/* ---------- Lista guardada en cache (acelera Seguimiento, Dashboard, Inicio, TV...) ----------
+   Armar la lista de ~300 tarjetas lleva 1–3 s en Apps Script. Se guarda comprimida en CacheService por 10 minutos y
+   se descarta apenas cambia algo (cualquier escritura de la app, la lectura del EAM, reparaciones). */
+const CACHE_LISTAR_SEG = 600;
+function invalidarCacheListar_() {
+  try { PropertiesService.getScriptProperties().setProperty('cache_listar_ver', String(Date.now())); } catch (e) {}
+}
+function listarRapido_(desde) {
+  var cache = null, key = '';
+  try {
+    cache = CacheService.getScriptCache();
+    var ver = PropertiesService.getScriptProperties().getProperty('cache_listar_ver') || '0';
+    key = 'L' + ver + '_' + String(desde || 'todo');
+    var c = cache.get(key);
+    if (c) {
+      var txt = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(c), 'application/x-gzip')).getDataAsString();
+      var o = JSON.parse(txt); o.cache = true; o.version = VERSION_BACKEND; return o;
+    }
+  } catch (e) { cache = null; }
+  var out = { ok: true, tarjetas: listar_(desde), paradas: listarParadas_(), version: VERSION_BACKEND };
+  try {
+    if (cache) {
+      var gz = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(out), 'application/json')).getBytes());
+      if (gz.length < 95000) cache.put(key, gz, CACHE_LISTAR_SEG);   // limite de CacheService: 100 KB por valor
+    }
+  } catch (e) {}
+  return out;
+}
 
 function listar_(desde) {
   var sh = getSheet_();
@@ -1230,6 +1260,7 @@ function sincronizarEAM_(origen) {
     }
   });
   res.sinTarjeta = res.sinTarjeta.slice(0, 30);
+  if (res.cerradas || res.actualizadas) invalidarCacheListar_();
   PropertiesService.getScriptProperties().setProperty('EAM_ULTIMA', JSON.stringify(res));
   return res;
 }

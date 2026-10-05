@@ -116,15 +116,16 @@
     btn.disabled = true;
     try { var r = await api('verificar', { id: id, ok: ok, verificadoPor: getYo(), comentario: com });
       $('msg').innerHTML = r.ok ? '<div class="msg ok">'+(ok ? 'Gracias, tarjeta '+esc(id)+' verificada ✔' : 'Tarjeta '+esc(id)+' reabierta: se avisó al responsable.')+'</div>' : '<div class="msg err">'+esc(r.error)+'</div>';
-      window.scrollTo(0,0); cargar();
+      window.scrollTo(0,0); cargar(true);
     } catch(e) { btn.disabled = false; $('msg').innerHTML = '<div class="msg err">Sin conexión. Probá de nuevo.</div>'; }
   }
 
-  async function cargar(){
+  async function cargar(fresco){
     if (!getYo()) { render(); return; }
-    try { var r = await api('listar', { desde: desdeISO(365) });
-      if (r.ok) { TODAS = marcarRepeticiones(r.tarjetas); render(); }
-      else $('msg').innerHTML = '<div class="msg err">'+esc(r.error)+'</div>';
+    try { await listarRapido({ desde: desdeISO(365) }, function(r){
+        if (r.ok) { TODAS = marcarRepeticiones(r.tarjetas); render(); }
+        else $('msg').innerHTML = '<div class="msg err">'+esc(r.error)+'</div>';
+      }, { clave: getYo(), fresco: !!fresco });
     } catch(e) { $('msg').innerHTML = '<div class="msg err">Sin conexión.</div>'; }
   }
   document.addEventListener('tpm-yo', function(){ visto = LS.get('tpm_visto_' + getYo(), ''); cargar(); });

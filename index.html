@@ -53,7 +53,7 @@
 
   async function cargar(){
     try {
-      var r = await api('listar', { desde: desdeISO(62) });
+      await listarRapido({ desde: desdeISO(62) }, function(r){
       if (!r.ok) return;
       var ts = r.tarjetas, yo = getYo();
       var mesIni = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -71,6 +71,7 @@
       $('destacados').innerHTML = top.length ? '<p class="mini" style="margin:0 0 6px">'+n+' tarjetas cargadas este mes por '+Object.keys(c).length+' personas. ¡Gracias!</p>' +
         top.map(function(p,i){ return '<div class="rk"><span>'+med[i]+' '+esc(p)+' <span class="mini">'+esc(sectorDe(p))+'</span></span><b>'+c[p]+'</b></div>'; }).join('')
         : 'Todavía no hay tarjetas este mes. ¡Sé el primero!';
+      });
     } catch(e) { $('destacados').textContent = 'Sin conexión.'; }
   }
   document.addEventListener('tpm-yo', cargar);

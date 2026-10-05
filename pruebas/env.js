@@ -1,6 +1,6 @@
 // Entorno Apps Script simulado, aislado por instancia (vm). Instrumenta llamadas y locks.
 const fs=require('fs'), vm=require('vm');
-const SRC=require('path').join(__dirname,'..','Codigo.gs');
+const SRC='/home/claude/tpm/TPM-TARJETAS-main/Codigo.gs';
 function conv(x){ if(typeof x==='string'){ if(/^'/.test(x)) return x.slice(1); if(/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(x)) return new Date(x.replace(' ','T')+(x.length===10?'T00:00':'')); if(/^\d{1,2}:\d{2}$/.test(x)) { const [h,m]=x.split(':'); return new Date(1899,11,30,+h,+m); } } return x; }
 function makeEnv(transform){
   const st={ranges:0,sets:0,appends:0,mails:[],fetches:[],lockHeld:false,lockErrors:0};
@@ -27,7 +27,7 @@ function makeEnv(transform){
     LockService:{getScriptLock:()=>({waitLock(){ if(st.lockHeld){ st.lockErrors++; throw new Error('LOCK ANIDADO'); } st.lockHeld=true; },releaseLock(){ st.lockHeld=false; }})},
     UrlFetchApp:{fetch:(u,o)=>{ st.fetches.push({u,o}); return {getContentText:()=>'{"ok":true,"id":"EHS-9"}'}; }},
     ContentService:{MimeType:{JSON:1},createTextOutput:t=>({t,setMimeType(){return this}})},
-    console, Date, JSON, Math, String, Number, Object, Array, Buffer, isNaN, parseFloat, parseInt, RegExp, Error
+    console, Date, JSON, Math, String, Number, Object, Array, Buffer, isNaN, parseFloat, parseInt, RegExp, Error, __zlib: require('zlib')
   };
   vm.createContext(ctx);
   let src=fs.readFileSync(SRC,'utf8'); if(transform) src=transform(src);

@@ -348,16 +348,20 @@
     var b = this; b.disabled = true; b.textContent = 'Aplicando...';
     try { var r = await api('actualizarLote', { items: items });
       msg(r.ok ? 'Plan aplicado: ' + r.actualizadas + ' tarjetas con ejecutores y fecha planificada.' + (r.errores && r.errores.length ? ' Errores: ' + esc(r.errores.join(' · ')) : '') : esc(r.error), r.ok);
-      FIJOS = {}; await cargar();
+      FIJOS = {}; await cargar(true);
     } catch(e) { msg('Error: ' + esc(e.message), false); }
     b.disabled = false; confirmar = false; b.textContent = '✔ Aplicar plan';
   };
 
-  async function cargar(){
-    try { var r = await api('listar', { desde: desdeISO(CONFIG.DIAS_REPETICION + 30) });
-      if (!r.ok) return msg(esc(r.error), false);
-      TODAS = marcarRepeticiones(r.tarjetas); PARADAS = r.paradas || [];
-      opcionesParada(); render();
+  async function cargar(fresco){
+    try { var r = null;
+      await listarRapido({ desde: desdeISO(CONFIG.DIAS_REPETICION + 30) }, function(x, desdeCache){
+        if (!x.ok) return msg(esc(x.error), false);
+        TODAS = marcarRepeticiones(x.tarjetas); PARADAS = x.paradas || [];
+        opcionesParada(); render();
+        if (!desdeCache) r = x;
+      }, { fresco: !!fresco });
+      if (!r) return;
       HIST = await cargarHistorialEstimacion();
       var nCasos = estadisticasEstimacion(TODAS, HIST).casos.length;
       $('histInfo').textContent = '📊 Estimaciones con ' + nCasos + ' cierres con horas reales' + (nCasos < 20 ? ' (a medida que se cierren tarjetas, la estimación mejora)' : '');

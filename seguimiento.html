@@ -334,14 +334,16 @@
     try{
       var p = +$('fPeriodo').value;
       // se trae 90 dias extra para poder detectar repeticiones; la lista se recorta al periodo en filtradas()
-      var r = await api('listar', { desde: p ? desdeISO(p + CONFIG.DIAS_REPETICION) : '' });
-      if(!r.ok){ msg(esc(r.error||'error'), false); return; }
-      TODAS = marcarRepeticiones(r.tarjetas); PARADAS = r.paradas || [];
-      pintarCombosParada(); render(); pintarParadas();
-      cargarHistorialEstimacion().then(function(h){ HIST_EST = h; });
-      var id = new URLSearchParams(location.search).get('id');
-      if (id && !actual) abrir(id);
-      estadoEAM();
+      var fresco = cargar._yaCargo;   // la primera vez muestra lo guardado; despues de guardar algo, va al servidor
+      await listarRapido({ desde: p ? desdeISO(p + CONFIG.DIAS_REPETICION) : '' }, function(r, desdeCache){
+        if(!r.ok){ msg(esc(r.error||'error'), false); return; }
+        TODAS = marcarRepeticiones(r.tarjetas); PARADAS = r.paradas || [];
+        if (actual) actual = TODAS.find(function(t){ return t['ID'] === actual['ID']; }) || actual;
+        pintarCombosParada(); render(); pintarParadas();
+        if (!desdeCache) { cargar._yaCargo = true; cargarHistorialEstimacion().then(function(h){ HIST_EST = h; }); estadoEAM(); }
+        var id = new URLSearchParams(location.search).get('id');
+        if (id && !actual) abrir(id);
+      }, { clave: String(p), fresco: !!fresco });
     }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
   }
 

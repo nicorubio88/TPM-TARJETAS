@@ -395,10 +395,11 @@
     try {
       // margen: 6 o 12 meses para la serie mensual, + 97 dias para las curvas y las repeticiones (90 dias)
       var dias = +$('fPeriodo').value;
-      var r = await api('listar', { desde: desdeISO(Math.max(dias, dias >= 180 ? 365 : 183) + 97) });
-      if (!r.ok) { $('msg').innerHTML = '<div class="msg err">'+esc(r.error||'error')+'</div>'; return; }
-      TODAS = marcarRepeticiones(r.tarjetas);
-      render();
+      await listarRapido({ desde: desdeISO(Math.max(dias, dias >= 180 ? 365 : 183) + 97) }, function(r){
+        if (!r.ok) { $('msg').innerHTML = '<div class="msg err">'+esc(r.error||'error')+'</div>'; return; }
+        TODAS = marcarRepeticiones(r.tarjetas);
+        render();
+      }, { clave: dias >= 180 ? 'anual' : 'semestral' });
     } catch(e) { $('msg').innerHTML = '<div class="msg err">Error de conexión: '+esc(e.message)+'</div>'; }
   }
   $('fPeriodo').addEventListener('change', cargar);
