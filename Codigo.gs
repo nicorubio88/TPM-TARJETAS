@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 16; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 17; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -113,7 +113,7 @@ var _EN_WEBAPP = false;
 function doGet(e)  { _EN_WEBAPP = true; return handle_(e); }
 function doPost(e) { _EN_WEBAPP = true; return handle_(e); }
 
-const ACCIONES_ESCRITURA = ['backupAhora', 'sincronizarEAM', 'completarCausa', 'guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
+const ACCIONES_ESCRITURA = ['sincronizarEAM', 'completarCausa', 'guardarResponsables', 'crear', 'actualizar', 'actualizarLote', 'cerrar', 'verificar', 'guardarParada', 'borrarParada', 'sembrarMaestros', 'guardarAreas', 'derivarEHS', 'setup'];
 
 function handle_(e) {
   var req = {};
@@ -150,7 +150,6 @@ function handle_(e) {
       case 'derivarEHS':      out = derivarEHSManual_(req.id, usuario); break;
       case 'sincronizarEAM':  out = sincronizarEAMSeguro_(usuario || 'manual'); break;
       case 'estadoEAM':       out = estadoEAM_(); break;
-      case 'backupAhora':     out = backup_(usuario || 'manual'); break;
       case 'completarCausa':  out = completarCausa_(req, usuario); break;
       case 'historialEstimacion': out = { ok: true, filas: historialEstimacion_() }; break;
       default:                out = { ok: false, error: 'Accion desconocida: ' + action };
@@ -916,7 +915,10 @@ function instalarDisparadorEAM() {
 function estadoEAM_() {
   var props = PropertiesService.getScriptProperties();
   var p = props.getProperty('EAM_ULTIMA'), b = props.getProperty('BACKUP_ULTIMO');
-  return { ok: true, ultima: p ? JSON.parse(p) : null, cada: EAM_MINUTOS, backup: b ? JSON.parse(b) : null };
+  // del backup solo se informa si anduvo: ni link a la carpeta ni a la copia (los backups son solo del dueño del script)
+  var bk = b ? JSON.parse(b) : null;
+  if (bk) bk = { ok: bk.ok, fecha: bk.fecha, guardados: bk.guardados, error: bk.ok ? '' : 'revisar en Apps Script' };
+  return { ok: true, ultima: p ? JSON.parse(p) : null, cada: EAM_MINUTOS, backup: bk };
 }
 
 function eamNorm_(s) {

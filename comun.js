@@ -967,7 +967,7 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ---------- Aviso si el Apps Script publicado es viejo ----------
    Pegar el código y guardar no alcanza: hay que publicar "Nueva versión" de la implementación.
    Si el backend no responde la versión esperada, se avisa arriba de la página (una vez por sesión). */
-const VERSION_BACKEND_MIN = 16;
+const VERSION_BACKEND_MIN = 17;
 async function verificarBackend() {
   try {
     if (!CONFIG.API_URL || sessionStorage.getItem('tpm_backend_ok') === '1') return;

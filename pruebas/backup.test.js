@@ -32,10 +32,11 @@ ok(c._sh.map(s=>s.n).join(',')==='Tarjetas,Historial,Hoja 1','la copia tiene las
 ok((c._sh[0].rows||[]).length===4,'la copia tiene los datos de Tarjetas');
 ok(d.folders.length===1 && d.folders[0].name==='Backups Tarjetas TPM' && d.files[0].folder===d.folders[0].id,'queda en la carpeta Backups Tarjetas TPM');
 ok(!E.st.lockHeld && E.st.lockErrors===0,'libera el lock');
-r=E.call({action:'backupAhora',usuario:'Rubio, Nicolas'});
+const rA=E.call({action:'backupAhora',usuario:'Rubio, Nicolas'});
 d=E.call({action:'__drive'});
-ok(r.ok && d.folders.length===1 && / \d{2}-\d{2}$/.test(r.nombre),'backup manual reusa la carpeta y lleva hora');
-ok(E.call({action:'estadoEAM'}).backup.nombre===r.nombre,'estado devuelve el último backup');
+ok(!rA.ok && d.creadas.length===1,'desde la app no se puede disparar un backup');
+r=E.call({action:'__bk'}); d=E.call({action:'__drive'}); ok(r.ok && d.folders.length===1,'el segundo backup reusa la carpeta');
+const eb=E.call({action:'estadoEAM'}).backup; ok(eb.ok && eb.fecha===r.fecha && !eb.url && !eb.carpeta && !eb.nombre,'el estado no expone links a la carpeta ni a la copia');
 // retención: 30 días + uno por mes 12 meses
 const p=n=>String(n).padStart(2,'0'), hoy=new Date(), dia=(off)=>{const x=new Date(hoy.getTime()-off*86400000); return x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate());};
 const dias=[]; for(let i=1;i<=420;i+=1) dias.push(dia(i));
