@@ -122,6 +122,10 @@
 
     <!-- CORREGIR LA CARGA -->
     <details class="mas" id="secCorr"><summary>✏️ Corregir datos de la carga (si hubo un error al crearla)</summary>
+      <label>Color de la tarjeta</label>
+      <div class="colsel" id="cColor"></div>
+      <div id="cColorAviso" class="mini" style="display:none;margin:4px 0 8px"></div>
+      <div id="cAreaRespBox" style="display:none"><label>Área que resuelve (con el color nuevo)</label><select id="cAreaResp"></select></div>
       <div class="grid cols-2">
         <div><label>Detectado por</label><input id="cDet" placeholder="Apellido..."></div>
         <div><label>Turno</label><select id="cTurno"></select></div>
@@ -132,7 +136,7 @@
         <div><label>Equipo específico</label><select id="cComp"></select></div>
       </div>
       <label>Descripción</label><textarea id="cDesc" rows="3"></textarea>
-      <div class="mini" style="margin:6px 0">Color, tipo de anomalía y prioridad se cambian en "Gestión". Cada corrección queda en el historial con quién la hizo.</div>
+      <div class="mini" style="margin:6px 0">Tipo de anomalía y prioridad se cambian en "Gestión". Cada corrección queda en el historial con quién la hizo.</div>
       <button class="btn" id="cGuardar">Guardar corrección</button>
     </details>
 
@@ -585,7 +589,7 @@
       $('hist').innerHTML = (r.historial||[]).length ? r.historial.slice().reverse().map(function(h){
         var acc = ACCION_TXT[h['Accion']] || h['Accion'];
         return '<div><span class="mini">'+esc(h['Fecha'])+' · <b>'+esc(h['Usuario']||'sin identificar')+'</b></span><br>'+esc(acc)+' '+
-          (h['Campo']?'<b>'+esc(h['Campo'])+'</b>: ':'')+(h['Antes']?'<s>'+esc(h['Antes'])+'</s> → ':'')+esc(h['Despues'])+'</div>';
+          (h['Campo']?'<b>'+esc(h['Campo']==='Tipo'?'Color':h['Campo'])+'</b>: ':'')+(h['Antes']?'<s>'+esc(h['Antes'])+'</s> → ':'')+esc(h['Despues'])+'</div>';
       }).join('') : '<span class="mini">Sin movimientos registrados todavía.</span>';
     } catch(e) { $('hist').innerHTML = '<span class="mini">No se pudo cargar el historial (sin conexión).</span>'; }
   }
@@ -593,7 +597,30 @@
   /* ---------- corregir datos de la carga ---------- */
   $('cTurno').innerHTML = '<option value="">—</option>' + opciones(TURNOS);
   montarBuscadorPersona($('cDet'));
+  var cTipoSel = '';
+  function pintarColorCorr(){
+    var t = actual || {}, orig = t['Tipo'];
+    $('cColor').innerHTML = Object.keys(TIPOS).map(function(k){
+      var on = k === cTipoSel, c = TIPOS[k].color;
+      return '<button type="button" class="op'+(on?' sel':'')+'" data-t="'+k+'" style="border-color:'+(on?c:'var(--line)')+';color:'+c+(on?';background:#FBFCF8':'')+'">'+
+        (on?'● ':'○ ')+k+(k===orig?' <span class="mini">(actual)</span>':'')+'</button>';
+    }).join('');
+    document.querySelectorAll('#cColor .op').forEach(function(el){ el.addEventListener('click', function(){ cTipoSel = el.getAttribute('data-t'); pintarColorCorr(); }); });
+    var cambia = cTipoSel && cTipoSel !== orig;
+    $('cColorAviso').style.display = cambia ? 'block' : 'none';
+    $('cColorAviso').innerHTML = cambia ? 'Pasa de <b style="color:'+TIPOS[orig].color+'">'+esc(orig)+'</b> a <b style="color:'+TIPOS[cTipoSel].color+'">'+esc(cTipoSel)+'</b> (grupo: '+esc(TIPOS[cTipoSel].grupo)+'). '+
+      'El código '+esc(t['ID']||'')+' no cambia, porque puede estar cargado en el EAM.' + (esAbierta(t) ? ' Elegí abajo qué área la resuelve ahora.' : '') : '';
+    var abierta = esAbierta(t);
+    $('cAreaRespBox').style.display = cambia && abierta ? 'block' : 'none';
+    if (cambia && abierta) {
+      var areas = areasRespPara(cTipoSel), act = t['Area responsable'];
+      var sel = areas.some(function(a){ return a.Area === act; }) ? act : (areas[0] ? areas[0].Area : '');
+      $('cAreaResp').innerHTML = areas.map(function(a){ return '<option value="'+esc(a.Area)+'">'+esc(a.Area)+'</option>'; }).join('');
+      $('cAreaResp').value = sel;
+    }
+  }
   function cargarCorreccion(t){
+    cTipoSel = t['Tipo'] || ''; pintarColorCorr();
     $('cDet').value = t['Detectado por'] || ''; $('cTurno').value = t['Turno'] || ''; $('cDesc').value = t['Descripcion'] || '';
     $('cArea').innerHTML = opciones(Object.keys(ARBOL_EQUIPO), t['Area equipo']);
     if (t['Area equipo'] && !ARBOL_EQUIPO[t['Area equipo']]) $('cArea').innerHTML = '<option>'+esc(t['Area equipo'])+'</option>' + $('cArea').innerHTML;
@@ -624,6 +651,15 @@
     if (!$('cArea').value || !$('cSub').value || (eqs.length && !$('cComp').value)) return msg('Completá la ubicación: área, subárea y equipo.', false);
     var cambios = { detectadoPor: det, sectorDetector: sectorDe(det), turno: $('cTurno').value, areaEquipo: $('cArea').value, equipo: $('cSub').value,
       componente: $('cComp').value, descripcion: $('cDesc').value.trim() };
+    if (cTipoSel && cTipoSel !== actual['Tipo']) {
+      cambios.tipo = cTipoSel;
+      if (esAbierta(actual)) {
+        var ar = $('cAreaResp').value;
+        if (!ar) return msg('Elegí qué área resuelve la tarjeta con el color nuevo.', false);
+        if (ar !== actual['Area responsable']) { cambios.areaResponsable = ar; cambios.responsable = '__auto__'; cambios.poolResponsable = poolDe(ar); }
+      }
+      if (!confirm('¿Cambiar el color de '+actual['ID']+' de '+actual['Tipo']+' a '+cTipoSel+'?')) return;
+    }
     var b = this; b.disabled = true;
     try { var r = await api('actualizar', { id: actual['ID'], cambios: cambios });
       if (r.ok) { var id = actual['ID']; msg('Corrección guardada en '+esc(id)+'. Quedó en el historial.', true); await cargar(); abrir(id); }

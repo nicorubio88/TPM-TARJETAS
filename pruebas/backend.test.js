@@ -59,7 +59,7 @@ const base={tipo:'Roja',detectadoPor:'Perez, Juan',areaEquipo:'PULPERS',equipo:'
   r=E.call({action:'actualizar',id,cambios:{estado:'Anulada'}}); ok(!r.ok,'anular sin motivo');
   E.call({action:'actualizar',id,usuario:'Jefe',cambios:{condicion:'Parada planificada'}});
   ok(E.call({action:'listar'}).tarjetas.find(x=>x.ID===id)['Condicion intervencion']==='Parada planificada','acepta condición Parada planificada');
-  ok(E.call({action:'ping'}).version===15,'ping devuelve versión 15');
+  ok(E.call({action:'ping'}).version===16,'ping devuelve versión 16');
   E.call({action:'actualizar',id,usuario:'Jefe',cambios:{fechaCompromiso:'2026-01-10'}});
   E.call({action:'actualizar',id,usuario:'Jefe',cambios:{fechaCompromiso:'2026-01-10'}});
   E.call({action:'actualizar',id,usuario:'Jefe',cambios:{fechaCompromiso:'2026-01-15',tipo:'Azul',condicion:'Maquina parada',campoRaro:'x'}});
@@ -200,5 +200,17 @@ const base={tipo:'Roja',detectadoPor:'Perez, Juan',areaEquipo:'PULPERS',equipo:'
   const h=E.call({action:'historial',id:a.id}).historial; ok(h.some(x=>x.Accion==='Correccion' && x.Campo==='Descripcion' && x.Antes==='mal cargada' && x.Usuario==='Rubio, Nicolas'),'historial: qué, antes, después y quién');
   ok(!E.call({action:'actualizar',id:a.id,cambios:{descripcion:'  '},usuario:'X'}).ok,'no deja descripción vacía');
   ok(E.call({action:'actualizar',id:a.id,cambios:{prioridad:'Alta',tipo:'Roja'},usuario:''}).ok,'gestión sin cambiar datos de carga no exige identificarse');
+}
+
+/* ---------- corrección de color ---------- */
+{ const E=makeEnv(); const id=E.call({action:'crear',data:base}).id;
+  let r=E.call({action:'actualizar',id,cambios:{tipo:'Azul'}}); ok(!r.ok && /identificate/i.test(r.error),'cambiar color pide identificarse');
+  r=E.call({action:'actualizar',id,usuario:'Rubio, Nicolas',cambios:{tipo:'Azul',areaResponsable:'Producción',responsable:'Sup, Uno'}});
+  let t=E.call({action:'listar'}).tarjetas.find(x=>x.ID===id);
+  ok(r.ok && t.Tipo==='Azul' && t['Grupo responsable']==='Operacion' && t['Area responsable']==='Producción','color corregido a Azul con grupo y área nuevos');
+  ok(t.ID===id,'el código de la tarjeta no cambia');
+  let h=E.call({action:'historial',id}).historial;
+  ok(h.some(x=>x.Accion==='Correccion' && x.Campo==='Tipo' && x.Antes==='Roja' && x.Despues==='Azul' && x.Usuario==='Rubio, Nicolas'),'historial: corrección de color con quién');
+  r=E.call({action:'actualizar',id,usuario:'X',cambios:{tipo:'Violeta'}}); t=E.call({action:'listar'}).tarjetas.find(x=>x.ID===id); ok(t.Tipo==='Azul','color inválido se ignora');
 }
 console.log('BACKEND: '+pass+' OK, '+fail+' FALLAS'); fails.forEach(f=>console.log('  ✖ '+f));
