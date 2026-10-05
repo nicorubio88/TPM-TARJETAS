@@ -1,4 +1,38 @@
-# Informe de pruebas · Tarjetas TPM v11
+# Informe de pruebas · Tarjetas TPM
+
+## Validación completa · 05/10/2026 (servidor v18)
+
+**1. App real, sin escribir datos** (309 tarjetas, servidor v17 publicado):
+las 11 pantallas cargan sin errores ni textos rotos; las 309 tarjetas se abren una por una sin errores; todos los filtros
+de Seguimiento responden; el planificador arma el plan; el Dashboard carga (tarda 8–10 s con 309 tarjetas).
+Lectura del EAM: 18 OT, 17 tarjetas, sin errores. Backup del 05/10 correcto.
+
+Hallazgos corregidos:
+- 9 tarjetas con responsable guardado como "__auto__" (se grabó en los días en que el servidor publicado era viejo).
+  Se reparan solas al publicar v18 (quedan sin asignar, con registro "Reparacion" en el historial) y el servidor ya no puede volver a guardarlo.
+- Nombres del EAM que no coincidían con la lista de personas ("Guillermo, Panis", "Colli, Y Ockier Maximiliano",
+  "Arrieta, Juan Cruz"). Ahora se buscan en la lista (tolerando segundo nombre, tildes, iniciales y errores de una letra:
+  "Jonatan Brian Batstoc" → "Batstoc, Jonatan Braian"). Las tarjetas cerradas por el EAM con nombres viejos se corrigen en la próxima lectura.
+- ROJ-260930-1028-CFP (dos OT) cerrada con 4 h en lugar de 6: se corrige en la próxima lectura del EAM.
+
+**2. Ciclo completo sobre una copia con el mismo perfil que los datos reales** (309 tarjetas con sus estados, legados,
+tarjetas sin categoría/área, textos multilínea, "__auto__") **y el CSV real del EAM** — `pruebas/real.fe.py`: **70 / 70 OK**
+- Todas las pantallas en escritorio y celular; las 309 tarjetas abren sin errores.
+- EAM: lee las 20 OT reales; PGM planificada; FG8, CFP (2 OT → 6 h), GR2, T6V cerradas con datos y nombres correctos;
+  2F4 resuelta a mano se verifica sin pisar el cierre; YPG queda como desfasada; filtros y franja; segunda lectura sin cambios.
+- Tarjeta nueva desde el formulario (parada planificada, prioridad, foto) → gestión (fecha, especialidad, horas, OT)
+  → corrección de descripción y color ida y vuelta → cierre (valida acción y causa; con corte de conexión avisa y no pierde lo escrito)
+  → verificación rechazada (reabre, cuenta reapertura) → segundo cierre → verificada → historial completo con quién.
+- El EAM no pisa un cierre verificado por una persona.
+- Tarjeta gestionada solo por el EAM: planificada → terminada → verificada → causa y plan preventivo cargados desde la pantalla.
+- Condición en lote; el planificador no re-planifica lo programado en el EAM; carga y cierre desde el celular.
+
+**3. Regresión**: backend 116, EAM 35, nombres/reparación 26, backup 17, estimación 12, frontend 207, v10 21, v11 19, v12 19,
+EAM pantalla 25, color 20 — **todo OK**.
+
+---
+
+# Informe anterior · v11
 
 ## v14 · 02/10/2026 · planificadas y estado EAM
 

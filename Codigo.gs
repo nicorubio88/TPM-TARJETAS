@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 17; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 18; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -127,6 +127,7 @@ function handle_(e) {
   var out, lock = null;
   try {
     migrarV3_();   // toma y suelta su propio lock; va ANTES del lock de la accion (los locks no son reentrantes)
+    repararAuto_();
     if (ACCIONES_ESCRITURA.indexOf(action) > -1) {
       lock = LockService.getScriptLock();
       lock.waitLock(25000);
@@ -206,6 +207,31 @@ function setup() {
 /* Migracion unica a v3: en v1/v2 "Cerrada" era el cierre definitivo. En v3 "Cerrada" = resuelta
    pendiente de verificar. Las cerradas antes de la migracion pasan a "Verificada" para no llenar
    la bandeja de verificacion con el historial. Se ejecuta una sola vez (marca en Script Properties). */
+// Reparacion (oct-2026): tarjetas guardadas con responsable "__auto__" cuando el servidor publicado era viejo.
+function repararAuto_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('reparar_auto_v1')) return;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    if (props.getProperty('reparar_auto_v1')) return;
+    var sh = getSheet_(), n = sh.getLastRow() - 1, cambiadas = 0;
+    if (n > 0) {
+      var rng = sh.getRange(2, 1, n, HEADERS.length), v = rng.getValues();
+      var cR = colDe_('Responsable asignado') - 1, cE = colDe_('Ejecutores') - 1;
+      v.forEach(function (r) {
+        var t = false;
+        if (r[cR] === '__auto__') { log_(r[0], 'Reparacion', 'Responsable asignado', '__auto__', '(sin asignar)', 'sistema'); r[cR] = ''; t = true; }
+        if (String(r[cE]).indexOf('__auto__') > -1) { r[cE] = String(r[cE]).split(';').map(function (x) { return x.trim(); }).filter(function (x) { return x && x !== '__auto__'; }).join('; '); t = true; }
+        if (t) cambiadas++;
+      });
+      if (cambiadas) rng.setValues(v);
+    }
+    props.setProperty('reparar_auto_v1', ahora_() + ' · ' + cambiadas + ' tarjetas');
+    flushLog_();
+  } finally { try { lock.releaseLock(); } catch (e) {} }
+}
+
 function migrarV3_() {
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty('migracion_v3')) return;
@@ -490,7 +516,7 @@ function actualizar_(id, cambios, usuario) {
     var antes = String(t[col] == null ? '' : t[col]);
     var despues = String(cambios[k] == null ? '' : cambios[k]);
     if (antes === despues) return;
-    valores[col] = cambios[k];
+    valores[col] = (col === 'Responsable asignado' && cambios[k] === '__auto__') ? '' : cambios[k];
     log_(id, CAMPOS_CORRECCION.indexOf(k) > -1 ? 'Correccion' : 'Cambio', col, antes, despues, usuario);
     if (k === 'areaEquipo') valores['Sector'] = cambios[k];   // compatibilidad: Sector = area del equipo
     if (k === 'detectadoPor') valores['Sector detector'] = cambios.sectorDetector || '';
@@ -971,17 +997,86 @@ function eamFecha_(v, soloDia) {
 }
 function eamNum_(v) { var n = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isNaN(n) ? 0 : n; }
 
-// "MARCONI JORGE" -> "Marconi, Jorge" (el primer termino es el apellido, como exporta el EAM)
+// ---------- Nombres del EAM -> nombres de la lista de personas ----------
+// El EAM exporta "MARCONI JORGE", "Guillermo Panis", "Jonatan Brian Batstoc", "COLLI Y OCKIER MAXIMILIANO".
+// Se buscan en la lista de personas de la app (personas.js publicado + hoja Personas) para guardar
+// exactamente "Panis, Guillermo Adrian", "Batstoc, Jonatan Braian", etc. Si no aparece, se arma "Apellido, Nombre".
+var _PERSONAS_EAM = null;
+function eamPersonasConocidas_() {
+  if (_PERSONAS_EAM) return _PERSONAS_EAM;
+  var set = {}, cache = null;
+  try { cache = CacheService.getScriptCache(); var c = cache.get('personas_eam_v1'); if (c) { _PERSONAS_EAM = JSON.parse(c); return _PERSONAS_EAM; } } catch (e) {}
+  try {
+    var txt = UrlFetchApp.fetch(String(APP_URL).replace(/\/?$/, '/') + 'personas.js', { muteHttpExceptions: true }).getContentText();
+    (String(txt).match(/"([^"\n]{2,60},[^"\n]{1,60})"/g) || []).forEach(function (q) { set[q.slice(1, -1).trim()] = 1; });
+  } catch (e) {}
+  try {
+    var sh = ss_().getSheetByName('Personas');
+    if (sh && sh.getLastRow() > 1) sh.getRange(2, 2, sh.getLastRow() - 1, 1).getValues().forEach(function (r) { if (String(r[0]).indexOf(',') > -1) set[String(r[0]).trim()] = 1; });
+  } catch (e) {}
+  _PERSONAS_EAM = Object.keys(set);
+  try { if (cache && _PERSONAS_EAM.length) cache.put('personas_eam_v1', JSON.stringify(_PERSONAS_EAM), 21600); } catch (e) {}
+  return _PERSONAS_EAM;
+}
+function eamTok_(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(String);
+}
+function eamLev1_(a, b) {   // distancia de edicion <= 1 (para "Brian"/"Braian", "Goni"/"Goñi")
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  var i = 0, j = 0, dif = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++dif > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return dif + (a.length - i) + (b.length - j) <= 1;
+}
+function eamTokOk_(x, T) {
+  return T.some(function (t) {
+    if (t === x) return true;
+    if (t.length === 1 || x.length === 1) return t[0] === x[0];          // inicial: "L." = "Luis"
+    return x.length >= 4 && t.length >= 4 && eamLev1_(x, t);
+  });
+}
+function eamBuscarPersona_(raw, lista) {
+  var T = eamTok_(raw), mejor = null, puntos = -1, empate = false;
+  if (!T.length) return '';
+  lista.forEach(function (p) {
+    var k = p.indexOf(','), S = eamTok_(p.slice(0, k)), N = eamTok_(p.slice(k + 1));
+    if (!S.length || !S.every(function (x) { return eamTokOk_(x, T); })) return;
+    var nOk = N.filter(function (x) { return eamTokOk_(x, T); }).length;
+    if (N.length && !nOk) return;                                           // apellido solo no alcanza
+    var pts = S.length * 2 + nOk;
+    if (pts > puntos) { mejor = p; puntos = pts; empate = false; } else if (pts === puntos && p !== mejor) empate = true;
+  });
+  return empate ? '' : (mejor || '');
+}
+var EAM_PARTICULAS = ['y', 'de', 'del', 'la', 'las', 'los', 'da', 'van', 'von', 'di'];
 function eamNombre_(s) {
   var w = String(s || '').trim().replace(/\s+/g, ' ');
   if (!w) return '';
+  var hallado = eamBuscarPersona_(w, eamPersonasConocidas_());
+  if (hallado) return hallado;
   if (w.indexOf(',') > -1) return w;
   var cap = function (x) { return x.toLowerCase().replace(/(^|[\s'-])(\S)/g, function (a, b, c) { return b + c.toUpperCase(); }); };
-  var partes = w.split(' ');
-  return partes.length === 1 ? cap(w) : cap(partes[0]) + ', ' + cap(partes.slice(1).join(' '));
+  var p = w.split(' ');
+  if (p.length === 1) return cap(w);
+  var esPart = function (x) { return EAM_PARTICULAS.indexOf(String(x).toLowerCase()) > -1; };
+  var ap, nom;
+  if (w === w.toUpperCase()) {            // "COLLI Y OCKIER MAXIMILIANO": apellido primero (+ particulas)
+    var i = 1; while (i < p.length - 1 && esPart(p[i])) i += 2;
+    ap = p.slice(0, i); nom = p.slice(i);
+  } else {                                // "Guillermo Panis": nombre primero, apellido al final
+    var j = p.length - 1; while (j > 1 && esPart(p[j - 1])) j -= 2;
+    ap = p.slice(j); nom = p.slice(0, j);
+  }
+  return cap(ap.join(' ')).replace(/ (Y|De|Del|La|Las|Los|Da|Van|Von|Di) /g, function (m) { return m.toLowerCase(); }) + ', ' + cap(nom.join(' '));
 }
-function eamPersonas_(s) {   // "ARRIETA JUAN CRUZ, MARCONI JORGE" -> ["Arrieta, Juan Cruz", "Marconi, Jorge"]
-  return String(s || '').split(/[,;\/]| y /).map(eamNombre_).filter(String);
+function eamPersonas_(s) {   // "ARRIETA JUAN CRUZ, MARCONI JORGE" -> ["Arrieta, Ceferino Juan Cruz", "Marconi, Jorge"]
+  var out = [];
+  String(s || '').split(/[,;\/]/).map(eamNombre_).forEach(function (n) { if (n && out.indexOf(n) === -1) out.push(n); });
+  return out;
 }
 
 // Agrupa las filas del CSV por ID_Tarjeta. Con varias OT para la misma tarjeta:
@@ -1014,6 +1109,7 @@ function eamCombinar_(rows, C, g) {
       set('com', uniq(rs.map(function (r) { return g(r, 'com'); })).join(' / '));
       set('emp', uniq([].concat.apply([], rs.map(function (r) { return g(r, 'emp').split(/[,;]/); }))).join(', '));
       set('hsReal', rs.reduce(function (s, r) { return s + eamNum_(g(r, 'hsReal')); }, 0));
+      out._hsOT = rs.map(function (r) { return eamNum_(g(r, 'hsReal')); });
     }
     return out;
   });
@@ -1063,7 +1159,20 @@ function sincronizarEAM_(origen) {
       poner('Estado EAM', estEAM || '(sin estado)');
 
       if (EAM_ESTADOS_CERRADOS.indexOf(estN) > -1) {
-        if (estado === 'Verificada' || estado === 'Anulada') { /* ya cerrada: solo el N OT */ }
+        if (estado === 'Verificada' && /^EAM/.test(String(val('Verificado por')))) {
+          // cerrada por el EAM: el EAM sigue mandando en quien la hizo y en las horas (corrige cierres viejos)
+          var conocidas = eamPersonasConocidas_(), empV = eamPersonas_(g(r, 'emp'));
+          var noConocida = function (txt) { return String(txt || '').split(';').map(function (x) { return x.trim(); }).filter(String).some(function (x) { return conocidas.indexOf(x) === -1; }); };
+          if (empV.length && conocidas.length && noConocida(val('Ejecutores')) && !noConocida(empV.join('; '))) {
+            if (String(val('Cerrado por')) === String(val('Ejecutores'))) poner('Cerrado por', empV.join('; '));
+            poner('Ejecutores', empV.join('; '));
+          }
+          var hsT = eamNum_(g(r, 'hsReal'));
+          if (r._hsOT && hsT > 0 && r._hsOT.indexOf(+val('Horas reales')) > -1 && +val('Horas reales') !== hsT) {
+            poner('Horas reales', hsT);
+            if (empV.length > (+val('Personas reales') || 0)) poner('Personas reales', empV.length);
+          }
+        } else if (estado === 'Verificada' || estado === 'Anulada') { /* ya cerrada: solo el N OT */ }
         else {
           var emp = eamPersonas_(g(r, 'emp')), hs = eamNum_(g(r, 'hsReal'));
           var por = emp.length ? emp.join('; ') : eamNombre_(g(r, 'asig')) || 'EAM';

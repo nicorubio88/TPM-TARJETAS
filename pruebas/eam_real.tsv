@@ -1,0 +1,21 @@
+ID_Tarjeta	OT_EAM	Descripcion_OT	Equipo	Descripcion_Equipo	Hs_Estimadas	Personas_Necesarias	Asignado_A	Fecha_Inicio_Programada	Empleados	Hs_Reales	Fecha_Cierre	Comentario_Cierre	Estado
+VER-260824-1100-2DY	148077	Dar vuelta soportes para poder ajustar la chapas mas facil	ESTU.UB	Estucadora Uni Bar	4	1	HIRSCH GUSTAVO	2026-10-12 0:00		0			Planificado
+ROJ-260821-1427-PPX	148108	ASAKAI - Cañeria pinchada a la altura de bomba Fan	ALIM.BOREG	Bomba Regadera 3.5 Bar N°1 (Grundfos)	16	2	GISLER GUILLERMO	2026-10-12 0:00		0			Planificado
+ROJ-260904-1216-5TV	148846	Reemplazar palma por reserva, tiene las puntas dobladas	RASTRILLO D30	Rastrillo Pulper D30	4	1	HIRSCH GUSTAVO	2026-09-15 0:00	HIRSCH GUSTAVO	4	2026-09-22 15:50	Se cambio rastrillo por el de reserva.	Terminado
+ROJ-261001-1739-GR2	159395	Se atranca chorizo en el rotor y mugre abajo	PULPER E20	Pulper E20	6	1	MONTERO MARCELO	2026-10-01 0:00	BENZI LUCAS, MONTERO MARCELO	12	2026-10-01 12:13	Se ingreso a pulper, se rebajaron puntas donde se podia trabar el chorizo + Se soldaron cuchillas en la Placa cribada, para evitar que se meta material debajo del rotor	Terminado
+ROJ-261002-0812-2F4	159441	Reemplazar espiral, esta roto	ZARI.ZARSEPAR	Zaranda 230 (Separplast)	3	1	MONTERO MARCELO	2026-10-02 0:00	MONTERO MARCELO	3	2026-10-02 11:29	Se reemplazo espiral por uno nuevo	Terminado
+ROJ-261001-1418-PGM	159459	Programar cambio de motor por vibraciones	VCIO.BO04	Bomba Vacio BV04	6	1	MARCONI JORGE	2026-10-05 0:00		0			Planificado
+ROJ-261001-1426-FG8	159460	Motor sucio con mucha pasta en superficie	BOMB-TQ 260	Bomba Tanque 260	1	1	MARCONI JORGE	2026-10-01 0:00	ARRIETA JUAN CRUZ, MARCONI JORGE	2	2026-10-01 10:20	Se limpió motor y ventilación	Terminado
+ROJ-260814-2158-YPG	159461	revisar tornillo elevador	TECI.RET251	Tornillo 251 Tec Maule	1	1		2026-10-02 0:00	MARCONI JORGE	1			Listo para planificar
+ROJ-260930-1409-2RG	159470	cambiar parada emergencia	TAB.PE	Parada de emergencia	2	1		2026-09-30 0:00	RINCON FABIO	2	2026-10-02 13:22		Terminado
+ROJ-260930-1028-CFP	159471	No enfria	EF2901	Equipo Aire Acondicionado N°1 Sala Tableros Principal	2	2		2026-09-30 0:00	ARRIETA JUAN CRUZ, GOÑI SANTIAGO L.	4	2026-09-30 13:32		Terminado
+ROJ-260930-1028-CFP	159472	No enfria	EF2901	Equipo Aire Acondicionado N°1 Sala Tableros Principal	2	1		2026-09-29 0:00	GOÑI SANTIAGO L.	2	2026-09-29 13:36		Terminado
+ROJ-260929-0945-XCD	159482	Reparar perdida por Filtro y de condensado	PULPER D30	Pulper D30	2	2	SCHLEGEL SERGIO	2026-10-03 0:00	CIVERCHIA BRANKO ELOY, SCHLEGEL SERGIO	4	2026-10-03 8:38	Se limpio filtro y se reparo perdida de vapor	Terminado
+ROJ-261002-0917-7KH	159483	Proteccion eje suelta	BOMB-PIL270I	Bomba Pileta 270	2	2	SCHLEGEL SERGIO	2026-10-03 0:00	CIVERCHIA BRANKO ELOY, SCHLEGEL SERGIO	4	2026-10-03 8:42	Se hizo protección nueva	Terminado
+ROJ-261003-0849-L7L	159484	Reemplazar valvula tomamuestra por reserva	MC.DISCEN	Distribuidor Central PdS Cup (Pulpo)	2	1		2026-10-03 0:00		0			Planificado
+ROJ-261002-0810-6VF	159535	Reparar perdida de vapor por brida y trampa de condensado	PULPER E20	Pulper E20	6	1	MONTERO MARCELO	2026-10-02 0:00	MONTERO MARCELO	6	2026-10-02 17:24	Se reparo perdida de vapor por junta + Se reemplazo trampa de condensado	Terminado
+ROJ-261002-0816-575	159566	Revisar acople	BOMB.X	Bomba X	6	1		2026-10-05 0:00		0			Planificado
+ROJ-261002-0940-LNJ	159569	Ajustar guarda	GUAR.1	Guarda	1	1		2026-10-03 0:00	SCHLEGEL SERGIO	2	2026-10-03 12:29	Se ajusto la guarda y se coloco tornilleria nueva	Terminado
+ROJ-260721-0929-T6V	159579	Limpiar sensor	SENS.1	Sensor	1	1	COLLI Y OCKIER MAXIMILIANO	2026-10-05 0:00	COLLI Y OCKIER MAXIMILIANO	1	2026-10-05 20:00	Se limpio sensor y se verifico funcionamiento correcto en linea	Terminado
+ROJ-261002-1349-D7F	159583	Revisar tablero	TAB.2	Tablero	1	1	Guillermo Panis	2026-10-05 0:00		0			Planificado
+ROJ-261002-1407-JBU	159585	Cambiar fotocelula	FOTO.1	Fotocelula	2	1	Jonatan Brian Batstoc	2026-10-13 0:00		0			Planificado
