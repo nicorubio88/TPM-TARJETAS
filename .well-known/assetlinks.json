@@ -1,0 +1,5 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": { "namespace": "android_app", "package_name": "ar.com.papeleradelsur.tornquist",
+              "sha256_cert_fingerprints": ["25:5A:19:55:7B:CD:FF:F3:E1:78:9C:E3:75:C5:44:E9:80:F8:45:15:A8:6A:B4:54:21:E0:CF:02:78:C8:41:F1"] }
+}]
