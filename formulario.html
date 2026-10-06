@@ -34,13 +34,14 @@
 
     <div class="paso"><span class="pn">2</span>¿Dónde?</div>
     <div id="qrInfo"></div>
-    <input id="buscaEquipo" placeholder="🔎 Buscá el equipo: pulper, bomba 505, compresor...">
+    <input id="buscaEquipo" placeholder="🔎 Buscá por descripción o código: rastrillo E22, bomba vacío, VCIO.BO04...">
     <div class="ayuda">O elegilo por área (o escaneá el QR pegado en el equipo):</div>
-    <div class="grid cols-3" style="gap:10px">
+    <div class="grid cols-2" style="gap:10px">
       <select id="areaEquipo"><option value="">Área...</option></select>
-      <select id="equipo" disabled><option value="">Subárea / equipo...</option></select>
-      <select id="componente" disabled><option value="">Equipo específico...</option></select>
+      <select id="equipo" disabled><option value="">Equipo / lugar...</option></select>
+      <select id="componente" disabled style="display:none"><option value="">Equipo específico...</option></select>
     </div>
+    <div id="sistemaInfo" class="ayuda"></div>
 
     <div class="paso"><span class="pn">3</span>¿Qué ves?</div>
     <textarea id="descripcion" placeholder="Qué ves, oís o sentís (ruido, temperatura, pérdida, suciedad), en qué parte exacta y desde cuándo."></textarea>
@@ -129,7 +130,7 @@
 <script>
   var tipoSel = '', areaRespSel = '', condSel = 'A definir', fotoDataURL = '', tiempoSel = '', personasSel = '';
   var $ = function(id){ return document.getElementById(id); };
-  var EQUIPOS = listaEquipos();
+  var LISTA_EQ = listaEquipos();
   var CARGA = {};   // tarjetas abiertas por responsable (para mostrar a quien le toca)
 
   /* ---------- combos ---------- */
@@ -142,7 +143,7 @@
   document.addEventListener('tpm-yo', function(e){ if(!$('detectadoPor').value) $('detectadoPor').value = e.detail; actualizar(); });
 
   var dl = document.createElement('datalist'); dl.id = 'dl-equipos';
-  dl.innerHTML = EQUIPOS.map(function(e){ return '<option value="'+esc(e.label)+'">'; }).join('');
+  dl.innerHTML = LISTA_EQ.map(function(e){ return '<option value="'+esc(e.label)+'">'; }).join('');
   document.body.appendChild(dl);
   $('buscaEquipo').setAttribute('list','dl-equipos'); $('buscaEquipo').setAttribute('autocomplete','off');
 
@@ -150,22 +151,28 @@
   function llenarSub(area, sel){
     var eq = $('equipo'), n3 = $('componente');
     n3.innerHTML = '<option value="">Equipo específico...</option>'; n3.disabled = true;
-    if (!area || !ARBOL_EQUIPO[area]) { eq.innerHTML = '<option value="">Subárea / equipo...</option>'; eq.disabled = true; return; }
-    eq.innerHTML = '<option value="">Subárea / equipo...</option>' + opciones(Object.keys(ARBOL_EQUIPO[area]), sel);
+    if (!area || !ARBOL_EQUIPO[area]) { eq.innerHTML = '<option value="">Equipo / lugar...</option>'; eq.disabled = true; pintarSistema(); return; }
+    eq.innerHTML = '<option value="">Equipo / lugar...</option>' + opciones(Object.keys(ARBOL_EQUIPO[area]).sort(function(a,b){ return a.localeCompare(b,'es'); }), sel);
     eq.disabled = false;
   }
   function llenarN3(area, sub, sel){
     var n3 = $('componente');
     var hijos = (area && sub && ARBOL_EQUIPO[area]) ? (ARBOL_EQUIPO[area][sub] || []) : [];
-    if (hijos.length) { n3.innerHTML = '<option value="">Equipo específico...</option>' + opciones(hijos, sel); n3.disabled = false; }
-    else { n3.innerHTML = '<option value="">(la subárea es el equipo)</option>'; n3.disabled = true; }
+    if (hijos.length) { n3.innerHTML = '<option value="">Equipo específico...</option>' + opciones(hijos, sel); n3.disabled = false; n3.style.display = ''; }
+    else { n3.innerHTML = '<option value="">(la subárea es el equipo)</option>'; n3.disabled = true; n3.style.display = 'none'; }
+    pintarSistema();
+  }
+  function sistemaElegido(){ return typeof sistemaDe === 'function' ? sistemaDe($('areaEquipo').value, $('equipo').value) : ''; }
+  function pintarSistema(){
+    var s = $('equipo') && $('equipo').value ? sistemaElegido() : '';
+    $('sistemaInfo').innerHTML = s ? 'Código de sistema: <b>' + esc(s) + '</b>' : '';
   }
   function fijarUbicacion(area, sub, eq){ $('areaEquipo').value = area; llenarSub(area, sub); llenarN3(area, sub, eq); }
   $('areaEquipo').addEventListener('change', function(){ llenarSub(this.value); $('buscaEquipo').value=''; actualizar(); });
   $('equipo').addEventListener('change', function(){ llenarN3($('areaEquipo').value, this.value); $('buscaEquipo').value=''; actualizar(); });
   $('componente').addEventListener('change', actualizar);
   $('buscaEquipo').addEventListener('change', function(){
-    var v = this.value.trim(), e = EQUIPOS.find(function(x){ return x.label === v; });
+    var v = this.value.trim(), e = LISTA_EQ.find(function(x){ return x.label === v; });
     if (e) fijarUbicacion(e.area, e.sub, e.eq);
     actualizar();
   });
@@ -375,13 +382,17 @@
   pintarPrioridad(); pintarCondicion(); pintarChips(); pintarAreas();
   (function(){
     var q = new URLSearchParams(location.search);
-    var u = q.get('u');
-    if (u) {
+    var u = q.get('u'), sq = q.get('s'), lugar = null;
+    if (sq && EQUIPO_POR_SISTEMA[sq]) lugar = EQUIPO_POR_SISTEMA[sq];                  // QR nuevo: ?s=SISTEMA
+    else if (u) {
       var p = u.split('|'), area = p[0], sub = p[1] || '', eq = p[2] || '';
-      if (ARBOL_EQUIPO[area]) {
-        fijarUbicacion(area, sub, eq);
-        $('qrInfo').innerHTML = '<div class="msg ok" style="margin:0 0 8px">📍 <b>'+esc([area,sub,eq].filter(String).join(' › '))+'</b> (desde el QR del equipo)</div>';
-      }
+      if (ARBOL_EQUIPO[area] && ARBOL_EQUIPO[area][sub] && !eq) lugar = { area: area, descripcion: sub, sistema: sistemaDe(area, sub) };
+      else lugar = equipoDeUbicacionVieja(area, sub, eq);                            // QR viejo pegado en el equipo
+      if (!lugar && ARBOL_EQUIPO[area]) $('areaEquipo').value = area, llenarSub(area);
+    }
+    if (lugar) {
+      fijarUbicacion(lugar.area, lugar.descripcion, '');
+      $('qrInfo').innerHTML = '<div class="msg ok" style="margin:0 0 8px">📍 <b>'+esc(lugar.descripcion)+'</b> · '+esc(lugar.area)+' · '+esc(lugar.sistema)+' (desde el QR del equipo)</div>';
     }
     if (q.get('tipo') && TIPOS[q.get('tipo')]) elegirTipo(q.get('tipo'));
     if (q.get('desc')) $('descripcion').value = q.get('desc');
@@ -431,7 +442,7 @@
     if (getYo() !== det) setYo(det);
     var data = {
       tipo: tipoSel, detectadoPor: det, sectorDetector: sectorDe(det), turno: $('turno').value,
-      areaEquipo: area, equipo: sub, componente: n3, categoria: $('categoria').value, descripcion: descripcion,
+      areaEquipo: area, equipo: sub, componente: n3, sistema: sistemaElegido(), categoria: $('categoria').value, descripcion: descripcion,
       prioridad: $('prioridad').value, areaResponsable: areaRespSel, poolResponsable: poolDe(areaRespSel),
       responsable: $('responsable').value, fechaCompromiso: $('fechaCompromiso').value,
       fotoData: fotoDataURL, costo: $('costo').value, etapaMa: $('etapaMa').value, dimensionMejora: $('dimensionMejora').value,

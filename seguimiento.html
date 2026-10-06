@@ -130,10 +130,12 @@
         <div><label>Detectado por</label><input id="cDet" placeholder="Apellido..."></div>
         <div><label>Turno</label><select id="cTurno"></select></div>
       </div>
+      <label>Ubicación (buscá por descripción o código)</label><input id="cBusca" list="dl-equipos" autocomplete="off" placeholder="🔎 rastrillo E22, bomba vacío, VCIO.BO04...">
+      <div id="cSistema" class="mini" style="margin:2px 0 6px"></div>
       <div class="grid cols-3">
         <div><label>Área</label><select id="cArea"></select></div>
-        <div><label>Subárea / equipo</label><select id="cSub"></select></div>
-        <div><label>Equipo específico</label><select id="cComp"></select></div>
+        <div><label>Equipo / lugar</label><select id="cSub"></select></div>
+        <div id="cCompBox"><label>Equipo específico</label><select id="cComp"></select></div>
       </div>
       <label>Descripción</label><textarea id="cDesc" rows="3"></textarea>
       <div class="mini" style="margin:6px 0">Tipo de anomalía y prioridad se cambian en "Gestión". Cada corrección queda en el historial con quién la hizo.</div>
@@ -432,7 +434,7 @@
         var roles = { det: t['Detectado por']===fper, resp: t['Responsable asignado']===fper, ejec: listaNombres(t['Ejecutores']).indexOf(fper)>-1, cerro: t['Cerrado por']===fper };
         if(frol ? !roles[frol] : !(roles.det||roles.resp||roles.ejec||roles.cerro)) return false;
       }
-      if(tx){ var blob=[t['ID'],t['Equipo'],t['Descripcion'],t['Responsable asignado'],t['Componente/Ubicacion'],t['Repuestos'],t['N OT'],t['Detectado por']].join(' ').toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
+      if(tx){ var blob=[t['ID'],sistemaDeTarjeta(t),t['Ubicacion anterior'],t['Equipo'],t['Descripcion'],t['Responsable asignado'],t['Componente/Ubicacion'],t['Repuestos'],t['N OT'],t['Detectado por']].join(' ').toLowerCase(); if(blob.indexOf(tx)===-1) return false; }
       return true;
     }).sort(ordenar);
   }
@@ -519,7 +521,8 @@
     $('mBadges').innerHTML = badgeTipo(t['Tipo']) + ' ' + badgeEstado(est, t.vencida) + ' ' + badgeCondicion(condicionDe(t)) + ' ' + badgeRepetida(t);
     var kv = function(l, v){ return v || v === 0 ? '<b>'+l+':</b> '+esc(v)+' &nbsp; ' : ''; };
     $('mDetalle').innerHTML =
-      '<div class="kv"><b>Ubicación:</b> '+esc(claveEquipo(t)||'—')+'</div>'+
+      '<div class="kv"><b>Ubicación:</b> '+esc(claveEquipo(t)||'—')+(sistemaDeTarjeta(t)?' &nbsp;<span class="cond" style="background:#EEF0EC;color:#3D5F26">'+esc(sistemaDeTarjeta(t))+'</span>':'')+
+        (t['Ubicacion anterior'] && t['Ubicacion anterior'] !== claveEquipo(t) ? '<br><span class="mini">Antes: '+esc(t['Ubicacion anterior'])+'</span>' : '')+'</div>'+
       '<div class="kv">'+kv('Detectado por', t['Detectado por']+(t['Sector detector']?' ('+t['Sector detector']+')':''))+kv('Turno', t['Turno'])+kv('Alta', t['Fecha alta'])+kv('Días', t.diasAbierta)+'</div>'+
       '<div class="kv">'+kv('Categoría', t['Categoria'])+kv('Etapa MA', t['Etapa MA'])+kv('Mejora', t['Dimension mejora'])+'</div>'+
       (vinculadaEAM(t)?'<div class="kv">'+badgeEAM(t)+' &nbsp;OT <b>'+esc(t['N OT']||'')+'</b>'+(t['Actualizado EAM']?' · último dato del EAM '+esc(t['Actualizado EAM']):'')+
@@ -619,6 +622,7 @@
     $('cArea').innerHTML = opciones(Object.keys(ARBOL_EQUIPO), t['Area equipo']);
     if (t['Area equipo'] && !ARBOL_EQUIPO[t['Area equipo']]) $('cArea').innerHTML = '<option>'+esc(t['Area equipo'])+'</option>' + $('cArea').innerHTML;
     $('cArea').value = t['Area equipo'] || ''; pintarSub(t['Equipo'], t['Componente/Ubicacion']);
+    $('cBusca').value = '';
     $('secCorr').open = false;
   }
   function pintarSub(sub, comp){
@@ -632,7 +636,20 @@
     $('cComp').innerHTML = '<option value="">—</option>' + opciones(eqs, comp);
     if (comp && eqs.indexOf(comp) === -1) $('cComp').innerHTML += '<option selected>'+esc(comp)+'</option>';
     $('cComp').disabled = !eqs.length && !comp;
+    $('cCompBox').style.display = (eqs.length || comp) ? '' : 'none';
+    var sis = sistemaDe($('cArea').value, $('cSub').value);
+    $('cSistema').innerHTML = sis ? 'Código de sistema: <b>' + esc(sis) + '</b>' : ($('cSub').value ? '⚠ Ubicación del árbol anterior: elegí la nueva para que tenga código de sistema.' : '');
   }
+  (function(){
+    var dl = document.createElement('datalist'); dl.id = 'dl-equipos';
+    dl.innerHTML = listaEquipos().map(function(e){ return '<option value="'+esc(e.label)+'">'; }).join('');
+    document.body.appendChild(dl);
+  })();
+  $('cBusca').addEventListener('change', function(){
+    var v = this.value.trim(), e = listaEquipos().find(function(x){ return x.label === v; });
+    if (!e) return;
+    $('cArea').value = e.area; pintarSub(e.sub, '');
+  });
   $('cArea').addEventListener('change', function(){ pintarSub('', ''); });
   $('cSub').addEventListener('change', function(){ pintarComp(''); });
   $('cGuardar').addEventListener('click', async function(){
@@ -642,9 +659,11 @@
     if (!personaValida(det)) return msg('Elegí de la lista quién detectó la anomalía.', false);
     if (!$('cDesc').value.trim()) return msg('La descripción no puede quedar vacía.', false);
     var eqs = ((ARBOL_EQUIPO[$('cArea').value] || {})[$('cSub').value]) || [];
-    if (!$('cArea').value || !$('cSub').value || (eqs.length && !$('cComp').value)) return msg('Completá la ubicación: área, subárea y equipo.', false);
+    if (!$('cArea').value || !$('cSub').value || (eqs.length && !$('cComp').value)) return msg('Completá la ubicación: área y equipo / lugar.', false);
     var cambios = { detectadoPor: det, sectorDetector: sectorDe(det), turno: $('cTurno').value, areaEquipo: $('cArea').value, equipo: $('cSub').value,
       componente: $('cComp').value, descripcion: $('cDesc').value.trim() };
+    var sisN = sistemaDe($('cArea').value, $('cSub').value);
+    if (sisN || actual['Sistema']) cambios.sistema = sisN;
     if (cTipoSel && cTipoSel !== actual['Tipo']) {
       cambios.tipo = cTipoSel;
       if (esAbierta(actual)) {
@@ -889,6 +908,7 @@
 
   $('exportar').addEventListener('click', function(){
     var datos = filtradas(); if(!datos.length){ msg('No hay tarjetas para exportar con los filtros actuales.', false); return; }
+    datos = datos.map(function(t){ var o = Object.assign({}, t); o['Sistema'] = sistemaDeTarjeta(t); return o; });
     var cols = Object.keys(datos[0]).filter(function(c){ return c.charAt(0) !== '_'; });
     var q = function(v){ v=String(v==null?'':v).replace(/"/g,'""'); return '"'+v+'"'; };
     var csv = cols.map(q).join(';')+'\r\n'+datos.map(function(t){ return cols.map(function(c){return q(t[c]);}).join(';'); }).join('\r\n');

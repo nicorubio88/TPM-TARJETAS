@@ -1,5 +1,12 @@
 # Informe de pruebas · Tarjetas TPM
 
+## Árbol de equipos nuevo · 06/10/2026 (servidor v20)
+
+Migración y búsqueda de Sistema: `pruebas/arbol.test.js` 12/12. Pantallas (alta con buscador, QR `?s=` y `?u=` viejo,
+corrección, detalle con "Antes", exportación con Sistema): `pruebas/arbol.fe.py` 40/40.
+Regresión completa OK: backend 116, EAM 35, backup 17, estimación 12, nombres 26, caché 11; frontend 207, V10 21, V11 19,
+V12 19, EAM-FE 25, color 20, datos reales 70, rápido 16.
+
 ## Velocidad · 05/10/2026 (servidor v19)
 
 Medido en la app real: el servidor de Google tarda ~1,3 s por pedido + 1–3 s en armar la lista; al abrir el Dashboard

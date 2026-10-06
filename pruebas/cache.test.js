@@ -18,7 +18,7 @@ for(let i=0;i<5;i++) E.call({action:'crear',data:Object.assign({},base,{clienteI
 let a=E.call({action:'listar',desde:'2026-01-01'}), b=E.call({action:'listar',desde:'2026-01-01'});
 ok(!a.cache && b.cache===true,'la segunda lectura sale de la caché');
 ok(JSON.stringify(a.tarjetas)===JSON.stringify(b.tarjetas) && b.tarjetas.length===5,'la caché devuelve exactamente lo mismo');
-ok(a.version===19 && b.version===19,'la lista trae la versión del servidor');
+ok(a.version===20 && b.version===20,'la lista trae la versión del servidor');
 const id=a.tarjetas[0].ID;
 E.call({action:'actualizar',id,usuario:'X',cambios:{prioridad:'Alta'}});
 let c=E.call({action:'listar',desde:'2026-01-01'});

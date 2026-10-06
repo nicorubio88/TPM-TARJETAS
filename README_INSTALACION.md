@@ -1,4 +1,4 @@
-# Sistema de Tarjetas TPM — Planta Tornquist · v11
+# Sistema de Tarjetas TPM — Planta Tornquist · v20
 
 ## ⚠️ Importante al actualizar el backend (por qué no aparecía "máquina en marcha / parada")
 
@@ -7,6 +7,19 @@ Después de pegar el código: **Implementar → Administrar implementaciones →
 No crear una implementación nueva (cambia la URL y habría que tocar `config.js`).
 Para comprobarlo: abrir `seguimiento.html`; si el backend está viejo, todas las pantallas muestran una franja roja avisándolo y
 las tarjetas nuevas guardan Condición, Prioridad, Área responsable y Cliente ID.
+
+## Árbol de equipos nuevo (v20)
+
+- `arbol.js` tiene el árbol nuevo: **836 equipos/lugares** (832 del listado + 4 lugares que ya se usaban: Laboratorio de Calidad,
+  Laboratorio · Equipos de ensayo, Zona Cortadora, Depósito). Cada uno: `[SISTEMA, Descripción, Área]`.
+- El usuario elige por **Descripción** (con buscador); la tarjeta guarda además la columna **Sistema** (código único).
+  Mismo árbol para tarjetas TPM y de Seguridad.
+- Al publicar el backend v20 corre **una sola vez** la migración: cada tarjeta vieja guarda su ubicación original en
+  "Ubicacion anterior" y, si hay correspondencia segura (412 de 717 ubicaciones viejas), se le asigna Sistema y la descripción nueva.
+  Las que no tienen correspondencia conservan la ubicación vieja y se corrigen desde "Corregir datos de la carga".
+- QR: los nuevos usan `?s=SISTEMA`; los stickers viejos (`?u=`) siguen funcionando.
+- El código de equipo del EAM completa Sistema si la tarjeta no lo tiene.
+- La hoja "Arbol" de la planilla ya no reemplaza al árbol del código.
 
 ## Velocidad (v19)
 

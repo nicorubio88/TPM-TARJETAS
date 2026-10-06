@@ -136,10 +136,7 @@ const ALTAS_NUEVAS = { 'Gerencia de Planta': ['Rubio, Nicolas'], 'Ingeniería': 
   }
   if (m.areas) window.AREAS_CFG = m.areas;
   if (m.responsables) window.RESP_CFG = m.responsables;
-  if (m.arbol && typeof ARBOL_EQUIPO !== 'undefined') {
-    Object.keys(ARBOL_EQUIPO).forEach(function (k) { delete ARBOL_EQUIPO[k]; });
-    Object.assign(ARBOL_EQUIPO, m.arbol);
-  }
+  // El árbol de equipos ya no se toma de la hoja "Arbol": manda arbol.js (catálogo de sistemas, oct-2026).
 })();
 
 async function refrescarMaestros(forzar) {
@@ -446,9 +443,13 @@ function puntaje(t) {
 }
 function textoPuntaje(p) { return p.detalle.map(function (d) { return d[0] + ' ' + (d[1] > 0 ? '+' : '') + d[1]; }).join(' · '); }
 
-/* Lista plana de equipos para el buscador: "AREA › SUBAREA › EQUIPO" */
+/* Lista plana de equipos para el buscador: "Descripción · ÁREA · SISTEMA" (catálogo de sistemas) */
 function listaEquipos() {
   const out = [];
+  if (typeof EQUIPOS !== 'undefined' && EQUIPOS.length) {
+    EQUIPOS.forEach(function (e) { out.push({ area: e[2], sub: e[1], eq: '', sistema: e[0], label: e[1] + ' · ' + e[2] + ' · ' + e[0] }); });
+    return out;
+  }
   if (typeof ARBOL_EQUIPO === 'undefined') return out;
   Object.keys(ARBOL_EQUIPO).forEach(function (a) {
     const subs = ARBOL_EQUIPO[a];
@@ -609,6 +610,13 @@ function fmtCorto(d) { return String(d.getDate()).padStart(2, '0') + '/' + Strin
    Marca t.repetidaDe = ID de la tarjeta anterior (mismo equipo + misma familia
    de anomalia) que se habia resuelto dentro de los ultimos DIAS_REPETICION dias.
    ============================================================ */
+/* Código de sistema de una tarjeta: el guardado o, si es vieja, el que corresponde a su ubicación */
+function sistemaDeTarjeta(t) {
+  if (t['Sistema']) return String(t['Sistema']);
+  if (typeof sistemaDe === 'function' && t['Equipo'] && !t['Componente/Ubicacion']) { const s = sistemaDe(t['Area equipo'], t['Equipo']); if (s) return s; }
+  if (typeof equipoDeUbicacionVieja === 'function') { const e = equipoDeUbicacionVieja(t['Area equipo'], t['Equipo'], t['Componente/Ubicacion']); if (e) return e.sistema; }
+  return '';
+}
 function claveEquipo(t) { return [t['Area equipo'] || '', t['Equipo'] || '', t['Componente/Ubicacion'] || ''].join(' › ').replace(/( › )+$/, ''); }
 
 function marcarRepeticiones(ts) {
@@ -1026,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ---------- Aviso si el Apps Script publicado es viejo ----------
    Pegar el código y guardar no alcanza: hay que publicar "Nueva versión" de la implementación.
    Si el backend no responde la versión esperada, se avisa arriba de la página (una vez por sesión). */
-const VERSION_BACKEND_MIN = 19;
+const VERSION_BACKEND_MIN = 20;
 function marcarVersionBackend(v) {
   try {
     if ((+v || 0) >= VERSION_BACKEND_MIN) { sessionStorage.setItem('tpm_backend_ok', '1'); const a = document.getElementById('avisoBackend'); if (a) a.remove(); return; }

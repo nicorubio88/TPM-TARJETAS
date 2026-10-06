@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 19; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 20; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -91,7 +91,9 @@ const HEADERS = [
   // v6 — area que resuelve y datos reales del cierre
   'Area responsable', 'Horas reales', 'Personas reales',
   // v13 — integracion EAM: ultimo estado de la OT y cuando cambio algo desde el EAM
-  'Estado EAM', 'Actualizado EAM'
+  'Estado EAM', 'Actualizado EAM',
+  // v20 — arbol de equipos por SISTEMA (codigo unico del lugar) y ubicacion del arbol anterior (no se pierde)
+  'Sistema', 'Ubicacion anterior'
 ];
 const COLS_FECHAHORA = ['Fecha alta', 'Fecha cierre', 'Fecha verificacion'];
 const COLS_FECHA = ['Fecha compromiso', 'Parada objetivo', 'Fecha planificada'];
@@ -128,6 +130,7 @@ function handle_(e) {
   try {
     migrarV3_();   // toma y suelta su propio lock; va ANTES del lock de la accion (los locks no son reentrantes)
     repararAuto_();
+    migrarArbol_();
     if (ACCIONES_ESCRITURA.indexOf(action) > -1) {
       lock = LockService.getScriptLock();
       lock.waitLock(25000);
@@ -233,6 +236,40 @@ function repararAuto_() {
   } finally { try { lock.releaseLock(); } catch (e) {} }
 }
 
+// Migracion (oct-2026) al arbol de equipos por SISTEMA. Corre una sola vez.
+//  - A TODAS las tarjetas viejas se les guarda la ubicacion anterior ("AREA › SUBAREA › EQUIPO") en 'Ubicacion anterior'.
+//  - Las que tienen equivalente seguro en el arbol nuevo pasan a: Area = area nueva, Equipo = Descripcion, Sistema = codigo.
+//  - Las que no, quedan con su ubicacion vieja (se corrigen desde "Corregir datos de la carga").
+function migrarArbol_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('migracion_arbol_v1')) return;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    if (props.getProperty('migracion_arbol_v1')) return;
+    var sh = getSheet_(), n = sh.getLastRow() - 1, migradas = 0, guardadas = 0;
+    if (n > 0) {
+      var rng = sh.getRange(2, 1, n, HEADERS.length), v = rng.getValues();
+      var c = function (h) { return colDe_(h) - 1; };
+      var cA = c('Area equipo'), cS = c('Sector'), cE = c('Equipo'), cC = c('Componente/Ubicacion'), cSis = c('Sistema'), cU = c('Ubicacion anterior');
+      v.forEach(function (r) {
+        if (!r[0] || r[cSis] || r[cU]) return;
+        var a = String(r[cA] || '').trim(), e = String(r[cE] || '').trim(), k = String(r[cC] || '').trim();
+        if (!a && !e) return;
+        r[cU] = [a, e, k].filter(String).join(' › '); guardadas++;
+        var m = MIGRACION_ARBOL[a + '|' + e + '|' + k] || MIGRACION_ARBOL[a + '|' + e + '|'];
+        if (!m) return;
+        log_(r[0], 'Migracion arbol', 'Ubicacion', r[cU], m[2] + ' › ' + m[1] + ' (' + m[0] + ')', 'sistema');
+        r[cSis] = m[0]; r[cE] = m[1]; r[cA] = m[2]; r[cS] = m[2]; r[cC] = '';
+        migradas++;
+      });
+      if (guardadas) { rng.setValues(v); invalidarCacheListar_(); }
+    }
+    props.setProperty('migracion_arbol_v1', ahora_() + ' · ' + migradas + ' migradas de ' + guardadas);
+    flushLog_();
+  } finally { try { lock.releaseLock(); } catch (e) {} }
+}
+
 function migrarV3_() {
   var props = PropertiesService.getScriptProperties();
   if (props.getProperty('migracion_v3')) return;
@@ -334,6 +371,7 @@ function crear_(d, usuario) {
   fila['Detectado por'] = d.detectadoPor; fila['Turno'] = d.turno || '';
   fila['Sector'] = d.sector || d.areaEquipo || '';   // compatibilidad: historicamente = area del equipo
   fila['Equipo'] = d.equipo || ''; fila['Componente/Ubicacion'] = d.componente || '';
+  fila['Sistema'] = d.sistema || '';
   fila['Categoria'] = d.categoria || ''; fila['Descripcion'] = d.descripcion;
   fila['Prioridad'] = d.prioridad; fila['Foto URL'] = fotoUrl;
   fila['Responsable asignado'] = d.responsable || ''; fila['Fecha compromiso'] = d.fechaCompromiso || '';
@@ -509,9 +547,9 @@ const MAPA_CAMPOS = {
   areaResponsable: 'Area responsable',
   // correcciones de la carga (se registran en el Historial como "Corrección", con quien la hizo)
   descripcion: 'Descripcion', areaEquipo: 'Area equipo', equipo: 'Equipo', componente: 'Componente/Ubicacion',
-  detectadoPor: 'Detectado por', turno: 'Turno'
+  detectadoPor: 'Detectado por', turno: 'Turno', sistema: 'Sistema'
 };
-const CAMPOS_CORRECCION = ['descripcion', 'areaEquipo', 'equipo', 'componente', 'detectadoPor', 'turno', 'tipo'];
+const CAMPOS_CORRECCION = ['descripcion', 'areaEquipo', 'equipo', 'componente', 'detectadoPor', 'turno', 'tipo', 'sistema'];
 
 function actualizar_(id, cambios, usuario) {
   var t = leer_(id);
@@ -1155,7 +1193,8 @@ function sincronizarEAM_(origen) {
     id: ix('idtarjeta', 'tarjeta', 'id'), ot: ix('oteam', 'ot', 'orden', 'nroot'), desc: ix('descripcionot', 'descripcion'),
     hsEst: ix('hsestimadas', 'horasestimadas'), pers: ix('personasnecesarias'), asig: ix('asignadoa', 'asignado'),
     fProg: ix('fechainicioprogramada', 'fechaprogramada'), emp: ix('empleados'), hsReal: ix('hsreales', 'horasreales'),
-    fCierre: ix('fechacierre'), com: ix('comentariocierre', 'comentario'), est: ix('estado')
+    fCierre: ix('fechacierre'), com: ix('comentariocierre', 'comentario'), est: ix('estado'),
+    eqCod: ix('equipo', 'sistema')   // codigo del equipo en el EAM = Sistema del arbol de equipos
   };
   if (C.id === -1 || C.est === -1) throw new Error('El CSV del EAM no tiene las columnas ID_Tarjeta y Estado.');
   var g = function (r, k) { return C[k] === -1 ? '' : String(r[C[k]] == null ? '' : r[C[k]]).trim(); };
@@ -1187,6 +1226,7 @@ function sincronizarEAM_(origen) {
       var abierta = ESTADOS_ABIERTOS.indexOf(estado) > -1 || estado === '';
       poner('N OT', ot);
       poner('Estado EAM', estEAM || '(sin estado)');
+      if (!val('Sistema') && g(r, 'eqCod') && !/;/.test(g(r, 'eqCod'))) poner('Sistema', g(r, 'eqCod'));
 
       if (EAM_ESTADOS_CERRADOS.indexOf(estN) > -1) {
         if (estado === 'Verificada' && /^EAM/.test(String(val('Verificado por')))) {
@@ -1370,3 +1410,2070 @@ function limpiarBackups_(carpeta) {
   });
   return borrados;
 }
+
+
+/* ============================ ARBOL ANTERIOR -> SISTEMA ============================
+   "AREA|SUBAREA|EQUIPO" del arbol anterior -> [SISTEMA, Descripcion, AREA] (solo equivalencias seguras).
+   Generado junto con arbol.js; el detalle esta en el Excel de revision. */
+const MIGRACION_ARBOL = {
+"SERVICIOS AUXILIARES|BOMBAS AGUA POZO|BOMBA POZO 1": [
+"BOSU.BOPO1",
+"Bomba Pozo 1",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|BOMBAS AGUA POZO|BOMBA POZO 2": [
+"BOSU.BOPO2",
+"Bomba Pozo 2",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|BOMBAS AGUA POZO|BOMBA POZO 3": [
+"BOSU.BOPO3",
+"Bomba Pozo 3",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|BOMBAS AGUA POZO|BOMBA POZO 4": [
+"BOSU.BOPO4",
+"Bomba Pozo 4",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|BOMBAS AGUA POZO|BOMBA POZO 5": [
+"BOSU.BOPO5",
+"Bomba Pozo 5",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|BOMBAS AGUA POZO|BOMBA POZO 6": [
+"BOSU.BOPO6",
+"Bomba Pozo 6",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO DE AGUA CALDERAS|": [
+"CAKE.DESAE",
+"Desaireador Agua Calderas",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO DE AGUA CALDERAS|BOMBA AGUA 505 DESCARBONATADORA CALDERAS": [
+"TRAG.BO505",
+"Bomba 505 Descarbonatadora Calderas",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO DE AGUA CALDERAS|BOMBA AGUA 506 DESCARBONATADORA CALDERAS": [
+"TRAG.BO506",
+"Bomba 506 Descarbonatadora Calderas",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO DE AGUA CALDERAS|BOMBA AGUA 507 ALIMENTACION TORRES CALDERAS": [
+"TRAG.BO507",
+"Bomba 507 Agua Alimentación a Torres",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO DE AGUA CALDERAS|BOMBA AGUA 508 ALIMENTACION TORRES CALDERAS": [
+"TRAG.BO508",
+"Bomba 508 Agua Alimentación a Torres",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO DE AGUA CALDERAS|BOMBA 509 DESAIREADOR CALDERAS": [
+"VCDS.BOCD509",
+"Bomba 509 Desaireador Calderas",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO DE AGUA CALDERAS|BOMBA 510 DESAIREADOR CALDERAS": [
+"VCDS.BOCD510",
+"Bomba 510 Desaireador Calderas",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|BOMBA BS01 LODOS SEDIMENTADOR TSE": [
+"EFLS.BOREDPIA",
+"Bomba BS01 Lodos Sedimentador - TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|BOMBA BS02 LODOS SEDIMENTADOR TSE": [
+"EFLS.BOREDPIA2",
+"Bomba BS02 Lodos Sedimentador - TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|PRENSA EMECAN TSE": [
+"EFLS.PRENLO",
+"Prensa Emecan TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|CINTA DE LODOS TSE LONGITUDINAL": [
+"EFLS.CINTALO",
+"Cinta Longitudinal Lodos TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|CINTA DE LODOS TSE TRANSVERSAL": [
+"EFLS.CINTATR",
+"Cinta Transversal Lodos TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|BOMBA PILETA LODOS TSE": [
+"TSE.BPL",
+"Bomba Pileta Lodos TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|AGITADOR TQ UREA TSE": [
+"AGIT-EFLS.TQUREA",
+"Agitador Tanque Urea TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|BOMBA TQ UREA TSE": [
+"BOMB-EFLS.TQUREA",
+"Bomba Tanque Urea TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|BOMBA TQ FLOCULANTE TSE": [
+"EFLS.BFLOC",
+"Bomba Tanque Floculante TSE Contipress",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|SOPLADOR PILETA REACTIVACION TSE": [
+"EFLS.SOPAERO",
+"Soplador Pileta Aireación TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|BOMBA REGADERA PRENSA EMECAN TSE": [
+"BBAREGEMECAN",
+"Bomba Regadera Prensa Emecan TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|DECANTADOR SECUNDARIO TSE": [
+"EFLS.DECAN",
+"Decantador TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|SOPLADOR PIL AIREACION TSE": [
+"EFLS.SOPAERO",
+"Soplador Pileta Aireación TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|SOPLADOR PIL CLORACION TSE": [
+"EFLS.SOPCLO",
+"Soplador Pileta Cloracion TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|TRATAMIENTO EFLUENTES SECUNDARIO|CONTIPRESS": [
+"EFLS.CONT",
+"Contipress TSE",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|CALDERA 4|BOMBA AGUA 501 ALIMENTACION CALDERA 4": [
+"CAKE.BO501",
+"Bomba 501 Alimentación Agua Caldera 1",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|CALDERA 4|BOMBA AGUA 502 ALIMENTACION CALDERA 4": [
+"CAKE.BO502",
+"Bomba 502 Alimentación Agua Caldera 1",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|CALDERA 4|BOMBA FUEL OIL 1 CALDERA 4": [
+"CA-BOCITD1",
+"Bomba 1 Fuel Oil a Tanque Diario",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|CALDERA 4|BOMBA FUEL OIL 2 CALDERA 4": [
+"CA-BOCITD2",
+"Bomba 2 Fuel Oil a Tanque Diario",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|SALA COMPRESORES|COMPRESOR SULLAIR CS01": [
+"COM-SULLAIR.CS1",
+"Compresor Sullair CS1",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|SALA COMPRESORES|COMPRESOR SULLAIR CS02": [
+"COM-SULLAIR.CS1",
+"Compresor Sullair CS1",
+"SERVICIOS AUXILIARES"
+],
+"SERVICIOS AUXILIARES|SALA COMPRESORES|COMPRESOR KAESER": [
+"COM-KAESER.CK1",
+"Compresor Kaeser CK1",
+"SERVICIOS AUXILIARES"
+],
+"PULPERS|PULPER D30|": [
+"PULPER D30",
+"Pulper D30",
+"PULPERS"
+],
+"PULPERS|PULPER D30|PULPER D30": [
+"PULPER D30",
+"Pulper D30",
+"PULPERS"
+],
+"PULPERS|PULPER D30|CINTA DE CARGA PULPER D30": [
+"CINTA D30",
+"Cinta Pulper D30 (CINTA D30)",
+"PULPERS"
+],
+"PULPERS|PULPER D30|TROMMEL PULPER D30": [
+"REG.TROMMEL D30",
+"Regadera Trommel Pulper D30",
+"PULPERS"
+],
+"PULPERS|PULPER D30|FIBERIZER PULPER D30": [
+"FIBERIZER D30",
+"Fiberizer Pulper D30",
+"PULPERS"
+],
+"PULPERS|PULPER D30|DEPURADOR 210 PULPER D30": [
+"PULPER D30",
+"Pulper D30",
+"PULPERS"
+],
+"PULPERS|PULPER D30|SAC A SAN PULPER D30": [
+"SACASAN 2",
+"Sac-A-San 2 - DP210 (Pulper D30)",
+"PULPERS"
+],
+"PULPERS|PULPER D30|BOMBA PULPER D30": [
+"BOMPULPER D30",
+"Bomba Descarga Pulper D30",
+"PULPERS"
+],
+"PULPERS|PULPER D30|BOMBA TQ 200 D30": [
+"TAQI.BOACI201",
+"Bomba Agua Dilucion 2 (A P210, Tq 200 D30)",
+"PULPERS"
+],
+"PULPERS|PULPER D30|AGITADOR TQ 200 D30": [
+"AGIT-TQ200 D30",
+"Agitador Tanque 200 D30",
+"TQ 200 CORTE"
+],
+"PULPERS|PULPER E20|": [
+"PULPER E20",
+"Pulper E20",
+"PULPERS"
+],
+"PULPERS|PULPER E20|PULPER E20": [
+"PULPER E20",
+"Pulper E20",
+"PULPERS"
+],
+"PULPERS|PULPER E20|CINTA DE CARGA PULPER E20": [
+"CINTA E20",
+"Cinta Pulper E20",
+"PULPERS"
+],
+"PULPERS|PULPER E20|TROMMEL PULPER E20": [
+"REG.TROMMEL E20",
+"Regadera Trommel Pulper E20",
+"PULPERS"
+],
+"PULPERS|PULPER E20|FIBERIZER PULPER E20": [
+"FIBERIZER E20",
+"Fiberizer Pulper E20",
+"PULPERS"
+],
+"PULPERS|PULPER E20|BOMBA PULPER E20": [
+"BOMBPULPER E20",
+"Bomba Descarga Pulper E20",
+"PULPERS"
+],
+"PULPERS|PULPER E21|": [
+"PULPER E21",
+"Pulper E21",
+"PULPERS"
+],
+"PULPERS|PULPER E21|PULPER E21": [
+"PULPER E21",
+"Pulper E21",
+"PULPERS"
+],
+"PULPERS|PULPER E21|CINTA DE CARGA PULPER E21": [
+"CINTA E21",
+"Cinta Pulper E21",
+"PULPERS"
+],
+"PULPERS|PULPER E21|BOMBA PULPER E21": [
+"BOMPULPER E21",
+"Bomba Descarga Pulper E21",
+"PULPERS"
+],
+"PULPERS|PULPER E22|": [
+"PULPER E22",
+"Pulper E22",
+"PULPERS"
+],
+"PULPERS|PULPER E22|PULPER E22": [
+"PULPER E22",
+"Pulper E22",
+"PULPERS"
+],
+"PULPERS|PULPER E22|CINTA DE CARGA PULPER E22": [
+"CINTA E22",
+"Cinta Pulper E22",
+"PULPERS"
+],
+"PULPERS|PULPER E22|TROMMEL PULPER E22": [
+"REG.TROMMEL E22",
+"Regadera Trommel Pulper E22",
+"PULPERS"
+],
+"PULPERS|PULPER E22|FIBERIZER PULPER E22": [
+"FIBERIZER E22",
+"Fiberizer Pulper E22",
+"PULPERS"
+],
+"PULPERS|PULPER E22|BOMBA PULPER E22": [
+"BOMPULPER E22",
+"Bomba Descarga Pulper E22",
+"PULPERS"
+],
+"PULPERS|ALMIDON PULPERS|": [
+"AGIT-AP.TQA",
+"Agitador Tanque Almacenamiento Almidon Pulpers",
+"PULPERS"
+],
+"PULPERS|ALMIDON PULPERS|BOMBA TQ COCINADOR ALMIDON": [
+"BOMB-AP.TQC",
+"Bomba Descarga Tanque Cocinador Almidon Pulpers",
+"PULPERS"
+],
+"PULPERS|ALMIDON PULPERS|BOMBA TQ ALMACENAMIENTO ALMIDON": [
+"BOMB-AP.TQA",
+"Bomba Descaga Tanque Almacenamiento Almidon Pulpers",
+"PULPERS"
+],
+"PULPERS|ALMIDON PULPERS|AGITADOR TQ COCINADOR ALMIDON": [
+"AGIT-AP.TQC",
+"Agitador Tanque Cocinador Almidon Pulpers",
+"PULPERS"
+],
+"PULPERS|ALMIDON PULPERS|AGITADOR TQ ALMACENAMIENTO ALMIDON": [
+"AGIT-AP.TQA",
+"Agitador Tanque Almacenamiento Almidon Pulpers",
+"PULPERS"
+],
+"PLANTA DE PASTA|SECTOR REFINOS Y FIBERIZER|ZARANDA 102": [
+"ZARC.102",
+"Zaranda 102",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|SECTOR REFINOS Y FIBERIZER|DEPURADOR V12 CI": [
+"MI.V12",
+"Depurador V12 CI (DP2)",
+"PILETAS LM"
+],
+"PLANTA DE PASTA|SECTOR REFINOS Y FIBERIZER|FRACCIONADOR 220": [
+"FRACC220",
+"Fraccionador 220",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|TEC MAULE PLANTA ALTA|SEPARPLAST 231": [
+"SEPARPLAST",
+"Separplast 231",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|TEC MAULE PLANTA ALTA|SEPARPLAST 232": [
+"SEPARTPLAST",
+"Separplast 232",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|TEC MAULE PLANTA ALTA|ZARANDA SEPARPLAST": [
+"ZARI.ZARSEPAR",
+"Zaranda 230 (Separplast)",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|TEC MAULE PLANTA ALTA|BOMBA REGADERA SEPARPLAST": [
+"TECI.RESEBO",
+"Bomba Regaderas Separplast",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|TEC MAULE PLANTA ALTA|TORNILLO ELEVACION TEC MAULE": [
+"TECI.RET251",
+"Tornillo 251 Tec Maule",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|TEC BLANES|": [
+"DISPTECBLANES",
+"Dispersor M108 Tec Blanes",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|TEC BLANES|DISPERSOR TEC BLANES": [
+"DISPTECBLANES",
+"Dispersor M108 Tec Blanes",
+"PLANTA DE PASTA"
+],
+"PLANTA DE PASTA|TEC BLANES|DEPURADOR DP3": [
+"MI.JS",
+"Depurador DP3 CI",
+"PILETAS LM"
+],
+"PLANTA DE PASTA|TEC BLANES|FAN SEPARATOR": [
+"FAN.SEPARATOR",
+"Fan Separator 241 (Maule)",
+"PLANTA DE PASTA"
+],
+"TEC MAULE PTA BAJA|TANQUE AGUA CIRCULANTE|": [
+"BOMB-PIL H2O CIR CUP",
+"Bomba Tanque de agua circulante cupertina",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE AGUA CIRCULANTE|BOMBA DILUCION 1 TAC": [
+"TECI.BODIDI",
+"Bomba Agua Dilucion 1",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE AGUA CIRCULANTE|BOMBA DILUCION 3 TAC": [
+"TAQI.BOACIST5",
+"Bomba Agua Dilucion 3 CI (A Tanque Recupero CI)",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE AGUA CIRCULANTE|BOMBA DILUCION 4 TAC": [
+"PILI.2CDIBO",
+"Bomba Agua Dilucion 4 (a Tanque Recupero CI)",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE AGUA CIRCULANTE|BOMBA DILUCION 6 TAC": [
+"DEPI.3ºBO",
+"Bomba Agua Dilucion N°6 (A Fracc 220 y DC240)",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 230|": [
+"AGIT-TQ 230",
+"Agitador Tanque 230",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 230|BOMBA TQ 230": [
+"BOMB-TQ 230",
+"Bomba tanque 230",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 230|AGITADOR TQ 230": [
+"AGIT-TQ 230",
+"Agitador Tanque 230",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 250|": [
+"AGTINA 250",
+"Agitador Tanque Tina 250",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 250|BOMBA TQ 250": [
+"BOMTINA250",
+"Bomba Tina 250",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 250|AGITADOR TQ 250": [
+"AGTINA 250",
+"Agitador Tanque Tina 250",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 250|BOMBA RECIRCULACION TQ 250": [
+"BOMTINA250",
+"Bomba Tina 250",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 260|": [
+"AGIT-TQ 260",
+"Agitador Tanque 260",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|TANQUE 260|BOMBA TQ 260": [
+"BOMB-TQ 260",
+"Bomba Tanque 260",
+"TEC MAULE PTA BAJA"
+],
+"TEC MAULE PTA BAJA|BOMBA TQ 100 DORSO|": [
+"BOMB-TQ 100 M3 DORSO",
+"Bomba Tanque 100 m3 de dorso",
+"TEC MAULE PTA BAJA"
+],
+"TAP|BOMBA ADT|": [
+"BO.TDA-TAP",
+"Bomba aporte ADT - TAP",
+"TAP"
+],
+"TAP|BOMBA 1 TQ AGUA A CLARIFICAR - DELTAFLOAT|": [
+"BO2.TQAAC-TAP",
+"Bomba 2 Tanque Agua a Clarificar - Deltafloat",
+"TAP"
+],
+"TAP|BOMBA 1 TQ AGUA CLARIFICADA - TQ243 Y TQ260|": [
+"BO1.TQAC-TAP",
+"Bomba 1 Tanque Agua Clarificada - TQ243 y TQ260",
+"TAP"
+],
+"TAP|BOMBA 1 TQ AGUA FILTRADA - PULPO CI|": [
+"BO1.TQAF-TAP",
+"Bomba 1 Tanque Agua Filtrada - Pulpo CI",
+"TAP"
+],
+"TAP|BOMBA 2 TQ AGUA A CLARIFICAR - TAC|": [
+"BO2.TQAAC-TAP",
+"Bomba 2 Tanque Agua a Clarificar - Deltafloat",
+"TAP"
+],
+"TAP|BOMBA 2 TQ AGUA CLARIFICADA - SIGMAFILTER|": [
+"BO2.TQAC-TAP",
+"Bomba 2 Tanque Agua Clarificada - Sigmafilter",
+"TAP"
+],
+"TAP|BOMBA 2 TQ AGUA FILTRADA - FIBERNET|": [
+"BO2.TQAF-TAP",
+"Bomba 2 Tanque Agua Filtrada - Fibernet",
+"TAP"
+],
+"PILETAS LM|PILETA 210|": [
+"AGIT-PIL210I",
+"Agitador Pileta 210",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA 210|BOMBA PIL 210": [
+"BOMB-PIL210I",
+"Bomba Pileta 210",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA 210|AGITADOR PIL 210": [
+"AGIT-PIL210I",
+"Agitador Pileta 210",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA 401|": [
+"AGIT-PIL401",
+"Agitador Pileta 401",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA 401|BOMBA PIL 401": [
+"BOMB-PIL401",
+"Bomba Pileta 401",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA 401|AGITADOR PIL 401": [
+"AGIT-PIL401",
+"Agitador Pileta 401",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA 101|": [
+"AGIT-PIL101C",
+"Agitador Pileta 101",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA 101|BOMBA PIL 101": [
+"BOMB-PIL101C",
+"Bomba Pileta 101",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA 101|AGITADOR PIL 101": [
+"AGIT-PIL101C",
+"Agitador Pileta 101",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA B|": [
+"BOMB-PIL-B",
+"Bomba Pileta B",
+"PILETAS LM"
+],
+"PILETAS LM|PILETA B|BOMBA PIL B": [
+"BOMB-PIL-B",
+"Bomba Pileta B",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA FILTROS RONNINGEN|": [
+"ALIM.BORONN",
+"Bomba Filtros Agua Ronningen Peter",
+"PILETAS LM"
+],
+"PILETAS LM|TANQUE ELEVACION|BOMBA 1 TQ ELEV": [
+"BOMB-PIL-A",
+"Bomba 1 Pileta A",
+"PILETAS LM"
+],
+"PILETAS LM|TANQUE ELEVACION|BOMBA 2 TQ ELEV": [
+"BOMB-PIL-A2",
+"Bomba 2 Pileta A",
+"PILETAS LM"
+],
+"PILETAS LM|TINA TEC BLANES|": [
+"AGI TEC BLANES",
+"Agitacion Tina Pasta Tec Blanes",
+"PILETAS LM"
+],
+"PILETAS LM|TINA TEC BLANES|BOMBA TINA TEC BLANES": [
+"TECC.BODIL",
+"Bomba Dilucion Tina Tec Blanes",
+"PILETAS LM"
+],
+"PILETAS LM|TINA TEC BLANES|AGITADOR TINA TEC BLANES": [
+"AGI TEC BLANES",
+"Agitacion Tina Pasta Tec Blanes",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA DEPURACION 1º CI|": [
+"MI.BODP",
+"Bomba Depuración 1º CI (DC1)",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA DEPURACION 2º CI|": [
+"MI.BODS",
+"Bomba Depuración 2º CI (DC2)",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA DEPURACION 3º CI|": [
+"MI.BODT",
+"Bomba Depuración 3º CI (DC3)",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA DP3|": [
+"MI.BAJS",
+"Bomba Depurador DP3 CI",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA TQ REBALSE DEP CI|": [
+"BOMB-TQ REB AGUA DEP",
+"Bomba Tanque rebalse agua depuración CI",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA PILETA AGUA CIRCULANTE|": [
+"BOMB-TEC.TAC",
+"Bomba Pileta Agua Circulante (TAC) Cupertina",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA AUXILIAR CELLIER|": [
+"CELL.BOAGTANQ",
+"Bomba Auxiliar Cellier",
+"PILETAS LM"
+],
+"PILETAS LM|DEPURADOR V12 CUP|": [
+"MD.BAV12CUP",
+"Bomba Depurador V12 Cup",
+"PILETAS LM"
+],
+"PILETAS LM|DEPURADOR V22 CI|": [
+"MI.V22",
+"Depurador V22 CI (DP1)",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA FAN CI|": [
+"MI.BOFAN",
+"Bomba Fan Mesa CI",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA TANQUE 305|": [
+"BO.TQ305",
+"Bomba Tanque 305",
+"PILETAS LM"
+],
+"PILETAS LM|BOMBA DEPURADOR DP2 CI|": [
+"MI.BAV12",
+"Bomba Depurador DP2 CI",
+"PILETAS LM"
+],
+"PILETAS LC|PILETA 102|": [
+"AGIT-PIL102C",
+"Agitador Pileta 102",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 102|AGITADOR PIL 102": [
+"AGIT-PIL102C",
+"Agitador Pileta 102",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 270|": [
+"AGIT-PIL270I",
+"Agitador Pileta 270",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 270|AGITADOR PIL 270": [
+"AGIT-PIL270I",
+"Agitador Pileta 270",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 220|": [
+"AGIT-PIL220I",
+"Agitador Pileta 220",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 220|BOMBA PIL 220": [
+"BOMB-PIL220I",
+"Bomba Pileta 220",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 220|AGITADOR PIL 220": [
+"AGIT-PIL220I",
+"Agitador Pileta 220",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 301|": [
+"AGIT-PIL.301",
+"Agitador Pileta 301",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 301|BOMBA PIL 301": [
+"BOMB-PIL.301",
+"Bomba Pileta 301",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 301|AGITADOR PIL 301": [
+"AGIT-PIL.301",
+"Agitador Pileta 301",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 242|": [
+"AGIT-PIL.242",
+"Agitador Pileta 242",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 242|BOMBA PIL 242": [
+"BOMB-PIL.242",
+"Bomba Pileta 242",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 242|AGITADOR PIL 242": [
+"AGIT-PIL.242",
+"Agitador Pileta 242",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 303|": [
+"AGIT-PIL303D",
+"Agitador Pileta 303",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 303|BOMBA PIL 303": [
+"BOMB-PIL303D",
+"Bomba Pileta 303",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 303|AGITADOR PIL 303": [
+"AGIT-PIL303D",
+"Agitador Pileta 303",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 304|": [
+"AGIT-PIL304D",
+"Agitador Pileta 304",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 304|BOMBA PIL 304": [
+"BOMB-PIL304D",
+"Bomba Pileta 304",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 304|AGITADOR PIL 304": [
+"AGIT-PIL304D",
+"Agitador Pileta 304",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 103|": [
+"AGIT-PIL103C",
+"Agitador Pileta 103",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 103|BOMBA PIL 103": [
+"BOMB-PIL103C",
+"Bomba Pileta 103",
+"PILETAS LC"
+],
+"PILETAS LC|PILETA 103|AGITADOR PIL 103": [
+"AGIT-PIL103C",
+"Agitador Pileta 103",
+"PILETAS LC"
+],
+"PILETA AGUA CORTE|PILETA AGUA CORTE|": [
+"BOMB-PIL AGUA CORTE",
+"Bomba Pileta agua de corte",
+"PILETA AGUA CORTE"
+],
+"PILETA AGUA CORTE|PILETA AGUA CORTE|BOMBA AGUA REFILE POZO COUCH - VARIDUR": [
+"BOMREFPC",
+"Bomba Refile Pozo Couch",
+"MESAS"
+],
+"PILETA AGUA CORTE|PILETA AGUA CORTE|BOMBA DILUCION PBM": [
+"CICO.BOCOPBM",
+"Bomba Agua de Corte PBM",
+"PILETA AGUA CORTE"
+],
+"PILETA AGUA CORTE|PILETA AGUA CORTE|BOMBA MEZCLA PIL AGUA CORTE": [
+"PILAC.BOM",
+"Bomba Mezcla Pileta Agua de Corte",
+"PILETA AGUA CORTE"
+],
+"PILETA AGUA CORTE|PILETA AGUA CORTE|BOMBA AGUA CORTE POZO COUCH": [
+"CICO.BOAG",
+"Bomba Agua de Corte Pozo Couch",
+"PILETA AGUA CORTE"
+],
+"TQ 200 CORTE|TANQUE 200 CORTE|": [
+"AGIT-T200C",
+"Agitador Tanque 200 Corte",
+"TQ 200 CORTE"
+],
+"TQ 200 CORTE|TANQUE 200 CORTE|BOMBA 1° NIVEL": [
+"BOMB-T200C",
+"Bomba Tanque 200 Corte 1° Nivel",
+"TQ 200 CORTE"
+],
+"TQ 200 CORTE|TANQUE 200 CORTE|BOMBA 2° NIVEL": [
+"BOMB-T200C2°N",
+"Bomba Tanque 200 Corte 2° Nivel",
+"TQ 200 CORTE"
+],
+"HIDROPOLIS|PLANTA ALTA|DENSIDISC 1": [
+"DENSI1",
+"Densidisc 1 Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|PLANTA ALTA|DENSIDISC 2": [
+"DENSI2",
+"Densidisc 2 Planta Pasta",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|PLANTA ALTA|ZARANDA 204": [
+"EFLU.ZAR204N1",
+"Zaranda 204 Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|PLANTA ALTA|ZARANDA 205": [
+"EFLU.ZAR205N2",
+"Zaranda 205 Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|PLANTA ALTA|ZARANDA 206": [
+"EFLU.ZAR206N3",
+"Zaranda 206 Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|PILETA ACUMULADORA|": [
+"AGIT-PIL ACUM",
+"Agitador Pileta acumuladora",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|PILETA ACUMULADORA|BOMBA PIL PASTA RECUPERADA": [
+"BOMB-HID.PR",
+"Bomba Pileta Pasta Recuperada Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|PILETA ACUMULADORA|BOMBA TDA": [
+"BO.ADT",
+"Bomba TDA Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|CANAL EFLUENTES|BOMBA EFLUENTES TITULAR": [
+"EFLU.BOAUX3",
+"Bomba 3 Efluentes Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|CANAL EFLUENTES|BOMBA EFLUENTES 3": [
+"EFLU.BOAUX3",
+"Bomba 3 Efluentes Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|CANAL EFLUENTES|BOMBA SEDIFLOAT 1": [
+"EFLU.BOSDF1",
+"Bomba 1 Sedifloat Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|CANAL EFLUENTES|BOMBA SEDIFLOAT 2": [
+"EFLU.BOSDF2",
+"Bomba 2 Sedifloat Hidropolis",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|TANQUE 450 EFLUENTES|": [
+"AGIT-TQ 450 EFLUENTES",
+"Agitador Tanque 450 de efluentes",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|TANQUE 450 EFLUENTES|BOMBA TIT TQ 450 EFLUENTES": [
+"BOMB-TQ 450 EFLUENTES",
+"Bomba 1 Tanque 450 de efluentes",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|TANQUE 450 EFLUENTES|BOMBA AUX TQ 450 EFLUENTES": [
+"BOMB-TQ 450 EFLUENTES",
+"Bomba 1 Tanque 450 de efluentes",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|TANQUE 450 EFLUENTES|AGITADOR TQ 450 EFLUENTES": [
+"AGIT-TQ 450 EFLUENTES",
+"Agitador Tanque 450 de efluentes",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|TANQUE 450 PASTA|": [
+"AGIT-TQ 450 PASTA",
+"Agitador Tanque 450 de pasta",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|TANQUE 450 PASTA|BOMBA TQ 450 PASTA": [
+"BOMB-TQ 450 PASTA",
+"Bomba Tanque 450 de pasta",
+"HIDROPOLIS"
+],
+"HIDROPOLIS|TANQUE 450 PASTA|AGITADOR TQ 450 PASTA": [
+"AGIT-TQ 450 PASTA",
+"Agitador Tanque 450 de pasta",
+"HIDROPOLIS"
+],
+"MESAS|SOTANO|BOMBA ALMIDON SPRAY 1": [
+"QUI.BOALM1SP",
+"Bomba 1 Almidón Spray",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA ALMIDON SPRAY 2": [
+"QUI.BOALM2SP",
+"Bomba 2 Almidón Spray",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA SEAL PIT CUP": [
+"TAQC.BOSPITSE",
+"Bomba Seal Pit Cupertina",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA PILETA 102": [
+"BOMB-PIL102C",
+"Bomba Pileta 102",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA PILETA 270": [
+"BOMB-PIL270I",
+"Bomba Pileta 270",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA V12 CUP": [
+"MD.BAV12CUP",
+"Bomba Depurador V12 Cup",
+"PILETAS LM"
+],
+"MESAS|SOTANO|BOMBA FAN DORSO": [
+"MD.BOFAN",
+"Bomba Fan Mesa Dorso",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA FAN CUP": [
+"DILC.BOTINDI",
+"Bomba B111 Dilucion Cup",
+"MESAS"
+],
+"MESAS|SOTANO|DEPURADOR V22 CUP": [
+"MD.V22",
+"Depurador V22 Dorso",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA RECIRC DORSO": [
+"MD.BOFAN",
+"Bomba Fan Mesa Dorso",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA RECUP DORSO": [
+"MD.BOFAN",
+"Bomba Fan Mesa Dorso",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA CORTE POZO COUCH": [
+"BOMCORTPC",
+"Bomba Corte Pozo Couch",
+"MESAS"
+],
+"MESAS|SOTANO|DEPURADOR V22 DORSO": [
+"MD.V22",
+"Depurador V22 Dorso",
+"MESAS"
+],
+"MESAS|SOTANO|BOMBA REFILE POZO COUCH": [
+"BOMREFPC",
+"Bomba Refile Pozo Couch",
+"MESAS"
+],
+"MESAS|SOTANO|AGITADOR POZO COUCH": [
+"AGITPCOUCH",
+"Agitador Pozo Couch",
+"MESAS"
+],
+"MESAS|CUPERTINA|": [
+"TRAQUEOCUP",
+"RolloTraqueo Cupertina",
+"MESAS"
+],
+"MESAS|CUPERTINA|CAJA FORM MESA CUP": [
+"CAF-CUP",
+"Caja Formación Cup",
+"MESAS"
+],
+"MESAS|DORSO|": [
+"TRAQUEODOR",
+"RolloTraqueo Dorso",
+"MESAS"
+],
+"MESAS|DORSO|CAJA FORM MESA DORSO": [
+"CAF-DOR",
+"Caja Formación Dorso",
+"MESAS"
+],
+"MESAS|DORSO|CAJAS VACIO MESA DORSO": [
+"MANDOS MESA DORSO",
+"Mandos Mesa Dorso",
+"MESAS"
+],
+"MESAS|DORSO|ROLLOS MESA DORSO": [
+"MANDOS MESA DORSO",
+"Mandos Mesa Dorso",
+"MESAS"
+],
+"MESAS|DORSO|GUIA TELA MESA DORSO": [
+"MANDOS MESA DORSO",
+"Mandos Mesa Dorso",
+"MESAS"
+],
+"MESAS|DORSO|TELA MESA DORSO": [
+"MANDOS MESA DORSO",
+"Mandos Mesa Dorso",
+"MESAS"
+],
+"MESAS|DORSO|CUCHILLAS MESA DORSO": [
+"MANDOS MESA DORSO",
+"Mandos Mesa Dorso",
+"MESAS"
+],
+"MESAS|DORSO|REGADERAS MESA DORSO": [
+"MANDOS MESA DORSO",
+"Mandos Mesa Dorso",
+"MESAS"
+],
+"MESAS|CAPA INTERMEDIA|": [
+"MANDOS MESA CAPA INTERMEDIA",
+"Mandos Mesa Capa Intermedia",
+"MESAS"
+],
+"MESAS|CAPA INTERMEDIA|CAJA FORM MESA CI": [
+"CAF-CI",
+"Caja Formación CI",
+"MESAS"
+],
+"MESAS|TOP FORMER|": [
+"TF.VENVACMFCS",
+"Ventilador MFVB1 Top Former",
+"MESAS"
+],
+"MESAS|TOP FORMER|ROLLOS TOP FORMER": [
+"TF.VENVACMFCS",
+"Ventilador MFVB1 Top Former",
+"MESAS"
+],
+"MESAS|TOP FORMER|GUIA TELA TOP FORMER": [
+"MC.M9MAN",
+"Mando M9 Rollo Mando Tela Top Former",
+"MESAS"
+],
+"MESAS|TOP FORMER|TELA TOP FORMER": [
+"MC.M9MAN",
+"Mando M9 Rollo Mando Tela Top Former",
+"MESAS"
+],
+"MESAS|TOP FORMER|CUCHILLAS TOP FORMER": [
+"TF.VENVACMFCS",
+"Ventilador MFVB1 Top Former",
+"MESAS"
+],
+"MESAS|TOP FORMER|REGADERAS TOP FORMER": [
+"TF.VENVACMFCS",
+"Ventilador MFVB1 Top Former",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|": [
+"MAN-VEREFAUX",
+"Ventilador Auxiliar Mandos Mesas",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|MANDO M7 ROLLO TRANSF CI": [
+"MC.M7MAN",
+"Mando M7 Rollo Transferencia CI",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|MANDO M4 RMT DORSO": [
+"MC.M4MAN",
+"Mando M4 Rollo Mando Tela Dorso",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|MANDO M8 ROLLO AUX. CI": [
+"MC.M8MAN",
+"Mando M8 Rollo Aux CI",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|MANDO M5 ROLLO TRANSF DORSO": [
+"MC.M5MAN",
+"Mando M5 Rollo Transferencia Dorso",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|MANDO M1 RMT CUP": [
+"MC.M1MAN",
+"Mando M1 Rollo Mando Tela Cup",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|MANDO M2 ROLLO ASPIRANTE CUP": [
+"MC.M1MAN",
+"Mando M1 Rollo Mando Tela Cup",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|MANDO M9 TOP FORMER": [
+"MC.M9MAN",
+"Mando M9 Rollo Mando Tela Top Former",
+"MESAS"
+],
+"MESAS|MANDOS MESAS|MANDO M6 RMT CI": [
+"MC.M6MAN",
+"Mando M6 Rollo Mando Tela CI",
+"MESAS"
+],
+"MESAS|LOSA COMPRESORES MESAS|COMPRESOR CAJA MESA CI": [
+"MI.CECO",
+"Compresor Caja Formación CI",
+"MESAS"
+],
+"MESAS|LOSA COMPRESORES MESAS|VENTILADORES TOP FORMER": [
+"TF.VENVACMFCS",
+"Ventilador MFVB1 Top Former",
+"MESAS"
+],
+"MESAS|LOSA COMPRESORES MESAS|COMPRESOR CAJA MESA CUP": [
+"CAF-CUP",
+"Caja Formación Cup",
+"MESAS"
+],
+"MESAS|LOSA COMPRESORES MESAS|COMPRESOR CAJA MESA DORSO": [
+"MD.CECO",
+"Compresor Caja Formación Dorso",
+"MESAS"
+],
+"PRENSAS|PRIMER PRENSA|ROLLOS 1º PRENSA": [
+"PR.LAMBO",
+"Bomba 1 Laminado (Prensa)",
+"PRENSAS"
+],
+"PRENSAS|PRIMER PRENSA|FIELTRO 1º PRENSA": [
+"PR.LAMBO",
+"Bomba 1 Laminado (Prensa)",
+"PRENSAS"
+],
+"PRENSAS|PRIMER PRENSA|REGADERAS 1º PRENSA": [
+"PR.LAMBO",
+"Bomba 1 Laminado (Prensa)",
+"PRENSAS"
+],
+"PRENSAS|PRIMER PRENSA|CUCHILLAS 1º PRENSA": [
+"PR.LAMBO",
+"Bomba 1 Laminado (Prensa)",
+"PRENSAS"
+],
+"PRENSAS|SEGUNDA PRENSA|ROLLOS 2º PRENSA": [
+"2P.M11MAN",
+"Mando M11 2° Prensa",
+"PRENSAS"
+],
+"PRENSAS|SEGUNDA PRENSA|FIELTRO 2º PRENSA": [
+"2P.M11MAN",
+"Mando M11 2° Prensa",
+"PRENSAS"
+],
+"PRENSAS|SEGUNDA PRENSA|REGADERAS 2º PRENSA": [
+"2P.M11MAN",
+"Mando M11 2° Prensa",
+"PRENSAS"
+],
+"PRENSAS|SEGUNDA PRENSA|CUCHILLAS 2º PRENSA": [
+"2P.M11MAN",
+"Mando M11 2° Prensa",
+"PRENSAS"
+],
+"PRENSAS|TEM SEC|CENTRAL HIDRAULICA TEM SEC": [
+"BO1TEMSEC",
+"Bomba 1 central hidraúlica Tem Sec",
+"PRENSAS"
+],
+"PRENSAS|MANDOS PRENSAS|MANDO M10 1º PRENSA": [
+"1P.M10MAN",
+"Mando M10 1° Prensa",
+"PRENSAS"
+],
+"PRENSAS|MANDOS PRENSAS|MANDO M11 2º PRENSA": [
+"2P.M11MAN",
+"Mando M11 2° Prensa",
+"PRENSAS"
+],
+"PRENSAS|MANDOS PRENSAS|MANDO M12B TEMSEC 1º NIP": [
+"TSNIP1.M12B",
+"Mando M12B Tem Sec 1º Nip",
+"PRENSAS"
+],
+"PRENSAS|MANDOS PRENSAS|MANDO M12A TEMSEC CIL BASE": [
+"TEMS.M12CIBA",
+"Mando M12A Cilindro Base Tem Sec",
+"PRENSAS"
+],
+"PRENSAS|MANDOS PRENSAS|MANDO M12C TEMSEC 2º NIP": [
+"TSNIP2.M12C",
+"Mando M12C Tem Sec 2º Nip",
+"PRENSAS"
+],
+"SECADORES|PRIMER BATERIA (1 AL 12)|TELA 1º BATERIA SUP": [
+"MAN.M1S1",
+"Mando M1S1 Rollo Tela Sup., Pos. 10-02B, 1º Bateria",
+"SECADORES"
+],
+"SECADORES|PRIMER BATERIA (1 AL 12)|TELA 1º BATERIA INF": [
+"MAN.M1I1",
+"Mando M1I1 Rollo Tela Inf., Pos. 10-02, 1º Batería",
+"SECADORES"
+],
+"SECADORES|SEGUNDA BATERIA (13 AL 24)|TELA 2º BATERIA SUP": [
+"MAN.M2S1",
+"Mando M2S1 Rollo Tela Sup., Pos. 20-05, 2º Bateria",
+"SECADORES"
+],
+"SECADORES|SEGUNDA BATERIA (13 AL 24)|TELA 2º BATERIA INF": [
+"MAN.M2I1",
+"Mando M2I1 Rollo Tela Inf., Pos. 20-02, 2º Bateria",
+"SECADORES"
+],
+"SECADORES|TERCER BATERIA (25 AL 35)|TELA 3º BATERIA SUP": [
+"MAN.M3S1",
+"Mando M3S1 Rollo Tela Sup., Pos. 30-03, 3º Bateria",
+"SECADORES"
+],
+"SECADORES|TERCER BATERIA (25 AL 35)|TELA 3º BATERIA INF": [
+"MAN.M3I1",
+"Mando M3I1 Rollo Tela Inf., Pos. 30-02, 3º Bateria",
+"SECADORES"
+],
+"SECADORES|MONOLUCIDO|MANDO MONOLUCIDO": [
+"MONO.MAUX",
+"Mando Auxiliar Monolucido",
+"SECADORES"
+],
+"SECADORES|CUARTA BATERIA (36 AL 43)|TELA 4º BATERIA SUP": [
+"INT.AC4Y5",
+"Intercambiador Aire Caliente Sup 4º / 5º Bateria",
+"SECADORES"
+],
+"SECADORES|QUINTA BATERIA (44 AL 53)|TELA 5º BATERIA SUP": [
+"INT.AC4Y5",
+"Intercambiador Aire Caliente Sup 4º / 5º Bateria",
+"SECADORES"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|": [
+"SUMID BBAS VACIO",
+"Sumidero de Bombas de Vacio",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 01": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 02": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 03": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 04": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 05": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 06": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 07": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 08": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 09": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 10": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 11": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 12": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA VACIO 13": [
+"VCIO.BO01",
+"Bomba Vacio BV01",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA SELLO VACIO": [
+"VCIO.BOAS",
+"Bomba Agua Sello Bombas Vacio",
+"BOMBAS DE VACIO"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA ELUTRIACION": [
+"AGRE.BOELU",
+"Bomba Agua Elutriación",
+"PILETAS LM"
+],
+"BOMBAS DE VACIO|BOMBAS DE VACIO|BOMBA SUMIDERO": [
+"VCIO.BOSUMI",
+"Bomba Sumidero Bombas Vacio",
+"BOMBAS DE VACIO"
+],
+"PLANTA CONDENSADO|BOMBA BC3 TQ VACIO|": [
+"BC3TQVACIO",
+"Bomba Tanque de Vacio Titular BC3",
+"PLANTA CONDENSADO"
+],
+"PLANTA CONDENSADO|BOMBA BC5 TQ PULMON|": [
+"BOMBC5TQPULMON",
+"Bomba Tanque Pulmon Titular BC5",
+"PLANTA CONDENSADO"
+],
+"PLANTA CONDENSADO|BOMBA BC6 TQ PULMON|": [
+"BOMBC6TQPULMON",
+"Bomba Tanque pulmon Auxiliar BC6",
+"PLANTA CONDENSADO"
+],
+"VENTILADORES Y EXTRACTORES|LOSA TALLER MECANICO|VENT EXTRACTOR MONOLUCIDO": [
+"MONO.VEEX",
+"Ventilador Extractor Capota Monolucido",
+"VENTILADORES Y EXTRACTORES"
+],
+"VENTILADORES Y EXTRACTORES|LOSA TALLER MECANICO|VENT AIRE CAL INF PRESECADO": [
+"INT.ACINFPRE",
+"Intercambiador Aire Caliente Inf Presecado",
+"VENTILADORES Y EXTRACTORES"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 1|": [
+"CICO.CINTABM1",
+"Cinta BM 1",
+"CINTAS BAJO MAQ"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 2|": [
+"CICO.CINTABM2",
+"Cinta BM 2",
+"CINTAS BAJO MAQ"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 3|": [
+"CICO.CINTABM3",
+"Cinta BM 3",
+"CINTAS BAJO MAQ"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 4|": [
+"CICO.CINTABM4",
+"Cinta BM 4",
+"CINTAS BAJO MAQ"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 5|": [
+"CICO.CINTABM5",
+"Cinta BM 5",
+"CINTAS BAJO MAQ"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 6|": [
+"CICO.CINTABM6",
+"Cinta BM 6",
+"CINTAS BAJO MAQ"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 7|": [
+"CICO.CINTABM7",
+"Cinta BM 7",
+"CINTAS BAJO MAQ"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 8|": [
+"CICO.CINTABM8",
+"Cinta BM 8",
+"CINTAS BAJO MAQ"
+],
+"CINTAS BAJO MAQ|CINTA BAJO MAQ 9|": [
+"CICO.CINTABM9",
+"Cinta BM 9",
+"CINTAS BAJO MAQ"
+],
+"PULPER BAJO MAQUINA|PULPER BAJO MAQUINA|": [
+"BOMBEO PBM",
+"Bomba Pulper Bajo Maquina",
+"PULPER BAJO MAQUINA"
+],
+"ESTUCADO|UNI BAR|": [
+"CONTRARODILLOUB",
+"Contrarrodillo Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|ESTUCADORA UNI BAR": [
+"CONTRARODILLOUB",
+"Contrarrodillo Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|SOLARONIC UNI BAR": [
+"CONTRARODILLOUB",
+"Contrarrodillo Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|VENT AIRE COMB MAXON 2 UNI BAR": [
+"MAXO.IIVECO",
+"Ventilador Aire Combustión Maxon 2 Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|VENT AIRE RECIRC MAXON 2 UNI BAR": [
+"MAXO.IIVECO",
+"Ventilador Aire Combustión Maxon 2 Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|VENT AIRE COMB SOLARONIC UNI BAR": [
+"SOL4.VERE",
+"Ventilador Aire Recirculación Solaronic Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|VENT RECIRC SOLARONIC UNI BAR": [
+"SOL4.VERE",
+"Ventilador Aire Recirculación Solaronic Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|CORREAS MANDO ROLLOS UNI BAR": [
+"MANRA-UB",
+"Mando Rollo aplicador Uni bar (MERAU)",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|CONTRARODILLO UNI BAR": [
+"CONTRARODILLOUB",
+"Contrarrodillo Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|ROLLO APLICADOR UNI BAR": [
+"RA-UB",
+"Rollo aplicador Uni bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|ROLLOS PAPEL UNI BAR": [
+"CONTRARODILLOUB",
+"Contrarrodillo Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|MANDO M17 CONTRARODILLO UNI BAR": [
+"MANRA-UB",
+"Mando Rollo aplicador Uni bar (MERAU)",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|MANDO ROLLO APLICADOR UNI BAR": [
+"MANRA-UB",
+"Mando Rollo aplicador Uni bar (MERAU)",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|SOGA UNI BAR": [
+"CONTRARODILLOUB",
+"Contrarrodillo Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|UNI BAR|VARILLA UNI BAR": [
+"VUB",
+"Varilla Uni bar (MEVUB)",
+"ESTUCADO"
+],
+"ESTUCADO|CALANDRA 1|": [
+"CAL1.MANS",
+"Mando Principal Calandra 1 (MEPC1)",
+"ESTUCADO"
+],
+"ESTUCADO|CALANDRA 1|CALANDRA 1": [
+"CAL1.MANS",
+"Mando Principal Calandra 1 (MEPC1)",
+"ESTUCADO"
+],
+"ESTUCADO|CALANDRA 1|CENTRAL HIDRAULICA CALANDRA 1": [
+"CAL1.CHIDRA",
+"Central Hidraulica Rollo Kuster Calandra 1",
+"ESTUCADO"
+],
+"ESTUCADO|CALANDRA 1|MANDO M14 CALANDRA 1": [
+"CAL1.MANS",
+"Mando Principal Calandra 1 (MEPC1)",
+"ESTUCADO"
+],
+"ESTUCADO|CALANDRA 1|ROLLO SUP KUSTER CALANDRA 1": [
+"CAL1.CHIDRA",
+"Central Hidraulica Rollo Kuster Calandra 1",
+"ESTUCADO"
+],
+"ESTUCADO|CALANDRA 1|ROLLO INF CALANDRA 1": [
+"CAL1.CHIDRA",
+"Central Hidraulica Rollo Kuster Calandra 1",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|": [
+"CONTRARODILLOVB",
+"Contrarrodillo Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|ESTUCADORA VARI BAR": [
+"CONTRARODILLOVB",
+"Contrarrodillo Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|VAPOR ESTUFAS VARI BAR": [
+"CONTRARODILLOVB",
+"Contrarrodillo Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|VENT NA01 VARI BAR": [
+"VABA.INTNB01",
+"Intercambiador NA01 Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|INTERCAMBIADOR NA01 VARI BAR": [
+"VABA.INTNB01",
+"Intercambiador NA01 Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|MANDO M16 SOGA VARI BAR": [
+"VABA.SO",
+"Mando Soga Vari Bar (MESV)",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|VARILLA VARI BAR": [
+"VVB",
+"Varilla Vari bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|CORREAS MANDO ROLLOS VARI BAR": [
+"MANCONTRARODILLOVB",
+"Mando Contrarrodillo Vari Bar (MEVB)",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|CONTRARODILLO VARI BAR": [
+"CONTRARODILLOVB",
+"Contrarrodillo Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|ROLLO APLICADOR VARI BAR": [
+"MANRA-VB",
+"Mando Rollo aplicador Vari bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|ROLLOS PAPEL VARI BAR": [
+"CONTRARODILLOVB",
+"Contrarrodillo Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|MANDO M15 SOGAS VARI BAR": [
+"VB.M15",
+"Mando M15 Sogas Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|MANDO M16 CONTRARODILLO VARI BAR": [
+"MANCONTRARODILLOVB",
+"Mando Contrarrodillo Vari Bar (MEVB)",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|MANDO ROLLO APLICADOR VARI BAR": [
+"MANRA-VB",
+"Mando Rollo aplicador Vari bar",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|SOGA VARI BAR": [
+"VABA.SO",
+"Mando Soga Vari Bar (MESV)",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|TENSOR NEUM SOGA EXT VARI BAR": [
+"VABA.SO",
+"Mando Soga Vari Bar (MESV)",
+"ESTUCADO"
+],
+"ESTUCADO|VARI BAR|TENSOR NEUM SOGA INT VARI BAR": [
+"VABA.SO",
+"Mando Soga Vari Bar (MESV)",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|": [
+"CONTRARODILLOLS",
+"Contrarrodillo Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|ESTUCADORA LABIO SOPLADOR": [
+"CONTRARODILLOLS",
+"Contrarrodillo Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|VAPOR ESTUFAS LABIO SOPLADOR": [
+"CONTRARODILLOLS",
+"Contrarrodillo Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|SOLARONIC LABIO SOPLADOR": [
+"CONTRARODILLOLS",
+"Contrarrodillo Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|CONTRARODILLO LABIO SOPLADOR": [
+"CONTRARODILLOLS",
+"Contrarrodillo Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|INTERCAMBIADOR NB01 LABIO SOPLADOR": [
+"LABS.INTNA01",
+"Intercambiador NB01 Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|ROLLO APLICADOR LABIO SOPLADOR": [
+"RA-LS",
+"Rollo aplicador Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|ROLLO PREALISADOS LABIO SOPLADOR": [
+"RA-LS",
+"Rollo aplicador Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|ROLLO SELLADOR CAJA LABIO SOPLADOR": [
+"RA-LS",
+"Rollo aplicador Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|ROLLOS PAPEL LABIO SOPLADOR": [
+"CONTRARODILLOLS",
+"Contrarrodillo Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|MANDO M19 SOGA LABIO SOPLADOR": [
+"LABS.SO",
+"Mando Soga Labio Soplador (MESLS)",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|CORREAS MANDO ROLLOS LABIO SOPLADOR": [
+"MANRA-LS",
+"Mando Rollo aplicador Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|SOGA 1 LABIO SOPLADOR": [
+"LABS.SO",
+"Mando Soga Labio Soplador (MESLS)",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|TENSOR NEUM SOGA 1 LABIO SOPLADOR": [
+"LABS.SO",
+"Mando Soga Labio Soplador (MESLS)",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|SOGA 3 LABIO SOPLADOR": [
+"LABS.SO",
+"Mando Soga Labio Soplador (MESLS)",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|TENSOR NEUM SOGA 3 LABIO SOPLADOR": [
+"LABS.SO",
+"Mando Soga Labio Soplador (MESLS)",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|VENT AIRE COMB SOLARONIC LABIO SOPLADOR": [
+"SOL3.VECO",
+"Ventilador Aire Combustión Solaronic Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|VENT RECIRC SOLARONIC LABIO SOPLADOR": [
+"SOL3.VECO",
+"Ventilador Aire Combustión Solaronic Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|VENT NB01 LABIO SOPLADOR": [
+"LABS.INTNA01",
+"Intercambiador NB01 Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|SOPLADOR LABIO SOPLADOR": [
+"CONTRARODILLOLS",
+"Contrarrodillo Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|LABIO SOPLADOR|VENT EXTRACTOR POLVILLO LABIO SOPLADOR": [
+"LABS.VEEXPOL",
+"Ventilador Extractor Polvillo Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|": [
+"CONTRARODILLOCB",
+"Contrarrodillo Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|ESTUCADORA COMBI BLADE": [
+"CONTRARODILLOCB",
+"Contrarrodillo Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|SOLARONIC COMBI BLADE": [
+"CONTRARODILLOCB",
+"Contrarrodillo Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|CORREAS MANDO ROLLOS COMBI BLADE": [
+"MANCONTRARODILLOCB",
+"Mando Contrarrodillo Combi Blade (MECB)",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|CONTRARODILLO COMBI BLADE": [
+"CONTRARODILLOCB",
+"Contrarrodillo Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|MANDO M21 SOGAS COMBI BLADE": [
+"MANCONTRARODILLOCB",
+"Mando Contrarrodillo Combi Blade (MECB)",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|MANDO ROLLO APLICADOR COMBI BLADE": [
+"MANRA-CB",
+"Mando Rollo aplicador Combi Balde",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|MANDO CONTRARODILLO COMBI BLADE": [
+"MANCONTRARODILLOCB",
+"Mando Contrarrodillo Combi Blade (MECB)",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|ROLLO APLICADOR COMBI BLADE": [
+"RA-CB",
+"Rollo aplicador Combi Balde",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|ROLLOS PAPEL COMBI BLADE": [
+"CONTRARODILLOCB",
+"Contrarrodillo Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|TENSOR NEUM SOGA EXT COMBI BLADE": [
+"COMB.SO",
+"Mando Soga Combi Blade (MESG3)",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|TENSOR NEUM SOGA INT COMBI BLADE": [
+"COMB.SO",
+"Mando Soga Combi Blade (MESG3)",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|VARILLA COMBI BLADE": [
+"VCB",
+"Varilla Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|VENT AIRE COMB MAXON 1 COMBI BLADE": [
+"MAXO.VECO",
+"Ventilador Aire Combustión Maxon 1 Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|VENT AIRE RECIRC MAXON 1 COMBI BLADE": [
+"MAXO.VECO",
+"Ventilador Aire Combustión Maxon 1 Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|VENT AIRE COMB SOLARONIC COMBI BLADE": [
+"SOL2.VECO",
+"Ventilador Aire Combustión Solaronic Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|COMBI BLADE|VENT AIRE RECIRC SOLARONIC COMBI BLADE": [
+"SOL2.VECO",
+"Ventilador Aire Combustión Solaronic Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|ESTACION FINAL UNI BAR": [
+"ESTF.AGF4UNIB",
+"Agitador Estación Final F3 Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|AGITADOR ESTACION FINAL F3 UNI BAR": [
+"ESTF.AGF4UNIB",
+"Agitador Estación Final F3 Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|ZARANDA ESTACION FINAL F3 UNI BAR": [
+"ESTF.ZAF4UNIB",
+"Zaranda Estación Final F3 Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|BOMBA PF3 ESTACION FINAL UNI BAR": [
+"UB.BOPF3",
+"Bomba Estación Final PF3 Uni Bar",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|ESTACION FINAL VARI BAR": [
+"ESTF.AGF1VARI",
+"Agitador Estación Final F1 Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|AGITADOR ESTACION FINAL F1 VARI BAR": [
+"ESTF.AGF1VARI",
+"Agitador Estación Final F1 Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|ZARANDA ESTACION FINAL F1 VARI BAR": [
+"ESTF.ZAF1VARI",
+"Zaranda Estación Final F1 Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|BOMBA PF1 ESTACION FINAL VARI BAR": [
+"VB.BOPF1",
+"Bomba Estación Final PF1 Vari Bar",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|ESTACION FINAL LABIO SOPLADOR": [
+"ESTF.AGF2LABI",
+"Agitador Estación Final F2 Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|AGITADOR ESTACION FINAL F2 LABIO SOPLADOR": [
+"ESTF.AGF2LABI",
+"Agitador Estación Final F2 Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|ZARANDA ESTACION FINAL F2 LABIO SOPLADOR": [
+"ESTF.ZAF2LABI",
+"Zaranda Estación Final F2 Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|BOMBA PF2 ESTACION FINAL LABIO SOPLADOR": [
+"LS.BOPF2",
+"Bomba Estación Final PF2 Labio Soplador",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|ESTACION FINAL COMBI BLADE": [
+"ESTF.AGF4COMB",
+"Agitador Estación Final F4 Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|AGITADOR ESTACION FINAL PF4 COMBI BLADE": [
+"ESTF.AGF4COMB",
+"Agitador Estación Final F4 Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|ZARANDA ESTACION FINAL F4 COMBI BLADE": [
+"ESTF.ZARCOMB",
+"Zaranda Estación Final F4 Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|BOMBA PF4 ESTACION FINAL COMBI BLADE": [
+"CB.BOPF4",
+"Bomba PF4 Estación Final Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|BOMBA RECUPERO SALSA ESTACION FINAL COMBI BLADE": [
+"CB.BOPF4",
+"Bomba PF4 Estación Final Combi Blade",
+"ESTUCADO"
+],
+"ESTUCADO|SOTANO ESTUCADO|FILTROS RONNINGER PETER COMBI BLADE": [
+"ESTF.FI1RONCB",
+"Filtro 1 Ronninger Peter Combi Blade",
+"ESTUCADO"
+],
+"SEXTA BATERIA|ENFRIADORES|BOMBA RECUPERO AGUA ENFRIADORES": [
+"BOMB-TREA.I",
+"Bomba Tanque Recupero Agua CI",
+"SEXTA BATERIA"
+],
+"SEXTA BATERIA|CALANDRA 2|": [
+"CUINFCAL2",
+"Cuchilla inferior Calandra 2",
+"SEXTA BATERIA"
+],
+"SEXTA BATERIA|CALANDRA 2|CALANDRA 2": [
+"CUINFCAL2",
+"Cuchilla inferior Calandra 2",
+"SEXTA BATERIA"
+],
+"SEXTA BATERIA|CALANDRA 2|CUCHILLAS CALANDRA 2": [
+"CUINFCAL2",
+"Cuchilla inferior Calandra 2",
+"SEXTA BATERIA"
+],
+"SEXTA BATERIA|CALANDRA 2|MANDO CALANDRA 2": [
+"CAL2.MAN",
+"Mando Rollo Calandra 2 (MECN2)",
+"SEXTA BATERIA"
+],
+"POPE|POPE|PUENTE GRUA 10T POPE": [
+"GRUA.ELEVCPPO",
+"Puente Grúa 10T Pope",
+"POPE"
+],
+"POPE|POPE|BARRAS BOBINAS POPE": [
+"ACPOPE.MAN",
+"Acelerador de Barras Pope",
+"POPE"
+],
+"POPE|POPE|MANDO POPE": [
+"POPE.MAN",
+"Mando Pope (MEPPE)",
+"POPE"
+],
+"POPE|POPE|ACELERADOR DE BARRA POPE": [
+"ACPOPE.MAN",
+"Acelerador de Barras Pope",
+"POPE"
+],
+"POPE|POPE|ESCANER VALMET": [
+"ESCANER VM",
+"Escaner - Valmet",
+"POPE"
+],
+"CELLIER|CELLIER|": [
+"GRUA.MTACARCE",
+"Montacarga Cellier",
+"CELLIER"
+],
+"CELLIER|CELLIER|AGITADOR TQ B1": [
+"AGIT-CELL.TQB1",
+"Agitador Tanque B1 Cellier",
+"CELLIER"
+],
+"CELLIER|CELLIER|AGITADOR TQ COCINADOR C1": [
+"AGCOC1",
+"Agitador Tanque Cocinador C1 - Cellier",
+"CELLIER"
+],
+"CELLIER|CELLIER|AGITADOR TQ COCINADOR C2": [
+"AGCOC2",
+"Agitador Tanque Cocinador C2 - Cellier",
+"CELLIER"
+],
+"CELLIER|CELLIER|BOMBA B1 AGUA SELLO DILUTORES": [
+"CELL.BOAGSED1",
+"Bomba 1 Agua Sello Dilutores",
+"CELLIER"
+],
+"CELLIER|CELLIER|BOMBA B2 AGUA SELLO DILUTORES": [
+"CELL.BOAGSED1",
+"Bomba 1 Agua Sello Dilutores",
+"CELLIER"
+],
+"CELLIER|CELLIER|BOMBA TQ E1 Y E2": [
+"CELL.BOPE1",
+"Bomba PE1 Tanques E1/E2",
+"CELLIER"
+],
+"CELLIER|CELLIER|BOMBA TQ E4 Y E5": [
+"CELL.BOPE2",
+"Bomba PE2 Tanques E4/E5",
+"CELLIER"
+],
+"CELLIER|CELLIER|BOMBA TQ E6": [
+"CELL.BOPE3",
+"Bomba PE3 Tanque E6",
+"CELLIER"
+],
+"CELLIER|CELLIER|BOMBA TQ E7": [
+"CELL.BOPE4",
+"Bomba PE4 Tanque E7",
+"CELLIER"
+],
+"CELLIER|CELLIER|DILUTOR 1": [
+"CELL.DL01",
+"Dilutor N° 1",
+"CELLIER"
+],
+"CELLIER|CELLIER|DILUTOR 2": [
+"CELL.DL02",
+"Dilutor Nº 2",
+"CELLIER"
+],
+"CELLIER|CELLIER|DILUTOR 3": [
+"CELL.DL03",
+"Dilutor Nº 3",
+"CELLIER"
+],
+"CELLIER|CELLIER|SOPLADOR TRANSPORTE CAOLIN": [
+"CELL.SOPCA",
+"Soplador Transporte Neumatico Caolin Cellier",
+"CELLIER"
+],
+"CELLIER|CELLIER|VENT EXTRACTOR DILUTORES 2 Y 3": [
+"CELL.VEXPD2Y3",
+"Ventilador Extractor Dilutores 2 y 3",
+"CELLIER"
+],
+"ALISTAMIENTO|REBOBINADORA|VENT EXTRACTOR POLVILLO AXIAL REBOBINADORA": [
+"REB-VEAXEXPO",
+"Ventilador Extractor Polvillo Axial Rebobinadora Vari Dur",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|REBOBINADORA|VENT EXTRACTOR POLVILLO CENTRIFUGO REBOBINADORA": [
+"REB-VECEEXPO",
+"Ventilador Extractor Polvillo Centrífugo Rebobinadora Vari Dur",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|PULPER REFILE REBOBINADORA|": [
+"PULPER REFILE",
+"Pulper Refile Vari Dur",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|PULPER REFILE REBOBINADORA|BOMBA PULPER REFILE": [
+"BOMPULPER REFILE",
+"Bomba Pulper Refile Vari Dur",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|PULPER REFILE REBOBINADORA|MANDO PULPER REFILE": [
+"PULPER REFILE",
+"Pulper Refile Vari Dur",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|PULPER REFILE REBOBINADORA|PULPER REFILE": [
+"PULPER REFILE",
+"Pulper Refile Vari Dur",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|VOLCADOR DE BOBINAS|": [
+"ALI.VBOB",
+"Volcador Bobinas EHP",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|VOLCADOR DE BOBINAS|CILINDORS HIDRAULICOS VOLCADOR DE BOBINAS": [
+"ALI.VBOB",
+"Volcador Bobinas EHP",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|VOLCADOR DE BOBINAS|CENTRAL HIDRAULICA VOLCADOR DE BOBINAS": [
+"ALI.VBOB",
+"Volcador Bobinas EHP",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|VOLCADOR DE BOBINAS|CAJAS RODAMIENTO VOLCADOR DE BOBINAS": [
+"ALI.VBOB",
+"Volcador Bobinas EHP",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|ZONA CORTADORA|": [
+"LUG.ALIS.CORTADORA",
+"Zona Cortadora",
+"ALISTAMIENTO"
+],
+"ALISTAMIENTO|DEPOSITO|": [
+"LUG.ALIS.DEPOSITO",
+"Depósito",
+"ALISTAMIENTO"
+],
+"LABORATORIO|LABORATORIO DE CALIDAD|": [
+"LUG.LAB.CALIDAD",
+"Laboratorio de Calidad",
+"LABORATORIO"
+],
+"LABORATORIO|EQUIPOS DE ENSAYO|": [
+"LUG.LAB.ENSAYOS",
+"Laboratorio · Equipos de ensayo",
+"LABORATORIO"
+]
+};

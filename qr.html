@@ -26,7 +26,7 @@
     <div class="card">
       <div class="filtros">
         <div><label>Área</label><select id="area"></select></div>
-        <div><label>Subárea / equipo</label><select id="sub"><option value="">Todas</option></select></div>
+        <div><label>Equipo / lugar</label><select id="sub"><option value="">Todos</option></select></div>
         <div style="flex:2"><label>Dirección de la app (se completa sola)</label><input id="base"></div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -47,7 +47,7 @@
   $('area').innerHTML = '<option value="">Todas las áreas</option>' + opciones(Object.keys(ARBOL_EQUIPO));
   $('base').value = location.href.replace(/[^\/]*(\?.*)?$/, '') + 'formulario.html';
   $('area').addEventListener('change', function(){
-    $('sub').innerHTML = '<option value="">Todas</option>' + (this.value ? opciones(Object.keys(ARBOL_EQUIPO[this.value])) : '');
+    $('sub').innerHTML = '<option value="">Todos</option>' + (this.value ? opciones(Object.keys(ARBOL_EQUIPO[this.value]).sort(function(x,y){ return x.localeCompare(y,'es'); })) : '');
   });
   function svgQR(texto){
     var qr = qrcode(0, 'M'); qr.addData(texto); qr.make();
@@ -59,9 +59,9 @@
     if (items.length > 300 && !confirmado) { $('info').textContent = items.length + ' etiquetas: elegí un área para no generar todas juntas, o tocá de nuevo para generarlas igual.'; confirmado = true; return; }
     confirmado = false;
     $('etiquetas').innerHTML = items.map(function(e){
-      var u = [e.area, e.sub, e.eq].filter(String).join('|');
-      var url = base + '?u=' + encodeURIComponent(u);
-      return '<div class="et">'+svgQR(url)+'<div><div class="t1">'+esc(e.eq || e.sub)+'</div><div class="t2">'+esc(e.area)+(e.eq ? ' › '+esc(e.sub) : '')+'</div>'+
+      // QR por código de sistema (único); los QR viejos (?u=) siguen funcionando
+      var url = e.sistema ? base + '?s=' + encodeURIComponent(e.sistema) : base + '?u=' + encodeURIComponent([e.area, e.sub, e.eq].filter(String).join('|'));
+      return '<div class="et">'+svgQR(url)+'<div><div class="t1">'+esc(e.eq || e.sub)+'</div><div class="t2">'+esc(e.area)+(e.eq ? ' › '+esc(e.sub) : '')+(e.sistema ? ' · <b>'+esc(e.sistema)+'</b>' : '')+'</div>'+
         '<div class="t3">¿VES UNA ANOMALÍA?<br>ESCANEÁ Y CARGÁ LA TARJETA</div></div></div>';
     }).join('');
     $('info').textContent = items.length + ' etiquetas generadas.';
