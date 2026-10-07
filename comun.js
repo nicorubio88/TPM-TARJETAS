@@ -16,6 +16,9 @@ const CONFIG = {
   DIAS_REPETICION: 90,            // misma falla en el mismo equipo dentro de N dias de resuelta = repeticion
   UMBRAL_KAIZEN: 3,               // equipo con >= N tarjetas en 90 dias = candidato a Mejora Enfocada
   PERIODO_DEFECTO_DIAS: 365,      // cuanto historial traen Seguimiento y Dashboard por defecto
+  // Metas del dashboard: dias para cerrar cada color y % de lo abierto en el periodo que hay que cerrar
+  META_DIAS_CIERRE: { Azul: 7, Roja: 30, Verde: 60 },
+  META_PCT_CIERRE: 80,
 
   /* ---- Planificacion automatica ---- */
   // Criterio de prioridad (puntaje). Se suma todo lo que aplique; mayor puntaje = se planifica antes.
@@ -772,6 +775,53 @@ function indicadoresTarjetas(ts, desde, dias) {
 function serieAcumulada(ts, semanas) {
   const s = serieSemanal(ts, semanas); let c = 0, r = 0;
   return s.map(function (w) { c += w.altas; r += w.resueltas; return { label: w.label, hasta: w.hasta, colocadas: c, retiradas: r }; });
+}
+
+/* Abiertas vs cerradas ACUMULADAS desde 'desde' (lunes), por semana. La curva de abiertas arranca en lo que ya
+   estaba pendiente al inicio, asi la distancia final entre curvas = pendientes hoy. */
+function serieAbiertasCerradas(ts, semanas) {
+  const s = serieSemanal(ts, semanas), ini = s.length ? s[0].desde : new Date();
+  let base = 0;
+  ts.forEach(function (t) {
+    if (t['Estado'] === 'Anulada') return;
+    const al = fechaDe(t['Fecha alta']), ci = esResuelta(t) ? fechaDe(t['Fecha cierre']) : null;
+    if (al && al < ini && (!ci || ci >= ini)) base++;
+  });
+  let a = base, c = 0;
+  return { base: base, desde: ini, puntos: s.map(function (w) { a += w.altas; c += w.resueltas; return { label: w.label, desde: w.desde, hasta: w.hasta, altas: w.altas, cierres: w.resueltas, abiertas: a, cerradas: c }; }) };
+}
+
+/* Indicadores de decision para un grupo de tarjetas (un color o todas) en [desde, hasta). */
+function indicadoresCierre(ts, desde, hasta, color) {
+  const d0 = desde.getTime(), d1 = (hasta || new Date()).getTime(), meta = color ? (CONFIG.META_DIAS_CIERRE || {})[color] : null;
+  const o = { abiertasPer: 0, cerradasPer: 0, pctCierre: null, mediana: null, enMeta: null, meta: meta, pend: 0, pend30: 0, venc: 0, aVerificar: 0,
+    porOperacion: null, pendHH: 0, sinClasificar: 0, conPlan: 0, cerradasEAM: 0, pendInicio: 0, ahorroUSD: 0 };
+  const tiempos = []; let op = 0, enM = 0;
+  ts.forEach(function (t) {
+    if (t['Estado'] === 'Anulada') return;
+    const al = fechaDe(t['Fecha alta']), ci = esResuelta(t) ? fechaDe(t['Fecha cierre']) : null;
+    if (al && al.getTime() >= d0 && al.getTime() < d1) o.abiertasPer++;
+    if (al && al.getTime() < d0 && (!ci || ci.getTime() >= d0)) o.pendInicio++;
+    if (ci && ci.getTime() >= d0 && ci.getTime() < d1) {
+      o.cerradasPer++;
+      if (al) { const dd = (ci - al) / 86400000; tiempos.push(dd); if (meta && dd <= meta) enM++; }
+      if (t['Cerrado por'] && esDeOperacion(t['Cerrado por'])) op++;
+      if (esCerradaEAM(t)) o.cerradasEAM++;
+      o.ahorroUSD += parseFloat(t['Costo estimado']) || 0;
+    }
+    if (esAbierta(t)) {
+      o.pend++; if (t.diasAbierta > 30) o.pend30++; if (t.vencida) o.venc++;
+      o.pendHH += hhDe(t);
+      if (condicionDe(t) === 'A definir') o.sinClasificar++;
+      if (esPlanificada(t) || t['N OT']) o.conPlan++;
+    }
+    if (t['Estado'] === 'Cerrada') o.aVerificar++;
+  });
+  o.pctCierre = o.abiertasPer ? Math.round(o.cerradasPer / o.abiertasPer * 100) : null;
+  o.mediana = tiempos.length ? _mediana(tiempos) : null;
+  o.enMeta = meta && tiempos.length ? Math.round(enM / tiempos.length * 100) : null;
+  o.porOperacion = o.cerradasPer ? Math.round(op / o.cerradasPer * 100) : null;
+  return o;
 }
 
 /* Promedio de generacion por mes: tarjetas por persona de la nomina y personas que reportaron. */

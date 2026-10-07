@@ -73,18 +73,22 @@ async def flujos(p):
     await pg.select_option('#fPeriodo',v); await pg.wait_for_timeout(900); await revisar(pg,'dashboard '+v+' días',list(errs)); errs.clear()
   await pg.select_option('#fArea','PULPERS'); await pg.wait_for_timeout(300); await revisar(pg,'dashboard área',list(errs)); errs.clear()
   await pg.select_option('#fArea',''); await pg.select_option('#fPeriodo','90'); await pg.wait_for_timeout(900)
-  k1=await pg.inner_text('#k1'); print('DASH k1:', k1.replace('\n',' '))
+  k1=await pg.inner_text('#k0'); print('DASH k0:', k1.replace('\n',' '))
   print('DASH k2:', (await pg.inner_text('#k2')).replace('\n',' ')); print('DASH k3:', (await pg.inner_text('#k3')).replace('\n',' ')); print('DASH k4:', (await pg.inner_text('#k4')).replace('\n',' '))
   # verificacion independiente (python) de colocadas / retiradas 90 dias
   req=urllib.request.Request('http://localhost:8787/', data=json.dumps({'action':'listar'}).encode(), method='POST'); L=json.loads(urllib.request.urlopen(req).read())['tarjetas']
-  lim=datetime.datetime.now()-datetime.timedelta(days=90)
+  hoy=datetime.datetime.now(); lun=datetime.datetime(hoy.year,hoy.month,hoy.day)-datetime.timedelta(days=hoy.weekday()); lim=lun-datetime.timedelta(days=7*12)
+  diasP=max(1,round((hoy-lim).total_seconds()/86400))
   pd=lambda s: datetime.datetime.strptime(s[:16],'%Y-%m-%d %H:%M') if s else None
   col=sum(1 for t in L if t['Estado']!='Anulada' and pd(t['Fecha alta'])>=lim)
   ret=sum(1 for t in L if t['Estado'] in ('Cerrada','Verificada') and t['Fecha cierre'] and pd(t['Fecha cierre'])>=lim)
-  nums=[int(x) for x in re.findall(r'^(\d+)$', k1, re.M)]
-  ok(nums[:2]==[col,ret],'dashboard colocadas/retiradas = cálculo independiente (%s vs %s)'%(nums[:2],[col,ret]))
+  m=re.search(r'(\d+) cerradas ÷ (\d+) abiertas', k1); nums=[int(m.group(2)),int(m.group(1))] if m else None
+  ok(nums==[col,ret],'dashboard abiertas/cerradas del período = cálculo independiente (%s vs %s)'%(nums,[col,ret]))
+  pend=sum(1 for t in L if t['Estado'] in ('Abierta','En proceso'))
+  pc=[int(x) for x in re.findall(r'(\d+)\npendientes hoy', await pg.inner_text('#porColor'))]
+  ok(sum(pc)==pend and int(re.match(r'(\d+)', k1).group(1))==pend,'pendientes por color suman el total (%s vs %s)'%(pc,pend))
   gdash=float(re.search(r'([\d,]+)\nTarjetas por persona', await pg.inner_text('#k2')).group(1).replace(',','.'))
-  ok(abs(gdash - col/157/(90/30.4))<0.06,'promedio persona/mes = cálculo independiente (%.2f vs %.2f)'%(gdash, col/157/(90/30.4)))
+  ok(abs(gdash - col/157/(diasP/30.4))<0.06,'promedio persona/mes = cálculo independiente (%.2f vs %.2f)'%(gdash, col/157/(diasP/30.4)))
   # --- planificacion
   await pg.goto(B+'planificacion.html'); await pg.wait_for_timeout(1500)
   for t in ['aDefinir','verdes','findes']: await pg.check('#'+t); await pg.wait_for_timeout(150)

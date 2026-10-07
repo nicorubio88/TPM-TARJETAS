@@ -11,12 +11,28 @@
 <link rel="stylesheet" href="estilos.css">
 <style>
   .bloque{margin-top:30px}
-  .bloque>h2{display:flex;align-items:center;gap:10px;margin:0 0 4px;font-size:19px}
-  .bloque>h2 .nro{width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:none}
+  .bloque h2{display:flex;align-items:center;gap:10px;margin:0 0 4px;font-size:19px}
+  .bloque h2 .nro{width:30px;height:30px;border-radius:50%;background:var(--verde);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:none}
   .bloque>.sub{margin:0 0 12px}
   .kpis.k4{grid-template-columns:repeat(4,1fr)} .kpis.k5{grid-template-columns:repeat(5,1fr)}
   @media(max-width:900px){.kpis.k4,.kpis.k5{grid-template-columns:repeat(2,1fr)}}
   .kpi .m{font-size:11.5px;color:var(--muted);margin-top:4px}
+  .kpis.k6{grid-template-columns:repeat(6,1fr)} @media(max-width:1100px){.kpis.k6{grid-template-columns:repeat(3,1fr)}} @media(max-width:560px){.kpis.k6{grid-template-columns:repeat(2,1fr)}}
+  .kpi .sem{font-size:11.5px;font-weight:700;margin-top:5px}
+  .kpi .sem.ok{color:#3D5F26} .kpi .sem.amber{color:var(--amber-ink)} .kpi .sem.rojo{color:var(--roja-ink,#8A2E1C)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:7px 14px;font:inherit;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+  .seg button.on{background:var(--verde);color:#fff}
+  .pc{border-top:5px solid}.pc .pt{font-weight:800;text-transform:uppercase;font-size:13px;letter-spacing:.04em}
+  .pc .mk{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 4px}
+  .pc .mk b{display:block;font-size:22px;font-weight:800;line-height:1.1}.pc .mk span{font-size:11px;color:var(--muted);display:block}
+  .pc .mk .amber b{color:var(--amber-ink)} .pc .mk .rojo b{color:var(--roja-ink,#8A2E1C)}
+  @media(max-width:560px){.pc .mk{grid-template-columns:repeat(2,1fr)}}
+  .pc .pie{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+  .pc .svgchart .ax{font-size:15px}
+  details.plegable>summary{list-style:none;cursor:pointer} details.plegable>summary::-webkit-details-marker{display:none}
+  details.plegable>summary h2:after{content:'▸ ver';font-size:12px;color:var(--muted);font-weight:700;margin-left:6px}
+  details.plegable[open]>summary h2:after{content:'▾ ocultar'}
   /* los graficos van de a dos por fila: ejes mas grandes para que se lean */
   .bloque .svgchart .ax{font-size:21px}
   @media(max-width:760px){ .bloque .svgchart .ax{font-size:26px} }
@@ -30,7 +46,7 @@
 
 <div class="wrap">
   <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
-    <div><h1>Dashboard</h1><p class="sub" style="margin:0;max-width:640px">Ordenado por prioridad. Los bloques 1 a 4 son el tablero de tarjetas del Autónomo (Suzuki); 5 a 8 muestran dónde actuar y cómo traccionan Planificado, Calidad y Mejora Enfocada.</p></div>
+    <div><h1>Dashboard</h1><p class="sub" style="margin:0;max-width:640px">Arriba lo que hay que decidir; después generación, velocidad y quién cierra. Los bloques 5 a 7 (análisis) se despliegan al tocarlos.</p></div>
     <div class="filtros" style="margin:0;flex:0 1 560px">
       <div><label>Período</label><select id="fPeriodo"><option value="30">Últimos 30 días</option><option value="90" selected>Últimos 90 días</option><option value="180">Últimos 6 meses</option><option value="365">Últimos 12 meses</option></select></div>
       <div><label>Área</label><select id="fArea"></select></div>
@@ -39,16 +55,26 @@
   </div>
   <div id="msg"></div>
 
+  <!-- 0 -->
+  <div class="bloque" style="margin-top:20px">
+    <h2><span class="nro">★</span>Para decidir hoy</h2>
+    <p class="sub">Semáforo contra la meta y tendencia contra el período anterior. <span id="periodoTxt"></span></p>
+    <div class="kpis k6" id="k0"></div>
+  </div>
+
   <!-- 1 -->
   <div class="bloque">
-    <h2><span class="nro">1</span>Tarjetas colocadas vs. retiradas</h2>
-    <p class="sub">El indicador central del tablero de tarjetas. Colocada = cargada; retirada = resuelta. Si las curvas se separan, quedan tarjetas colgadas.</p>
-    <div class="kpis k5" id="k1"></div>
-    <div class="grid cols-2" style="margin-top:14px">
-      <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Acumulado del período</b>
-        <div class="leyenda"><span><i style="background:#2D6CB5"></i>Colocadas</span><span><i style="background:#548235"></i>Retiradas</span></div></div><div id="acumulado"></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px">
+      <div><h2><span class="nro">1</span>Abiertas vs. cerradas</h2>
+      <p class="sub" style="margin:0">Acumulado del período por color. La curva de abiertas arranca con lo que ya estaba pendiente, así la brecha final = pendientes hoy.
+      Metas de cierre: azul ≤ <span id="mAz"></span> d · roja ≤ <span id="mRo"></span> d · verde ≤ <span id="mVe"></span> d · cerrar ≥ <span id="mPct"></span>% de lo abierto.</p></div>
+      <div class="seg" id="vista"><button data-v="color" class="on">Por color</button><button data-v="todas">Todas juntas</button></div>
+    </div>
+    <div class="grid cols-3" id="porColor" style="margin-top:12px"></div>
+    <div class="grid cols-2" id="todasBox" style="margin-top:12px;display:none">
+      <div class="card" id="todasAcum"></div>
       <div class="card"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Por semana</b>
-        <div class="leyenda"><span><i style="background:#8FA7D6"></i>Colocadas</span><span><i style="background:#548235"></i>Retiradas</span><span><i class="ln"></i>Colgadas al cierre</span></div></div><div id="semanal"></div></div>
+        <div class="leyenda"><span><i style="background:#8FA7D6"></i>Abiertas</span><span><i style="background:#548235"></i>Cerradas</span><span><i class="ln"></i>Pendientes al cierre</span></div></div><div id="semanal"></div></div>
     </div>
   </div>
 
@@ -81,15 +107,15 @@
 
   <!-- 3 -->
   <div class="bloque">
-    <h2><span class="nro">3</span>Velocidad de retiro</h2>
+    <h2><span class="nro">3</span>Velocidad de cierre</h2>
     <p class="sub">Cuánto tarda una anomalía en resolverse y cuánto se cumple lo comprometido.</p>
     <div class="kpis" id="k3"></div>
-    <div class="card" style="margin-top:14px"><b>Antigüedad de las colgadas</b><div id="aging" style="margin-top:6px"></div></div>
+    <div class="card" style="margin-top:14px"><b>Antigüedad de las pendientes</b><div id="aging" style="margin-top:6px"></div></div>
   </div>
 
   <!-- 4 -->
   <div class="bloque">
-    <h2><span class="nro">4</span>Quién retira y cómo queda</h2>
+    <h2><span class="nro">4</span>Quién cierra y cómo queda</h2>
     <p class="sub">Madurez del Autónomo: cuánto resuelve el propio sector, y si lo resuelto quedó verificado en el equipo.</p>
     <div class="kpis k4" id="k4"></div>
     <div class="card" style="margin-top:14px">
@@ -102,18 +128,18 @@
   </div>
 
   <!-- 5 -->
-  <div class="bloque">
-    <h2><span class="nro">5</span>Qué se encuentra</h2>
+  <details class="bloque plegable">
+    <summary><h2><span class="nro">5</span>Qué se encuentra</h2></summary>
     <p class="sub">Tipos de anomalía (los 7 fuguai) y paso del Autónomo al que responde cada tarjeta.</p>
     <div class="grid cols-2">
       <div class="card"><b>Por tipo de anomalía</b><div id="categorias" style="margin-top:8px"></div></div>
       <div class="card"><b>Por paso del Mantenimiento Autónomo</b><div id="etapas" style="margin-top:8px"></div></div>
     </div>
-  </div>
+  </details>
 
   <!-- 6 -->
-  <div class="bloque">
-    <h2><span class="nro">6</span>Dónde: lugares críticos y repeticiones</h2>
+  <details class="bloque plegable">
+    <summary><h2><span class="nro">6</span>Dónde: lugares críticos y repeticiones</h2></summary>
     <p class="sub">Dónde se concentran las anomalías y qué vuelve después de resuelto: ahí van el Planificado y la Mejora Enfocada.</p>
     <div class="grid cols-2">
       <div class="card"><b>Áreas</b><div id="areas" style="margin-top:8px"></div></div>
@@ -124,14 +150,14 @@
       <p class="mini" style="margin:2px 0 10px">Equipos con <b id="umbralTxt"></b> o más tarjetas en 90 días, o con una falla que volvió después de resuelta (↻).</p>
       <div id="kaizen" style="overflow-x:auto"></div>
     </div>
-  </div>
+  </details>
 
   <!-- 7 -->
-  <div class="bloque">
-    <h2><span class="nro">7</span>Tracción de los pilares</h2>
+  <details class="bloque plegable">
+    <summary><h2><span class="nro">7</span>Tracción de los pilares</h2></summary>
     <p class="sub">Lo que las tarjetas aportan a cada pilar. Los indicadores de resultado (averías, MTBF, MTTR, OEE, defectos) salen del registro de producción, no de este sistema.</p>
     <div class="grid cols-3" id="pilares"></div>
-  </div>
+  </details>
 
   <!-- 8 -->
   <div class="bloque">
@@ -139,8 +165,8 @@
     <p class="sub">Qué se puede resolver con la máquina en marcha y qué hay que llevar a la parada. <a href="planificacion.html"><b>Ir a Planificación →</b></a></p>
     <div class="grid cols-4" id="porCondicion"></div>
     <div class="grid cols-2" style="margin-top:14px">
-      <div class="card"><b>Colgadas por área que resuelve</b><div id="porAreaResp" style="margin-top:8px"></div></div>
-      <div class="card"><b>Carga por responsable</b><p class="mini" style="margin:2px 0 6px">Tarjetas colgadas a nombre de cada uno: muestra si el reparto es parejo.</p><div id="porResp"></div></div>
+      <div class="card"><b>Pendientes por área que resuelve</b><div id="porAreaResp" style="margin-top:8px"></div></div>
+      <div class="card"><b>Carga por responsable</b><p class="mini" style="margin:2px 0 6px">Tarjetas pendientes a nombre de cada uno: muestra si el reparto es parejo.</p><div id="porResp"></div></div>
     </div>
     <div class="card" style="margin-top:14px;overflow-x:auto"><b>Tablero de acciones abiertas</b><div class="kanban" id="kanban" style="min-width:640px;margin-top:10px"></div></div>
   </div>
@@ -173,27 +199,56 @@
     }).join('');
   }
 
-  /* Curvas acumuladas colocadas / retiradas */
-  function graficoAcumulado(serie){
-    var W = 900, H = 260, pl = 58, pr = 44, pt = 16, pb = 40;
-    var max = Math.max.apply(null, serie.map(function(s){ return Math.max(s.colocadas, s.retiradas); }).concat([1]));
-    var x = function(i){ return pl + (W - pl - pr) * (serie.length > 1 ? i / (serie.length - 1) : 0.5); };
+  /* Abiertas vs cerradas acumuladas (curva de Suzuki) para un color o el total.
+     Las semanas con carga masiva (>= 3x la semana tipica y >= 10) se marcan con una banda. */
+  function graficoAbCe(ser, col, nombre){
+    var P = ser.puntos, W = 600, H = 250, pl = 46, pr = 40, pt = 22, pb = 34;
+    var max = Math.max.apply(null, P.map(function(w){ return w.abiertas; }).concat([1]));
+    var x = function(i){ return pl + (W - pl - pr) * (P.length > 1 ? i / (P.length - 1) : 0.5); };
     var y = function(v){ return pt + (H - pt - pb) * (1 - v / max); };
-    var s = '<svg viewBox="0 0 '+W+' '+H+'" class="svgchart" role="img" aria-label="Tarjetas colocadas y retiradas acumuladas">';
-    [0, .5, 1].forEach(function(f){ var v = Math.round(max * f); s += '<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(v)+'" y2="'+y(v)+'" class="grid"/><text x="'+(pl-6)+'" y="'+(y(v)+4)+'" text-anchor="end" class="ax">'+v+'</text>'; });
-    var pc = serie.map(function(w,i){ return x(i)+','+y(w.colocadas); }), pr2 = serie.map(function(w,i){ return x(i)+','+y(w.retiradas); });
-    s += '<polygon points="'+pc.join(' ')+' '+pr2.slice().reverse().join(' ')+'" fill="#2D6CB5" opacity=".10"/>';
-    s += '<polyline fill="none" stroke="#2D6CB5" stroke-width="3" points="'+pc.join(' ')+'"/>';
-    s += '<polyline fill="none" stroke="#548235" stroke-width="3" points="'+pr2.join(' ')+'"/>';
-    serie.forEach(function(w,i){
-      s += '<circle cx="'+x(i)+'" cy="'+y(w.colocadas)+'" r="3.5" fill="#2D6CB5"><title>Al '+fmtCorto(new Date(w.hasta - 86400000))+': '+w.colocadas+' colocadas</title></circle>';
-      s += '<circle cx="'+x(i)+'" cy="'+y(w.retiradas)+'" r="3.5" fill="#548235"><title>Al '+fmtCorto(new Date(w.hasta - 86400000))+': '+w.retiradas+' retiradas</title></circle>';
-      if (serie.length <= 14 || i % Math.ceil(serie.length / 12) === 0) s += '<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="middle" class="ax">'+w.label+'</text>';
+    var s = '<svg viewBox="0 0 '+W+' '+H+'" class="svgchart" role="img" aria-label="'+esc(nombre)+': abiertas y cerradas acumuladas">';
+    var nz = P.map(function(w){ return w.altas; }).filter(function(v){ return v > 0; }), tip = nz.length ? _mediana(nz) : 0, umbral = Math.max(10, tip * 3);
+    var paso = P.length > 1 ? (W - pl - pr) / (P.length - 1) : 40;
+    P.forEach(function(w, i){ if (w.altas >= umbral && i > 0)
+      s += '<rect x="'+(x(i-1))+'" y="'+pt+'" width="'+paso+'" height="'+(H-pt-pb)+'" fill="#20291F" opacity=".05"/><text x="'+(x(i-1)+paso/2)+'" y="'+(pt-6)+'" text-anchor="middle" class="ax" style="font-size:12px">carga masiva ('+w.altas+')</text>'; });
+    [0, .5, 1].forEach(function(f){ var v = Math.round(max * f); s += '<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(v)+'" y2="'+y(v)+'" class="grid"/><text x="'+(pl-6)+'" y="'+(y(v)+5)+'" text-anchor="end" class="ax">'+v+'</text>'; });
+    var pa = P.map(function(w,i){ return x(i)+','+y(w.abiertas); }), pc = P.map(function(w,i){ return x(i)+','+y(w.cerradas); });
+    s += '<polygon points="'+pa.join(' ')+' '+pc.slice().reverse().join(' ')+'" fill="'+col+'" opacity=".12"/>';
+    s += '<polyline fill="none" stroke="'+col+'" stroke-width="2.5" stroke-linejoin="round" points="'+pa.join(' ')+'"/>';
+    s += '<polyline fill="none" stroke="#20291F" stroke-width="2.5" stroke-dasharray="7 4" stroke-linejoin="round" points="'+pc.join(' ')+'"/>';
+    var cada = Math.ceil(P.length / 7);
+    P.forEach(function(w, i){
+      if (i % cada === 0 || i === P.length - 1) s += '<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="middle" class="ax">'+w.label+'</text>';
+      s += '<circle cx="'+x(i)+'" cy="'+y(w.abiertas)+'" r="3.5" fill="'+col+'"/><circle cx="'+x(i)+'" cy="'+y(w.cerradas)+'" r="3.5" fill="#20291F"/>';
+      // zona de hover de toda la semana
+      s += '<rect x="'+(x(i)-paso/2)+'" y="'+pt+'" width="'+paso+'" height="'+(H-pt-pb)+'" fill="transparent"><title>Semana del '+w.label+'\nAbiertas en la semana: '+w.altas+' · cerradas: '+w.cierres+
+        '\nAcumulado: '+w.abiertas+' abiertas · '+w.cerradas+' cerradas\nPendientes al cierre de la semana: '+(w.abiertas-w.cerradas)+'</title></rect>';
     });
-    var u = serie[serie.length - 1];
-    if (u) s += '<text x="'+(W-pr-4)+'" y="'+(y(u.colocadas)-8)+'" text-anchor="end" class="ax" fill="#2D6CB5">'+u.colocadas+'</text><text x="'+(W-pr-4)+'" y="'+(y(u.retiradas)+16)+'" text-anchor="end" class="ax" fill="#3D5F26">'+u.retiradas+'</text>';
+    var u = P[P.length - 1];
+    if (u) {
+      s += '<text x="'+(W-pr+4)+'" y="'+(y(u.abiertas)+5)+'" class="ax" style="font-weight:800;fill:'+col+'">'+u.abiertas+'</text>';
+      s += '<text x="'+(W-pr+4)+'" y="'+(y(u.cerradas)+5)+'" class="ax" style="font-weight:800;fill:#20291F">'+u.cerradas+'</text>';
+      if (u.abiertas - u.cerradas > 0 && y(u.cerradas) - y(u.abiertas) > 26)
+        s += '<text x="'+(x(P.length-1)-8)+'" y="'+((y(u.abiertas)+y(u.cerradas))/2+5)+'" text-anchor="end" class="ax" style="font-weight:700;fill:#8A2E1C">brecha '+(u.abiertas-u.cerradas)+'</text>';
+    }
     return s + '</svg>';
   }
+  function leyendaAbCe(col){ return '<div class="leyenda"><span><i style="background:'+col+'"></i>Abiertas (acum.)</span><span><i style="background:#20291F"></i>Cerradas (acum., punteada)</span></div>'; }
+  /* semaforo: devuelve [clase, texto] */
+  function semaf(estado, txt){ return { c: estado, t: (estado === 'ok' ? '✓ ' : estado === 'amber' ? '⚠ ' : '✖ ') + txt }; }
+  function kpiS(n, l, se, m){ return '<div class="kpi '+(se.c==='ok'?'':se.c)+'"><div class="n">'+n+'</div><div class="l">'+l+'</div><div class="sem '+se.c+'">'+esc(se.t)+'</div>'+(m?'<div class="m">'+m+'</div>':'')+'</div>'; }
+  function flecha(act, ant, menosEsMejor){
+    if (ant === null || act === null || ant === undefined) return '';
+    var d = act - ant; if (!d) return '= igual que el período anterior';
+    var mejor = menosEsMejor ? d < 0 : d > 0;
+    return '<span style="color:'+(mejor?'#3D5F26':'#8A2E1C')+';font-weight:700">'+(d>0?'▲ +':'▼ ')+d+'</span> vs. período anterior';
+  }
+  var COLORES = [
+    ['Azul', '#2D6CB5', 'Azules · Mantenimiento Autónomo'],
+    ['Roja', '#C0392B', 'Rojas · Mantenimiento'],
+    ['Verde', '#4E9A2F', 'Verdes · Mejora Enfocada']
+  ];
+  var VISTA = 'color';
 
   /* Barras mensuales de tarjetas por persona con linea de meta */
   function graficoMensual(serie, meta){
@@ -234,26 +289,71 @@
   }
 
   function render(){
-    var dias = +$('fPeriodo').value, area = $('fArea').value;
+    var diasSel = +$('fPeriodo').value, area = $('fArea').value;
     var ts = TODAS.filter(function(t){ return !area || t['Area equipo'] === area; });
-    var desde = new Date(Date.now() - dias * 86400000);
+    var sem = Math.max(4, Math.min(53, Math.round(diasSel / 7)));
+    // un solo periodo para indicadores y graficos: desde el lunes de la primera semana mostrada
+    var desde = lunesDe(new Date()); desde.setDate(desde.getDate() - 7 * (sem - 1));
+    var dias = Math.max(1, Math.round((Date.now() - desde) / 86400000));
+    var desdeAnt = new Date(desde.getTime() - dias * 86400000);
     var k = calcularKPIs(ts, desde), it = indicadoresTarjetas(ts, desde, dias), meta = CONFIG.META_TARJETAS_PERSONA_MES;
-    var sem = Math.max(6, Math.min(52, Math.round(dias / 7)));
+    var M = CONFIG.META_PCT_CIERRE, MD = CONFIG.META_DIAS_CIERRE;
+    $('periodoTxt').textContent = 'Período: del ' + fmtCorto(desde) + ' a hoy (' + sem + ' semanas); el anterior es el mismo largo justo antes.';
+    $('mAz').textContent = MD.Azul; $('mRo').textContent = MD.Roja; $('mVe').textContent = MD.Verde; $('mPct').textContent = M;
 
-    /* 1 */
-    $('k1').innerHTML =
-      kpi(it.colocadas, 'Colocadas', '', f1(it.porSemana) + ' por semana') +
-      kpi(it.retiradas, 'Retiradas', '', f1(it.retiradasSemana) + ' por semana') +
-      kpi(it.pctRetiro + '%', '% de retiro', it.pctRetiro < 80 ? 'amber' : '', 'retiradas ÷ colocadas', 'Más de 100% = se está bajando el atraso') +
-      kpi(k.abiertas + k.enProceso, 'Colgadas hoy', '', 'abiertas + en proceso') +
-      kpi(k.pendVerificar, 'Resueltas a verificar', k.pendVerificar ? 'amber' : '');
-    $('acumulado').innerHTML = graficoAcumulado(serieAcumulada(ts, sem));
+    /* ★ decision */
+    var G = indicadoresCierre(ts, desde, null), GA = indicadoresCierre(ts, desdeAnt, desde);
+    var R = indicadoresCierre(ts.filter(function(t){ return t['Tipo']==='Roja'; }), desde, null, 'Roja');
+    var pctSC = R.pend ? Math.round(R.sinClasificar / R.pend * 100) : 0;
+    $('k0').innerHTML =
+      kpiS(G.pend, 'Pendientes hoy', G.pend > G.pendInicio ? semaf('amber', 'crece el atraso') : semaf('ok', 'el atraso baja o se mantiene'),
+        'al inicio del período: ' + G.pendInicio) +
+      kpiS(G.pctCierre === null ? '—' : G.pctCierre + '%', 'Cierre del período', G.pctCierre === null ? semaf('ok', 'sin altas') : G.pctCierre >= M ? semaf('ok', 'en meta (' + M + '%)') : G.pctCierre >= M / 2 ? semaf('amber', 'bajo meta (' + M + '%)') : semaf('rojo', 'muy bajo meta (' + M + '%)'),
+        G.cerradasPer + ' cerradas ÷ ' + G.abiertasPer + ' abiertas · ' + flecha(G.pctCierre, GA.pctCierre, false)) +
+      kpiS(G.pend30, 'Pendientes de más de 30 días', !G.pend30 ? semaf('ok', 'ninguna') : G.pend30 / Math.max(1, G.pend) > .25 ? semaf('rojo', Math.round(G.pend30 / G.pend * 100) + '% del pendiente') : semaf('amber', Math.round(G.pend30 / G.pend * 100) + '% del pendiente')) +
+      kpiS(G.venc, 'Vencidas hoy', G.venc ? semaf('rojo', 'fecha compromiso pasada') : semaf('ok', 'ninguna')) +
+      kpiS(G.aVerificar, 'Resueltas a verificar', G.aVerificar > 10 ? semaf('rojo', 'verificar en el equipo') : G.aVerificar ? semaf('amber', 'verificar en el equipo') : semaf('ok', 'al día')) +
+      kpiS(R.sinClasificar, 'Rojas sin clasificar', pctSC > 30 ? semaf('rojo', pctSC + '% sin marcha / parada') : pctSC ? semaf('amber', pctSC + '% sin marcha / parada') : semaf('ok', 'todas clasificadas'),
+        'no se pueden planificar');
+
+    /* 1 · por color */
+    var cand = candidatosKaizen(ts);
+    $('porColor').innerHTML = COLORES.map(function(c){
+      var tc = ts.filter(function(t){ return t['Tipo'] === c[0]; }), I = indicadoresCierre(tc, desde, null, c[0]), IA = indicadoresCierre(tc, desdeAnt, desde, c[0]);
+      var cls = function(ok, medio){ return ok ? '' : medio ? 'amber' : 'rojo'; };
+      var pctTxt = I.pctCierre === null ? '—' : I.pctCierre + '%', medTxt = I.mediana === null ? '—' : f1(I.mediana) + ' d';
+      var extra, pie;
+      if (c[0] === 'Azul') {
+        extra = '<div class="'+cls(I.porOperacion === null || I.porOperacion >= 70, I.porOperacion >= 40)+'"><b>'+(I.porOperacion === null ? '—' : I.porOperacion + '%')+'</b><span>cerradas por el propio sector</span></div>';
+        pie = 'Más de 30 días: <b>'+I.pend30+'</b> · vencidas: <b>'+I.venc+'</b> · cerradas en ≤ '+MD.Azul+' d: <b>'+(I.enMeta === null ? '—' : I.enMeta + '%')+'</b>';
+      } else if (c[0] === 'Roja') {
+        extra = '<div class="'+cls(!I.sinClasificar, I.sinClasificar / Math.max(1, I.pend) <= .3)+'"><b>'+I.sinClasificar+'</b><span>sin clasificar marcha / parada</span></div>';
+        pie = 'Pendiente: <b>'+f1(I.pendHH)+' HH</b> · con OT o planificadas: <b>'+I.conPlan+' de '+I.pend+'</b> · cerradas por el EAM: <b>'+I.cerradasEAM+'</b> · más de 30 días: <b>'+I.pend30+'</b> · vencidas: <b>'+I.venc+'</b>';
+      } else {
+        var cv = cand.length;
+        extra = '<div><b>'+I.cerradasPer+'</b><span>mejoras implementadas</span></div>';
+        pie = 'Ahorro estimado (cerradas): <b>USD '+Math.round(I.ahorroUSD).toLocaleString('es-AR')+'</b> · candidatos Kaizen: <b>'+cv+'</b> · más de 30 días: <b>'+I.pend30+'</b>';
+      }
+      var ser = serieAbiertasCerradas(tc, sem);
+      return '<div class="card pc" style="border-top-color:'+c[1]+'"><div class="pt" style="color:'+c[1]+'">'+c[2]+'</div>'+
+        '<div class="mk">'+
+          '<div><b>'+I.pend+'</b><span>pendientes hoy</span></div>'+
+          '<div class="'+cls(I.pctCierre === null || I.pctCierre >= M, I.pctCierre >= M / 2)+'" title="Cerradas ÷ abiertas en el período. Meta '+M+'%"><b>'+pctTxt+'</b><span>cierre del período</span></div>'+
+          '<div class="'+cls(I.mediana === null || I.mediana <= MD[c[0]], I.mediana <= MD[c[0]] * 2)+'" title="Meta: '+MD[c[0]]+' días"><b>'+medTxt+'</b><span>mediana de cierre (meta '+MD[c[0]]+' d)</span></div>'+
+          extra+'</div>'+
+        '<div class="mini">'+I.abiertasPer+' abiertas y '+I.cerradasPer+' cerradas en el período · '+flecha(I.pctCierre, IA.pctCierre, false).replace('vs. período anterior','pts de cierre vs. anterior')+'</div>'+
+        graficoAbCe(ser, c[1], c[2]) + leyendaAbCe(c[1]) +
+        '<div class="pie">'+pie+'</div></div>';
+    }).join('');
+    var serT = serieAbiertasCerradas(ts, sem);
+    $('todasAcum').innerHTML = '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Todas · acumulado del período</b>'+leyendaAbCe('#548235')+'</div>'+graficoAbCe(serT, '#548235', 'Todas');
     $('semanal').innerHTML = graficoSemanal(serieSemanal(ts, sem));
+    $('porColor').style.display = VISTA === 'color' ? '' : 'none'; $('todasBox').style.display = VISTA === 'todas' ? '' : 'none';
 
     /* 2 */
     $('k2').innerHTML =
       kpi(f1(it.porPersonaMes), 'Tarjetas por persona por mes', it.porPersonaMes >= meta ? '' : 'amber', 'meta ' + meta + ' · nómina ' + it.nomina) +
-      kpi(f1(it.porSemana), 'Generación promedio semanal', '', it.colocadas + ' en ' + dias + ' días') +
+      kpi(f1(it.porSemana), 'Generación promedio semanal', '', it.colocadas + ' abiertas en ' + dias + ' días') +
       kpi(it.participacion + '%', 'Participación', it.participacion < 50 ? 'amber' : '', it.reportaron + ' de ' + it.nomina + ' personas reportaron') +
       kpi(it.detOperacion + '%', 'Detectadas por operación', '', 'operarios y producción');
     $('mensual').innerHTML = graficoMensual(serieMensual(ts, dias >= 180 ? 12 : 6), meta);
@@ -275,19 +375,20 @@
 
     /* 3 */
     $('k3').innerHTML =
-      kpi(f1(it.tiempoMedio) + ' d', 'Tiempo medio de retiro', 'amber') +
-      kpi(f1(it.mediana) + ' d', 'Mediana de retiro', '', 'la mitad se resuelve en menos') +
+      kpi(f1(it.tiempoMedio) + ' d', 'Tiempo medio de cierre', 'amber') +
+      kpi(f1(it.mediana) + ' d', 'Mediana de cierre', '', 'la mitad se resuelve en menos') +
       kpi(it.enPlazo === null ? '—' : it.enPlazo + '%', 'Resueltas en plazo', it.enPlazo !== null && it.enPlazo < 80 ? 'amber' : '', it.conCompromiso + ' con fecha compromiso') +
       kpi(k.vencidas, 'Vencidas hoy', k.vencidas ? 'rojo' : '') +
-      kpi(k.aging.dmas, 'Colgadas más de 30 días', k.aging.dmas ? 'rojo' : '') +
+      kpi(k.aging.dmas, 'Pendientes más de 30 días', k.aging.dmas ? 'rojo' : '') +
       kpi(k.reprogramadas, 'Reprogramadas', '', 'fecha compromiso cambiada');
     var ag = k.aging;
     $('aging').innerHTML = hbars([{ l: '0 a 7 días', v: ag.d7, c: '#639922' }, { l: '8 a 30 días', v: ag.d30, c: '#E8871A' }, { l: 'más de 30 días', v: ag.dmas, c: '#B8402A' }]);
 
     /* 4 */
     $('k4').innerHTML =
-      kpi(k.autonomia + '%', 'Autonomía', '', 'azules ÷ (azules + rojas)', 'Qué parte de las anomalías resuelve el propio operador') +
-      kpi(it.retOperacion + '%', 'Retiradas por operación', '', 'cerradas por operarios y producción') +
+      (function(){ var A = indicadoresCierre(ts.filter(function(t){ return t['Tipo']==='Azul'; }), desde, null, 'Azul');
+        return kpi(A.porOperacion === null ? '—' : A.porOperacion + '%', 'Autonomía', A.porOperacion !== null && A.porOperacion < 70 ? 'amber' : '', 'azules cerradas por el propio sector · ' + k.autonomia + '% de lo detectado es azul', 'Qué parte de las azules resuelve el propio operador / producción'); })() +
+      kpi(it.retOperacion + '%', 'Cerradas por operación', '', 'cerradas por operarios y producción') +
       kpi(it.pctVerificadas + '%', 'Verificadas en el equipo', it.pctVerificadas < 70 ? 'amber' : '', it.verificadas + ' de ' + it.verificables + ' resueltas') +
       kpi(k.reaperturas, 'Reaperturas', k.reaperturas ? 'amber' : '', 'no quedaron bien al verificar');
     var medalla = function(i){ return ['🥇','🥈','🥉'][i] || (i+1)+'.'; };
@@ -303,11 +404,11 @@
 
     /* 6 */
     $('areas').innerHTML = hbars(topN(k.porArea, 10).map(function(x){
-      var ab = k.porAreaAbiertas[x[0]] || 0; return { l: x[0], v: x[1], v2: ab, txt: x[1] + ' <span class="mini">(' + ab + ' col.)</span>' };
-    })) + '<p class="mini" style="margin-top:6px">Barra verde = colocadas en el período · marca oscura = colgadas hoy (pueden venir de antes del período).</p>';
+      var ab = k.porAreaAbiertas[x[0]] || 0; return { l: x[0], v: x[1], v2: ab, txt: x[1] + ' <span class="mini">(' + ab + ' pend.)</span>' };
+    })) + '<p class="mini" style="margin-top:6px">Barra verde = abiertas en el período · marca oscura = pendientes hoy (pueden venir de antes del período).</p>';
     $('equipos').innerHTML = hbars(topN(k.porEquipo, 10).map(function(x){ return { l: x[0], v: x[1] }; }), { color: '#3D5F26' });
     var cand = candidatosKaizen(ts);
-    $('kaizen').innerHTML = cand.length ? '<table><thead><tr><th>Equipo</th><th>Tarjetas 90 d</th><th>Repetidas</th><th>Colgadas</th><th>Qué se repite</th><th></th></tr></thead><tbody>' +
+    $('kaizen').innerHTML = cand.length ? '<table><thead><tr><th>Equipo</th><th>Tarjetas 90 d</th><th>Repetidas</th><th>Pendientes</th><th>Qué se repite</th><th></th></tr></thead><tbody>' +
       cand.slice(0, 12).map(function(e){
         var catsTxt = Object.keys(e.cats).sort(function(a,b){ return e.cats[b]-e.cats[a]; }).map(function(c){ return c.replace(/^\d · /,'')+' ('+e.cats[c]+')'; }).join(', ');
         var u = [e.area, e.equipo, e.comp].join('|').replace(/\|$/, '');
@@ -321,8 +422,8 @@
     var abiertasCal = ts.filter(function(t){ return esAbierta(t) && grupoCategoria(t['Categoria']).indexOf('5 ')===0; }).length;
     var pil = [
       ['Mantenimiento Autónomo', '#2D6CB5', k.pilares.maAzules, 'azules resueltas por operación', 'Autonomía ' + k.autonomia + '% · ' + ETAPAS_MA.map(function(e){ return (k.porEtapa[e]||0) + ' ' + e.split(' · ')[0].replace('Paso ','P'); }).join(' · ')],
-      ['Mantenimiento Planificado', '#C0392B', k.porColor.Roja.ab, 'rojas colgadas', k.pilares.mpDerivadas + ' cierres pasaron al preventivo · ' + (k.porCondicion['Maquina parada'].h + k.porCondicion['Parada planificada'].h).toFixed(0) + ' HH para parada'],
-      ['Calidad', '#8A5A0A', k.pilares.calidad, 'tarjetas de defecto de calidad', abiertasCal + ' colgadas'],
+      ['Mantenimiento Planificado', '#C0392B', k.porColor.Roja.ab, 'rojas pendientes', k.pilares.mpDerivadas + ' cierres pasaron al preventivo · ' + (k.porCondicion['Maquina parada'].h + k.porCondicion['Parada planificada'].h).toFixed(0) + ' HH para parada'],
+      ['Calidad', '#8A5A0A', k.pilares.calidad, 'tarjetas de defecto de calidad', abiertasCal + ' pendientes'],
       ['Mejora Enfocada', '#4E9A2F', k.pilares.verdes, 'verdes (mejoras)', 'Ahorro estimado USD ' + Math.round(k.pilares.ahorroUSD).toLocaleString('es-AR') + ' · ' + cand.length + ' candidatos Kaizen'],
       ['Estandarización', '#548235', k.pilares.estandares, 'cierres que actualizan estándar / LUP', 'Paso 3 del Autónomo'],
       ['Seguridad', '#B8402A', k.pilares.seguridad, 'condiciones inseguras', 'Se derivan a Seguridad e Higiene']
@@ -404,6 +505,8 @@
   }
   $('fPeriodo').addEventListener('change', cargar);
   $('fArea').addEventListener('change', render);
+  document.querySelectorAll('#vista button').forEach(function(b){ b.addEventListener('click', function(){
+    VISTA = b.dataset.v; document.querySelectorAll('#vista button').forEach(function(x){ x.classList.toggle('on', x === b); }); render(); }); });
   $('recargar').addEventListener('click', cargar);
   cargar();
 </script>

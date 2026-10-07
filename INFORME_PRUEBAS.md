@@ -1,5 +1,13 @@
 # Informe de pruebas · Tarjetas TPM
 
+## Dashboard por color · 07/10/2026
+
+Nueva fila "Para decidir hoy" (semáforo contra meta + tendencia vs. período anterior) y bloque 1 "Abiertas vs. cerradas" por color
+(azul / roja / verde, o todas juntas), con la curva de abiertas arrancando en lo pendiente al inicio (brecha final = pendientes hoy),
+marca de cargas masivas e indicadores propios de cada color. Un solo período para indicadores y gráficos (semanas completas).
+Autonomía = azules cerradas por el propio sector. Metas en `CONFIG.META_DIAS_CIERRE` y `CONFIG.META_PCT_CIERRE`.
+Verificación independiente de abiertas/cerradas del período y de pendientes por color en `pruebas/fe.test.py` (208/208); regresión completa OK.
+
 ## Cierre de tarjetas con nombres mal escritos · 07/10/2026
 
 Causa: "Resuelta por" se precargaba con el primer ejecutor tal como estaba escrito (p. ej. "Fernandez, Adolfo" en AZU-261001-1743-TEZ,
