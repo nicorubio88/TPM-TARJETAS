@@ -339,9 +339,9 @@
         '<div class="mk">'+
           '<div><b>'+I.pend+'</b><span>pendientes hoy</span></div>'+
           '<div class="'+cls(I.pctCierre === null || I.pctCierre >= M, I.pctCierre >= M / 2)+'" title="Cerradas ÷ abiertas en el período. Meta '+M+'%"><b>'+pctTxt+'</b><span>cierre del período</span></div>'+
-          '<div class="'+cls(I.mediana === null || I.mediana <= MD[c[0]], I.mediana <= MD[c[0]] * 2)+'" title="Meta: '+MD[c[0]]+' días"><b>'+medTxt+'</b><span>mediana de cierre (meta '+MD[c[0]]+' d)</span></div>'+
+          '<div class="'+cls(I.mediana === null || I.mediana <= MD[c[0]], I.mediana <= MD[c[0]] * 2)+'" title="Meta: '+MD[c[0]]+' días"><b>'+medTxt+'</b><span>mediana de cierre · meta '+MD[c[0]]+' d</span></div>'+
           extra+'</div>'+
-        '<div class="mini">'+I.abiertasPer+' abiertas y '+I.cerradasPer+' cerradas en el período · '+flecha(I.pctCierre, IA.pctCierre, false).replace('vs. período anterior','pts de cierre vs. anterior')+'</div>'+
+        '<div class="mini">'+I.abiertasPer+' abiertas y '+I.cerradasPer+' cerradas en el período'+(function(f){ return f ? ' · '+f.replace('vs. período anterior','pts de cierre vs. anterior') : ''; })(flecha(I.pctCierre, IA.pctCierre, false))+'</div>'+
         graficoAbCe(ser, c[1], c[2]) + leyendaAbCe(c[1]) +
         '<div class="pie">'+pie+'</div></div>';
     }).join('');
