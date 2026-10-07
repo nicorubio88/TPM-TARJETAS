@@ -66,10 +66,14 @@
   <div class="bloque">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px">
       <div><h2><span class="nro">1</span>Abiertas vs. cerradas</h2>
-      <p class="sub" style="margin:0">Acumulado del período por color. La curva de abiertas arranca con lo que ya estaba pendiente, así la brecha final = pendientes hoy.
+      <p class="sub" style="margin:0">Acumulado del período por color. La curva de abiertas arranca con lo que ya estaba pendiente, así la brecha final = pendientes hoy. Filtrá por condición de la máquina: en marcha se cierra ya; parada y planificada esperan una parada.
       Metas de cierre: azul ≤ <span id="mAz"></span> d · roja ≤ <span id="mRo"></span> d · verde ≤ <span id="mVe"></span> d · cerrar ≥ <span id="mPct"></span>% de lo abierto.</p></div>
-      <div class="seg" id="vista"><button data-v="color" class="on">Por color</button><button data-v="todas">Todas juntas</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="seg" id="vistaCond"><button data-c="" class="on">Total</button><button data-c="Maquina en marcha">▶ En marcha</button><button data-c="Maquina parada">■ Máquina parada</button><button data-c="Parada planificada">📅 Parada planificada</button></div>
+        <div class="seg" id="vista"><button data-v="color" class="on">Por color</button><button data-v="todas">Todas juntas</button></div>
+      </div>
     </div>
+    <div id="condAviso" class="mini" style="margin-top:10px;padding:8px 12px;border-radius:10px;background:#fff;border:1px solid var(--line)"></div>
     <div class="grid cols-3" id="porColor" style="margin-top:12px"></div>
     <div class="grid cols-2" id="todasBox" style="margin-top:12px;display:none">
       <div class="card" id="todasAcum"></div>
@@ -248,7 +252,7 @@
     ['Roja', '#C0392B', 'Rojas · Mantenimiento'],
     ['Verde', '#4E9A2F', 'Verdes · Mejora Enfocada']
   ];
-  var VISTA = 'color';
+  var VISTA = 'color', VCOND = '';
 
   /* Barras mensuales de tarjetas por persona con linea de meta */
   function graficoMensual(serie, meta){
@@ -318,16 +322,33 @@
 
     /* 1 · por color */
     var cand = candidatosKaizen(ts);
+    // filtro por condicion de la maquina (la que tiene cargada cada tarjeta)
+    var MM = CONFIG.META_DIAS_MARCHA || 7, enMarcha = VCOND === 'Maquina en marcha';
+    var tsV = VCOND ? ts.filter(function(t){ return condicionDe(t) === VCOND; }) : ts;
+    var metaDe = function(color){ return enMarcha ? MM : MD[color]; };
+    var CV = indicadoresCierre(tsV, desde, null, null, enMarcha ? MM : null);
+    var sinCl = ts.filter(function(t){ return esAbierta(t) && condicionDe(t) === 'A definir'; }).length;
+    $('condAviso').innerHTML = !VCOND
+      ? 'Total: <b>'+CV.pend+'</b> pendientes. Por condición: '+['Maquina en marcha','Maquina parada','Parada planificada','A definir'].map(function(c){
+          return (CONDICIONES[c]||{}).corto ? '<b>'+ts.filter(function(t){ return esAbierta(t) && condicionDe(t) === c; }).length+'</b> '+esc(CONDICIONES[c].corto.toLowerCase()) : ''; }).filter(String).join(' · ')+
+        (sinCl ? ' · <span style="color:#8A2E1C">'+sinCl+' sin clasificar: no aparecen en ninguna de las tres vistas</span>' : '')
+      : enMarcha
+      ? '▶ <b>Con la máquina en marcha no deberían quedar abiertas</b>: meta cerrar en ≤ '+MM+' días. Hoy: <b>'+CV.pend+'</b> pendientes, '+
+        '<b style="color:'+(CV.pendFueraMeta?'#8A2E1C':'#3D5F26')+'">'+CV.pendFueraMeta+' con más de '+MM+' días</b> · '+f1(CV.pendHH)+' HH estimadas.'
+      : (VCOND === 'Maquina parada' ? '■ Necesitan la máquina parada' : '📅 Esperan la parada planificada')+': <b>'+CV.pend+'</b> pendientes · <b>'+f1(CV.pendHH)+' HH</b> estimadas · '+
+        '<b>'+CV.conParada+'</b> con parada asignada'+(CV.pend - CV.conParada ? ' · <span style="color:#8A2E1C">'+(CV.pend - CV.conParada)+' sin parada asignada</span>' : '')+'.';
     $('porColor').innerHTML = COLORES.map(function(c){
-      var tc = ts.filter(function(t){ return t['Tipo'] === c[0]; }), I = indicadoresCierre(tc, desde, null, c[0]), IA = indicadoresCierre(tc, desdeAnt, desde, c[0]);
+      var tc = tsV.filter(function(t){ return t['Tipo'] === c[0]; }), I = indicadoresCierre(tc, desde, null, c[0], metaDe(c[0])), IA = indicadoresCierre(tc, desdeAnt, desde, c[0], metaDe(c[0]));
       var cls = function(ok, medio){ return ok ? '' : medio ? 'amber' : 'rojo'; };
       var pctTxt = I.pctCierre === null ? '—' : I.pctCierre + '%', medTxt = I.mediana === null ? '—' : f1(I.mediana) + ' d';
       var extra, pie;
       if (c[0] === 'Azul') {
         extra = '<div class="'+cls(I.porOperacion === null || I.porOperacion >= 70, I.porOperacion >= 40)+'"><b>'+(I.porOperacion === null ? '—' : I.porOperacion + '%')+'</b><span>cerradas por el propio sector</span></div>';
-        pie = 'Más de 30 días: <b>'+I.pend30+'</b> · vencidas: <b>'+I.venc+'</b> · cerradas en ≤ '+MD.Azul+' d: <b>'+(I.enMeta === null ? '—' : I.enMeta + '%')+'</b>';
+        pie = 'Más de 30 días: <b>'+I.pend30+'</b> · vencidas: <b>'+I.venc+'</b> · cerradas en ≤ '+metaDe('Azul')+' d: <b>'+(I.enMeta === null ? '—' : I.enMeta + '%')+'</b>';
       } else if (c[0] === 'Roja') {
-        extra = '<div class="'+cls(!I.sinClasificar, I.sinClasificar / Math.max(1, I.pend) <= .3)+'"><b>'+I.sinClasificar+'</b><span>sin clasificar marcha / parada</span></div>';
+        extra = !VCOND ? '<div class="'+cls(!I.sinClasificar, I.sinClasificar / Math.max(1, I.pend) <= .3)+'"><b>'+I.sinClasificar+'</b><span>sin clasificar marcha / parada</span></div>'
+          : enMarcha ? '<div class="'+cls(!I.pendFueraMeta, false)+'"><b>'+I.pendFueraMeta+'</b><span>con más de '+MM+' días</span></div>'
+          : '<div class="'+cls(I.conParada === I.pend, I.conParada >= I.pend / 2)+'"><b>'+I.conParada+' / '+I.pend+'</b><span>con parada asignada</span></div>';
         pie = 'Pendiente: <b>'+f1(I.pendHH)+' HH</b> · con OT o planificadas: <b>'+I.conPlan+' de '+I.pend+'</b> · cerradas por el EAM: <b>'+I.cerradasEAM+'</b> · más de 30 días: <b>'+I.pend30+'</b> · vencidas: <b>'+I.venc+'</b>';
       } else {
         var cv = cand.length;
@@ -339,15 +360,15 @@
         '<div class="mk">'+
           '<div><b>'+I.pend+'</b><span>pendientes hoy</span></div>'+
           '<div class="'+cls(I.pctCierre === null || I.pctCierre >= M, I.pctCierre >= M / 2)+'" title="Cerradas ÷ abiertas en el período. Meta '+M+'%"><b>'+pctTxt+'</b><span>cierre del período</span></div>'+
-          '<div class="'+cls(I.mediana === null || I.mediana <= MD[c[0]], I.mediana <= MD[c[0]] * 2)+'" title="Meta: '+MD[c[0]]+' días"><b>'+medTxt+'</b><span>mediana de cierre · meta '+MD[c[0]]+' d</span></div>'+
+          '<div class="'+cls(I.mediana === null || I.mediana <= metaDe(c[0]), I.mediana <= metaDe(c[0]) * 2)+'" title="Meta: '+metaDe(c[0])+' días"><b>'+medTxt+'</b><span>mediana de cierre · meta '+metaDe(c[0])+' d</span></div>'+
           extra+'</div>'+
         '<div class="mini">'+I.abiertasPer+' abiertas y '+I.cerradasPer+' cerradas en el período'+(function(f){ return f ? ' · '+f.replace('vs. período anterior','pts de cierre vs. anterior') : ''; })(flecha(I.pctCierre, IA.pctCierre, false))+'</div>'+
         graficoAbCe(ser, c[1], c[2]) + leyendaAbCe(c[1]) +
         '<div class="pie">'+pie+'</div></div>';
     }).join('');
-    var serT = serieAbiertasCerradas(ts, sem);
-    $('todasAcum').innerHTML = '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Todas · acumulado del período</b>'+leyendaAbCe('#548235')+'</div>'+graficoAbCe(serT, '#548235', 'Todas');
-    $('semanal').innerHTML = graficoSemanal(serieSemanal(ts, sem));
+    var serT = serieAbiertasCerradas(tsV, sem);
+    $('todasAcum').innerHTML = '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><b>Todas'+(VCOND ? ' · ' + esc(CONDICIONES[VCOND].corto) : '')+' · acumulado del período</b>'+leyendaAbCe('#548235')+'</div>'+graficoAbCe(serT, '#548235', 'Todas');
+    $('semanal').innerHTML = graficoSemanal(serieSemanal(tsV, sem));
     $('porColor').style.display = VISTA === 'color' ? '' : 'none'; $('todasBox').style.display = VISTA === 'todas' ? '' : 'none';
 
     /* 2 */
@@ -505,6 +526,8 @@
   }
   $('fPeriodo').addEventListener('change', cargar);
   $('fArea').addEventListener('change', render);
+  document.querySelectorAll('#vistaCond button').forEach(function(b){ b.addEventListener('click', function(){
+    VCOND = b.dataset.c; document.querySelectorAll('#vistaCond button').forEach(function(x){ x.classList.toggle('on', x === b); }); render(); }); });
   document.querySelectorAll('#vista button').forEach(function(b){ b.addEventListener('click', function(){
     VISTA = b.dataset.v; document.querySelectorAll('#vista button').forEach(function(x){ x.classList.toggle('on', x === b); }); render(); }); });
   $('recargar').addEventListener('click', cargar);

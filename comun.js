@@ -19,6 +19,7 @@ const CONFIG = {
   // Metas del dashboard: dias para cerrar cada color y % de lo abierto en el periodo que hay que cerrar
   META_DIAS_CIERRE: { Azul: 7, Roja: 30, Verde: 60 },
   META_PCT_CIERRE: 80,
+  META_DIAS_MARCHA: 7,            // con la maquina en marcha no deberian quedar abiertas: cerrar en <= N dias
 
   /* ---- Planificacion automatica ---- */
   // Criterio de prioridad (puntaje). Se suma todo lo que aplique; mayor puntaje = se planifica antes.
@@ -792,10 +793,10 @@ function serieAbiertasCerradas(ts, semanas) {
 }
 
 /* Indicadores de decision para un grupo de tarjetas (un color o todas) en [desde, hasta). */
-function indicadoresCierre(ts, desde, hasta, color) {
-  const d0 = desde.getTime(), d1 = (hasta || new Date()).getTime(), meta = color ? (CONFIG.META_DIAS_CIERRE || {})[color] : null;
+function indicadoresCierre(ts, desde, hasta, color, metaDias) {
+  const d0 = desde.getTime(), d1 = (hasta || new Date()).getTime(), meta = metaDias || (color ? (CONFIG.META_DIAS_CIERRE || {})[color] : null);
   const o = { abiertasPer: 0, cerradasPer: 0, pctCierre: null, mediana: null, enMeta: null, meta: meta, pend: 0, pend30: 0, venc: 0, aVerificar: 0,
-    porOperacion: null, pendHH: 0, sinClasificar: 0, conPlan: 0, cerradasEAM: 0, pendInicio: 0, ahorroUSD: 0 };
+    porOperacion: null, pendHH: 0, pendFueraMeta: 0, conParada: 0, sinClasificar: 0, conPlan: 0, cerradasEAM: 0, pendInicio: 0, ahorroUSD: 0 };
   const tiempos = []; let op = 0, enM = 0;
   ts.forEach(function (t) {
     if (t['Estado'] === 'Anulada') return;
@@ -811,6 +812,7 @@ function indicadoresCierre(ts, desde, hasta, color) {
     }
     if (esAbierta(t)) {
       o.pend++; if (t.diasAbierta > 30) o.pend30++; if (t.vencida) o.venc++;
+      if (meta && t.diasAbierta > meta) o.pendFueraMeta++; if (t['Parada objetivo']) o.conParada++;
       o.pendHH += hhDe(t);
       if (condicionDe(t) === 'A definir') o.sinClasificar++;
       if (esPlanificada(t) || t['N OT']) o.conPlan++;
