@@ -15,7 +15,7 @@ async def main():
       await ctx.route(re.compile(r'https://fonts\..*'), lambda r: r.abort())
       pg=await ctx.new_page(); errs=[]; pg.on('pageerror', lambda e: errs.append(str(e)))
       await pg.goto(B+'formulario.html'); await pg.wait_for_timeout(900)
-      n=await pg.locator('#condsel .op').count(); ok(n==4,'4 casilleros de condición (%d)'%n)
+      n=await pg.locator('#condsel .op').count(); ok(n==3,'3 casilleros de condición, sin "No sé" (%d)'%n)
       pp=pg.locator('#condsel .op[data-c="Parada planificada"]')
       ok('Para parada planificada' in await pp.inner_text(),'título casillero parada planificada')
       await pp.click(); await pg.wait_for_timeout(150)

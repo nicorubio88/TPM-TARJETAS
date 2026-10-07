@@ -48,7 +48,7 @@
       <div><label>Período</label><select id="fPeriodo"><option value="90">Últimos 90 días</option><option value="180">Últimos 6 meses</option><option value="365" selected>Últimos 12 meses</option><option value="0">Todo</option></select></div>
       <div><label>Estado</label><select id="fEstado">
         <optgroup label="Abiertas"><option value="_abiertas">Abiertas + en proceso</option><option value="_plan">📅 Planificadas (fecha, parada o EAM)</option><option value="_sinplan">⏳ Sin planificar</option><option value="_planEAM">🔗 Planificadas en EAM</option><option value="_vincEAM">🔗 Abiertas con OT en EAM</option></optgroup>
-        <optgroup label="Resueltas"><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="_EAM">🔗 Cerradas por EAM</option><option value="_causaEAM">🔗 Cerradas por EAM · causa a completar</option><option value="_desfEAM">⚠ Resueltas acá, OT abierta en EAM</option></optgroup>
+        <optgroup label="Resueltas"><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="_EAM">🔗 Cerradas por EAM</option><option value="_causaEAM">🔗 Cerradas por EAM · causa a completar</option><option value="_desfEAM">⚠ Resueltas acá, OT abierta en EAM</option><option value="_rechEAM">⛔ Con rechazo o aviso del EAM</option></optgroup>
         <optgroup label="Otras"><option value="Anulada">Anuladas</option><option value="">Todas</option></optgroup></select></div>
       <div><label>Color</label><select id="fColor"><option value="">Todos</option><option>Roja</option><option>Azul</option><option>Verde</option></select></div>
       <div><label>Condición máquina</label><select id="fCond"></select></div>
@@ -215,12 +215,12 @@
         <div><label>Resuelta por *</label><input id="rPor"></div>
         <div><label>Causa *</label><select id="rCausa"></select></div>
       </div>
-      <label>¿Cuánto llevó realmente? *</label>
-      <div class="chips" id="rChHoras"></div>
-      <div id="rBoxMas" style="display:none;margin-top:6px"><input id="rMasHoras" type="number" min="9" step="1" placeholder="Horas (9 o más)" style="max-width:220px"></div>
-      <label>¿Cuántas personas trabajaron? *</label>
-      <div class="chips" id="rChPers"></div>
-      <div class="ayuda">Lo real alimenta las estimaciones: la próxima vez el sistema planifica mejor.</div>
+      <label>Inicio del trabajo *</label>
+      <input id="rInicio" type="datetime-local" style="max-width:260px">
+      <label>¿Quiénes trabajaron y cuántas horas? *</label>
+      <div id="rHorasLista"></div>
+      <button class="btn sec sm" id="rHorasAdd" type="button" style="margin-top:4px">+ Agregar persona o día</button>
+      <div class="ayuda">Una fila por persona y por día trabajado (van al EAM con el legajo de cada uno). Total: <b id="rHorasTot">0 h</b>. Lo real alimenta las estimaciones.</div>
       <div class="grid cols-2">
         <div><label>Costo / ahorro (USD)</label><input id="rCosto" type="number"></div>
         <div></div>
@@ -366,6 +366,26 @@
       (pend ? ' · <a href="#" id="eamPend">'+pend+' con causa a completar</a>' : '')+
       (desf ? ' · <a href="#" id="eamDesf" style="color:#B3261E">'+desf+' desfasadas</a>' : '');
   }
+  function textoExport(x){
+    if(!x) return '<br>📤 Envío al EAM: todavía no corrió (arranca con la próxima lectura del EAM).';
+    var rech = TODAS.filter(function(t){ return t['Rechazo EAM']; }).length;
+    return '<br>📤 Envío al EAM · '+esc(x.fecha||'')+': <b>'+x.tarjetas+' tarjetas</b> ('+x.abiertas+' abiertas, '+x.cerradas+' cerradas, '+x.anuladas+' anuladas) · '+x.horas+' líneas de horas'+
+      (x.equipoGeneral ? ' · <span title="Lugares sin código en el EAM: van a '+esc('INST-GRAL')+'">'+x.equipoGeneral+' a equipo general</span>' : '')+
+      (x.sinLegajo && x.sinLegajo.length ? ' · <span style="color:#B3261E" title="'+esc(x.sinLegajo.join(', '))+'">'+x.sinLegajo.length+' persona(s) sin legajo</span>' : '')+
+      (rech ? ' · <a href="#" id="eamRech" style="color:#B3261E">'+rech+' con rechazo o aviso del EAM</a>' : '')+
+      ' · <a href="#" id="eamDesc">Descargar archivos</a>';
+  }
+  async function descargarEAM(){
+    try{
+      var r = await api('descargaEAM');
+      if(!r || !r.ok) return msg('No se pudieron armar los archivos: '+esc((r&&r.error)||'actualizá el backend'), false);
+      [['tarjetas_horas.csv', r.horas], ['tarjetas_para_eam.csv', r.tarjetas]].forEach(function(f){
+        var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([f[1]], { type: 'text/csv;charset=utf-8' }));
+        a.download = f[0]; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      });
+      msg('Archivos del EAM descargados: '+r.res.tarjetas+' tarjetas y '+r.res.horas+' líneas de horas.', true);
+    }catch(e){ msg('Error de conexión: '+esc(e.message), false); }
+  }
   function textoBackup(b){
     if(!b) return '<br>💾 Backup semanal (domingos): pendiente de activar en Apps Script.';
     if(!b.ok) return '<br><span style="color:#B3261E">💾 Falló el último backup ('+esc(b.fecha||'')+'): avisar al administrador.</span>';
@@ -376,8 +396,9 @@
     try{
       var r = await api('estadoEAM');
       if(!r || !r.ok) return;   // backend viejo: no se muestra
-      $('eamBar').style.display = 'flex'; $('eamTxt').innerHTML = textoEAM(r.ultima) + textoBackup(r.backup);
-      [['eamPend','_causaEAM'],['eamTot','_EAM'],['eamVinc','_vincEAM'],['eamPlan','_planEAM'],['eamDesf','_desfEAM']].forEach(function(x){ var a = $(x[0]); if(a) a.addEventListener('click', function(ev){ ev.preventDefault(); $('fEstado').value=x[1]; $('fID').value=''; render(); }); });
+      $('eamBar').style.display = 'flex'; $('eamTxt').innerHTML = textoEAM(r.ultima) + textoExport(r.exportacion) + textoBackup(r.backup);
+      if ($('eamDesc')) $('eamDesc').addEventListener('click', function(ev){ ev.preventDefault(); descargarEAM(); });
+      [['eamRech','_rechEAM'],['eamPend','_causaEAM'],['eamTot','_EAM'],['eamVinc','_vincEAM'],['eamPlan','_planEAM'],['eamDesf','_desfEAM']].forEach(function(x){ var a = $(x[0]); if(a) a.addEventListener('click', function(ev){ ev.preventDefault(); $('fEstado').value=x[1]; $('fID').value=''; render(); }); });
     }catch(e){}
   }
   $('eamSync').addEventListener('click', async function(){
@@ -417,7 +438,7 @@
       var FE = { _plan: esPlanificada, _sinplan: function(x){ return esAbierta(x) && !esPlanificada(x); }, _planEAM: function(x){ return esAbierta(x) && planificadaEAM(x); },
         _vincEAM: function(x){ return esAbierta(x) && vinculadaEAM(x); }, _desfEAM: desfasadaEAM };
       if (FE[e]) { if (!FE[e](t)) return false; } else
-      if(e==='_abiertas' ? !esAbierta(t) : e==='_EAM' ? !esCerradaEAM(t) : e==='_causaEAM' ? !causaPendienteEAM(t) : (e && t['Estado']!==e)) return false;
+      if(e==='_abiertas' ? !esAbierta(t) : e==='_EAM' ? !esCerradaEAM(t) : e==='_rechEAM' ? !t['Rechazo EAM'] : e==='_causaEAM' ? !causaPendienteEAM(t) : (e && t['Estado']!==e)) return false;
       if(c && t['Tipo']!==c) return false;
       if(fid && String(t['ID']).toUpperCase().indexOf(fid)===-1) return false;
       if(fsec && (t['Sector detector'] || sectorDe(t['Detectado por'])) !== fsec) return false;
@@ -531,6 +552,7 @@
         (desfasadaEAM(t)?'<div style="color:#8A4B0A;margin-top:3px">⚠ Acá está resuelta pero la OT sigue abierta en el EAM: cerrala allá o revisá si corresponde.</div>':'')+'</div>':'')+
       '<div class="kv">'+kv('Grupo', t['Grupo responsable'])+kv('OT', t['N OT'])+kv('LOTO', t['LOTO / Permiso'])+kv('Reprogramaciones', +t['Reprogramaciones']||'')+kv('Reaperturas', +t['Reaperturas']||'')+'</div>'+
       (t.repetidaDe?'<div class="kv" style="color:#8A5A0A">↻ Repite la falla de <b>'+esc(t.repetidaDe)+'</b> resuelta hace menos de '+CONFIG.DIAS_REPETICION+' días: revisar la contramedida.</div>':'')+
+      (t['Rechazo EAM']?'<div class="kv" style="color:#8A2E1C;background:#FBE4E2;padding:6px 8px;border-radius:8px">⛔ <b>EAM:</b> '+esc(t['Rechazo EAM'])+'</div>':'')+
       (t['Enviado a EHS']?'<div class="kv"><b>Seguridad e Higiene:</b> '+esc(t['Enviado a EHS'])+'</div>':'')+
       '<div class="desc">'+esc(t['Descripcion'])+'</div>'+
       (t['Accion de cierre']?'<div class="desc ok"><b>Resuelta</b> por '+esc(t['Cerrado por'])+' el '+esc(t['Fecha cierre'])+': '+esc(t['Accion de cierre'])+(t['Causa']?' <span class="mini">· Causa: '+esc(t['Causa'])+'</span>':'')+
@@ -566,10 +588,15 @@
     $('gMotivo').value = ''; $('boxMotivo').style.display = 'none';
     $('rAccion').value = ''; $('rPor').value = [listaNombres(t['Ejecutores'])[0], t['Responsable asignado'], getYo()].map(resolverPersona).filter(String)[0] || ''; $('rCausa').value = ''; $('rCosto').value = t['Costo estimado']||'';
     // horas y personas reales: precargadas con lo estimado (1 toque si coincidio)
-    rHoras = parseFloat(t['Horas estimadas']) ? String(Math.max(1, Math.round(parseFloat(t['Horas estimadas'])))) : '';
-    if (+rHoras > 8) { $('rMasHoras').value = rHoras; rHoras = 'mas'; } else $('rMasHoras').value = '';
-    rPers = parseInt(t['Personas necesarias'], 10) ? String(Math.min(4, parseInt(t['Personas necesarias'], 10))) : '';
-    pintarChipsCierre();
+    // horas reales: una fila por cada ejecutor, con hoy y las horas estimadas (1 toque si coincidió)
+    var hsEst = parseFloat(t['Horas estimadas']) || '';
+    var gente = listaNombres(t['Ejecutores']).map(resolverPersona).filter(String);
+    if (!gente.length && $('rPor').value) gente = [$('rPor').value];
+    HORAS_CIERRE = (gente.length ? gente : ['']).map(function(p){ return { p: p, f: hoyISO(), h: hsEst }; });
+    var ini = new Date(Date.now() - (hsEst || 1) * 3600000);
+    $('rInicio').value = ini.getFullYear()+'-'+String(ini.getMonth()+1).padStart(2,'0')+'-'+String(ini.getDate()).padStart(2,'0')+'T'+String(ini.getHours()).padStart(2,'0')+':'+String(ini.getMinutes()).padStart(2,'0');
+    $('rInicio').max = hoyISO() + 'T23:59';
+    pintarHorasCierre();
     $('rFoto').value = ''; $('rFotoGal').value = ''; $('rFotoPrev').innerHTML = ''; fotoDespues = ''; $('rMP').checked = false; $('rEstd').checked = false;
     $('vQuien').value = getYo(); $('vCom').value = '';
     cargarCorreccion(t); cargarHistorial(t['ID']);
@@ -732,15 +759,26 @@
   $('rFoto').addEventListener('change', function(){ tomarFotoCierre(this); });
   $('rFotoGal').addEventListener('change', function(){ tomarFotoCierre(this); });
 
-  var rHoras = '', rPers = '';
-  function pintarChipsCierre(){
-    var H = [1,2,3,4,5,6,7,8].map(function(h){ return [h+' h', String(h)]; }).concat([['Más de 8 h','mas']]);
-    $('rChHoras').innerHTML = H.map(function(o){ return '<span class="chipsel'+(o[1]===rHoras?' on':'')+'" data-v="'+o[1]+'">'+o[0]+'</span>'; }).join('');
-    $('rChPers').innerHTML = [['1','1'],['2','2'],['3','3'],['4 o más','4']].map(function(o){ return '<span class="chipsel'+(o[1]===rPers?' on':'')+'" data-v="'+o[1]+'">'+o[0]+'</span>'; }).join('');
-    $('rBoxMas').style.display = rHoras === 'mas' ? 'block' : 'none';
-    $('rChHoras').querySelectorAll('.chipsel').forEach(function(c){ c.onclick = function(){ rHoras = c.dataset.v; pintarChipsCierre(); }; });
-    $('rChPers').querySelectorAll('.chipsel').forEach(function(c){ c.onclick = function(){ rPers = c.dataset.v; pintarChipsCierre(); }; });
+  var HORAS_CIERRE = [];
+  function pintarHorasCierre(){
+    $('rHorasLista').innerHTML = HORAS_CIERRE.map(function(x, i){
+      return '<div class="hrow" data-i="'+i+'" style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">'+
+        '<input class="hp" list="dl-personas" placeholder="Apellido, Nombre" value="'+esc(x.p)+'" style="flex:2 1 180px">'+
+        '<input class="hf" type="date" max="'+hoyISO()+'" value="'+esc(x.f)+'" style="flex:1 1 130px">'+
+        '<input class="hh" type="number" min="0.25" max="24" step="0.25" placeholder="Horas" value="'+esc(x.h)+'" style="flex:0 1 90px">'+
+        '<button class="btn sec sm hx" type="button" title="Quitar">✕</button></div>';
+    }).join('');
+    var tot = HORAS_CIERRE.reduce(function(a, x){ return a + (parseFloat(x.h) || 0); }, 0);
+    $('rHorasTot').textContent = (Math.round(tot * 100) / 100).toLocaleString('es-AR') + ' h';
+    $('rHorasLista').querySelectorAll('.hrow').forEach(function(row){
+      var i = +row.dataset.i;
+      row.querySelector('.hp').onchange = function(){ var r = resolverPersona(this.value); if (r) this.value = r; HORAS_CIERRE[i].p = this.value.trim(); };
+      row.querySelector('.hf').onchange = function(){ HORAS_CIERRE[i].f = this.value; };
+      row.querySelector('.hh').oninput = function(){ HORAS_CIERRE[i].h = this.value; var t2 = HORAS_CIERRE.reduce(function(a, x){ return a + (parseFloat(x.h) || 0); }, 0); $('rHorasTot').textContent = (Math.round(t2 * 100) / 100).toLocaleString('es-AR') + ' h'; };
+      row.querySelector('.hx').onclick = function(){ HORAS_CIERRE.splice(i, 1); if (!HORAS_CIERRE.length) HORAS_CIERRE.push({ p: '', f: hoyISO(), h: '' }); pintarHorasCierre(); };
+    });
   }
+  $('rHorasAdd').addEventListener('click', function(){ var u = HORAS_CIERRE[HORAS_CIERRE.length - 1] || {}; HORAS_CIERRE.push({ p: '', f: u.f || hoyISO(), h: u.h || '' }); pintarHorasCierre(); });
   $('gTipo').addEventListener('change', function(){ pintarAreaResp(this.value, ''); pintarRespSel('', ''); });
   $('gAreaResp').addEventListener('change', function(){ pintarRespSel(this.value, ''); });
 
@@ -751,13 +789,25 @@
     if(!por) return msg(escrito ? '"'+esc(escrito)+'" no está en la lista de personas: elegí de la lista quién la resolvió.' : 'Indicá quién la resolvió (elegí de la lista).', false);
     $('rPor').value = por;
     if(!$('rCausa').value) return msg('Indicá la causa.', false);
-    var hReal = rHoras === 'mas' ? Math.round(parseFloat($('rMasHoras').value)) : parseFloat(rHoras);
-    if(!(hReal > 0)) return msg('Indicá cuántas horas llevó realmente.', false);
-    if(!rPers) return msg('Indicá cuántas personas trabajaron.', false);
+    var filas = [], hoy = hoyISO();
+    for (var i = 0; i < HORAS_CIERRE.length; i++) {
+      var x = HORAS_CIERRE[i], p = resolverPersona(x.p), h = parseFloat(x.h);
+      if (!x.p && !(h > 0)) continue;
+      if (!p) return msg('Horas: "'+esc(x.p || '(vacío)')+'" no está en la lista de personas. Elegí de la lista quién trabajó.', false);
+      if (!x.f || x.f > hoy) return msg('Horas de '+esc(p)+': indicá el día trabajado (no puede ser futuro).', false);
+      if (!(h > 0 && h <= 24)) return msg('Horas de '+esc(p)+': entre 0 y 24 por día.', false);
+      filas.push({ p: p, f: x.f, h: h });
+    }
+    if (!filas.length) return msg('Indicá quiénes trabajaron y cuántas horas.', false);
+    var dup = {}; filas = filas.filter(function(x){ var k = x.p + '|' + x.f; if (dup[k]) { dup[k].h += x.h; return false; } dup[k] = x; return true; });
+    var inicio = $('rInicio').value;
+    if (!inicio) return msg('Indicá cuándo empezó el trabajo.', false);
+    if (inicio.slice(0, 10) > hoy) return msg('El inicio del trabajo no puede ser futuro.', false);
+    var hReal = filas.reduce(function(a, x){ return a + x.h; }, 0), rPers = Object.keys(filas.reduce(function(o, x){ o[x.p] = 1; return o; }, {})).length;
     var btn = this; btn.disabled = true; btn.textContent = 'Guardando...';
     try{ var r = await api('cerrar', { id: actual['ID'], accion: accion, cerradoPor: por, costo: $('rCosto').value, causa: $('rCausa').value,
           fotoCierreData: fotoDespues, agregarMP: $('rMP').checked, actualizarEstandar: $('rEstd').checked,
-          horasReales: hReal, personasReales: rPers });
+          horasReales: hReal, personasReales: rPers, horasDetalle: filas, fechaInicio: inicio.replace('T', ' ') });
       if(r.ok){ var id = actual['ID']; cerrarModal(); msg('Tarjeta '+esc(id)+' resuelta. Queda pendiente de verificación en el equipo.'+(r.fotoError?' ⚠ '+esc(r.fotoError):''), true); cargar(); }
       else msg(esc(r.error||'error'), false);
     }catch(e){ msg('Error: '+esc(e.message), false); }

@@ -103,7 +103,7 @@ async def main():
     await pg.fill('#rAccion',''); await pg.click('#rCerrar'); await pg.wait_for_timeout(300); m1=(await M()).lower()
     await pg.fill('#rAccion','Se cambió el retén del reductor'); await pg.click('#rCerrar'); await pg.wait_for_timeout(300); m2=(await M()).lower()
     ok(('acción' in m1 or 'accion' in m1 or 'qué se hizo' in m1 or 'hizo' in m1) and 'causa' in m2,'C4: cierre valida acción y causa (%s | %s)'%(m1[:40],m2[:40]))
-    await pg.select_option('#rCausa','Desgaste natural'); await pg.click('#rChHoras [data-v="2"]'); await pg.click('#rChPers [data-v="2"]')
+    await pg.select_option('#rCausa','Desgaste natural'); await pg.evaluate("(function(H,P){var g=todasLasPersonas();HORAS_CIERRE=[];for(var i=0;i<P;i++)HORAS_CIERRE.push({p:g[i],f:hoyISO(),h:H/P});pintarHorasCierre();})(2,2)")
     async def corte(route): await route.abort('internetdisconnected')
     await ctx.unroute('https://script.google.com/**'); await ctx.route('https://script.google.com/**', corte)
     await pg.click('#rCerrar'); await pg.wait_for_timeout(800); m3=(await M()).lower()
@@ -122,7 +122,7 @@ async def main():
     await pg.fill('#vCom','Sigue goteando'); await pg.click('#vNo'); await pg.wait_for_timeout(1500)
     t=card(NUEVA); ok(t['Estado']=='Abierta' and num(t['Reaperturas'])==1,'C5: no quedó bien → reabierta (reaperturas 1)')
     await pg.evaluate("abrir('%s')"%NUEVA); await pg.wait_for_timeout(400)
-    await pg.fill('#rAccion','Se cambió el reductor completo'); await pg.select_option('#rCausa','Desgaste natural'); await pg.click('#rChHoras [data-v="4"]'); await pg.click('#rChPers [data-v="2"]'); await pg.click('#rCerrar'); await pg.wait_for_timeout(1500)
+    await pg.fill('#rAccion','Se cambió el reductor completo'); await pg.select_option('#rCausa','Desgaste natural'); await pg.evaluate("(function(H,P){var g=todasLasPersonas();HORAS_CIERRE=[];for(var i=0;i<P;i++)HORAS_CIERRE.push({p:g[i],f:hoyISO(),h:H/P});pintarHorasCierre();})(4,2)"); await pg.click('#rCerrar'); await pg.wait_for_timeout(1500)
     await pg.evaluate("abrir('%s')"%NUEVA); await pg.wait_for_timeout(400); await pg.click('#vOk'); await pg.wait_for_timeout(1500)
     t=card(NUEVA); ok(t['Estado']=='Verificada' and t['Verificado por'],'C5: segundo cierre y verificación → Verificada')
     h=api({'action':'historial','id':NUEVA})['historial']; acc=[x['Accion'] for x in h]
@@ -178,7 +178,7 @@ async def main():
     ok(await p3.is_visible('#cardOk'),'F: carga desde el celular')
     C=[t['ID'] for t in api({'action':'listar'})['tarjetas'] if t['Descripcion']=='QA celular'][0]
     await p3.goto(B+'seguimiento.html'); await p3.wait_for_timeout(2500); await p3.evaluate("abrir('%s')"%C); await p3.wait_for_timeout(300)
-    await p3.fill('#rAccion','Limpieza'); await p3.select_option('#rCausa','Falta de limpieza / inspeccion'); await p3.click('#rChHoras [data-v="1"]'); await p3.click('#rChPers [data-v="1"]'); await p3.click('#rCerrar'); await p3.wait_for_timeout(1500)
+    await p3.fill('#rAccion','Limpieza'); await p3.select_option('#rCausa','Falta de limpieza / inspeccion'); await p3.evaluate("(function(H,P){var g=todasLasPersonas();HORAS_CIERRE=[];for(var i=0;i<P;i++)HORAS_CIERRE.push({p:g[i],f:hoyISO(),h:H/P});pintarHorasCierre();})(1,1)"); await p3.click('#rCerrar'); await p3.wait_for_timeout(1500)
     ok(card(C)['Estado']=='Cerrada','F: cierre desde el celular')
     ok(not e3,'F: celular sin errores %s'%e3[:1]); await c3.close()
     ok(not errs,'sin errores JS en todo el recorrido %s'%errs[:2])

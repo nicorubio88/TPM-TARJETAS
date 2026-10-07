@@ -5,7 +5,7 @@ const PJS=fs.readFileSync('/home/claude/tpm/TPM-TARJETAS-main/personas.js','utf8
 const mock=src=>"var __PJS="+JSON.stringify(PJS)+";\nUrlFetchApp={fetch:function(u){ return {getContentText:function(){ return /personas\\.js$/.test(u)?__PJS:'{}'; }}; }};\n"+
  "DriveApp.getFileById=function(){ return {getMimeType:function(){return 'text/csv'},getBlob:function(){return {getDataAsString:function(){return PropertiesService.getScriptProperties().getProperty('__CSV')||'';}}}}};\n"+
  src.replace("case 'ping':","case '__setcsv': PropertiesService.getScriptProperties().setProperty('__CSV', req.csv); out={ok:true}; break;\n      case '__raw': out = {rows: getSheet_().getRange(1,1,getSheet_().getLastRow(),HEADERS.length).getValues().length}; break;\n      case 'ping':");
-const E=makeEnv(mock); E.call({action:'setup'});
+const E=makeEnv(mock); E.PROPS.EAM_CARPETA_ID='TEST'; E.call({action:'setup'});
 const PER=eval(PJS.split('const PERSONAS =')[0]+';PERSONAS_POR_SECTOR');
 const ARB=eval(fs.readFileSync('/home/claude/tpm/TPM-TARJETAS-main/arbol.js','utf8')+';ARBOL_EQUIPO');
 const gente=Object.values(PER).flat(); const eqs=[]; for(const a in ARB) for(const s in ARB[a]) (ARB[a][s].length?ARB[a][s]:['']).forEach(e=>eqs.push([a,s,e]));

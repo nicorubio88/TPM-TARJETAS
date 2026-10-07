@@ -35,8 +35,7 @@ async def main():
       if k==1:
         ok(await pg.input_value('#gResponsable')=='Abarzua, Osvaldo Daniel','responsable dado de baja se muestra (no se pierde)')
       await pg.fill('#rAccion','Se corrigió la anomalía'); await pg.select_option('#rCausa', index=1)
-      if not await pg.locator('#rChHoras .chipsel.on').count(): await pg.click('#rChHoras .chipsel >> nth=0')
-      if not await pg.locator('#rChPers .chipsel.on').count(): await pg.click('#rChPers .chipsel >> nth=0')
+      await pg.evaluate("if(!HORAS_CIERRE.some(function(x){return x.p&&+x.h>0})){HORAS_CIERRE=[{p:todasLasPersonas()[0],f:hoyISO(),h:1}];pintarHorasCierre();}")
       await pg.click('#rCerrar'); await pg.wait_for_timeout(1800)
       t=await pg.evaluate("(()=>{var t=TODAS.find(x=>x.ID==='%s'); return [t.Estado,t['Cerrado por']]})()"%id)
       ok(t[0]=='Cerrada' and t[1]==esperado[k],'tarjeta %d se cierra (%s)'%(k,t))

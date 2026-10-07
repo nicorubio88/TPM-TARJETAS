@@ -1,4 +1,4 @@
-# Sistema de Tarjetas TPM — Planta Tornquist · v20
+# Sistema de Tarjetas TPM — Planta Tornquist · v21
 
 ## ⚠️ Importante al actualizar el backend (por qué no aparecía "máquina en marcha / parada")
 
@@ -7,6 +7,22 @@ Después de pegar el código: **Implementar → Administrar implementaciones →
 No crear una implementación nueva (cambia la URL y habría que tocar `config.js`).
 Para comprobarlo: abrir `seguimiento.html`; si el backend está viejo, todas las pantallas muestran una franja roja avisándolo y
 las tarjetas nuevas guardan Condición, Prioridad, Área responsable y Cliente ID.
+
+## Intercambio con el EAM (v21)
+
+Implementa la "Especificación de intercambio Tarjetas TPM ↔ Infor EAM" v1.0 (07/10/2026).
+- **Se envían** las rojas (`CORRECTIVO`) y verdes (`MEJORA`). Las azules no. Al publicar v21 se marcan una sola vez como
+  *Excluida* las tarjetas que ya existían cerradas, anuladas o con OT en el EAM (columna "Export EAM"); van solo las abiertas sin OT.
+- **Cada 15 min** (el mismo disparador que lee el EAM) se escriben en la carpeta de Drive del CSV del EAM
+  (o la carpeta `EAM_CARPETA_ID` de Propiedades): primero `tarjetas_horas.csv` y después `tarjetas_para_eam.csv`
+  (`;`, UTF-8 con BOM, CRLF, con `.tmp` y renombre). Si nada cambió no se reescriben.
+- Equivalencias: Condición marcha → `MARCHA`, resto → `PARADA` · Taller: Eléctrico `TE`, ICOPRO `TI`, Producción `PR`,
+  Mecánico / lubricación / contratistas / otros `TM` · Prioridad Alta `10`, Media `9`, Baja `7` · Sector = área del equipo ·
+  Equipo = Sistema; los lugares `LUG.*` y `SIN-CODIGO` van a `INST-GRAL` · Legajos: tabla `LEGAJOS_EAM` (Empleados.xlsx).
+- El cierre pide inicio del trabajo y una fila por persona y día con sus horas (van a `tarjetas_horas.csv` con el legajo).
+- Vuelta: `Terminado` cierra la tarjeta; `Cancelado` / `Rechazado` la anulan con nota. `tarjetas_rechazadas.csv` se muestra
+  en la tarjeta (⛔) y en el filtro "Con rechazo o aviso del EAM". Seguimiento muestra el último envío y permite descargar los dos archivos.
+- La condición de máquina es obligatoria al cargar una tarjeta (ya no existe "No sé").
 
 ## Árbol de equipos nuevo (v20)
 

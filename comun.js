@@ -1113,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', function () {
 /* ---------- Aviso si el Apps Script publicado es viejo ----------
    Pegar el código y guardar no alcanza: hay que publicar "Nueva versión" de la implementación.
    Si el backend no responde la versión esperada, se avisa arriba de la página (una vez por sesión). */
-const VERSION_BACKEND_MIN = 20;
+const VERSION_BACKEND_MIN = 21;
 function marcarVersionBackend(v) {
   try {
     if ((+v || 0) >= VERSION_BACKEND_MIN) { sessionStorage.setItem('tpm_backend_ok', '1'); const a = document.getElementById('avisoBackend'); if (a) a.remove(); return; }

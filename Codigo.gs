@@ -21,7 +21,7 @@
 
 /* ============================ CONFIGURACION ============================ */
 
-const VERSION_BACKEND = 20; // subir junto con VERSION_BACKEND_MIN en comun.js
+const VERSION_BACKEND = 21; // subir junto con VERSION_BACKEND_MIN en comun.js
 const SHEET_ID = '';            // dejar vacio si el script esta ligado a la planilla
 const TZ = 'America/Argentina/Buenos_Aires';
 const FOTOS_FOLDER_ID = '';     // opcional: carpeta de Drive para fotos. Vacio = crea/usa "Fotos Tarjetas TPM"
@@ -50,7 +50,7 @@ const CATEGORIAS_SEGURIDAD = ['Condicion insegura'];
 //  Para activarlo: correr UNA VEZ instalarDisparadorEAM() desde el editor (pide permiso de Drive).
 const EAM_CSV_ID = '1GmR74AUz5E2GS5LE1x3ZKNEOzFFYck1H';   // ot_cerradas_tarjetas.csv (export automatico del EAM) (se puede cambiar en Propiedades: EAM_CSV_ID)
 const EAM_ESTADOS_CERRADOS = ['terminado', 'cerrado', 'cerrada', 'finalizado', 'completado'];
-const EAM_ESTADOS_SIN_PROGRAMA = ['listo para planificar', 'pendiente', 'solicitado', 'abierto', ''];
+const EAM_ESTADOS_SIN_PROGRAMA = ['listo para planificar', 'pendiente', 'solicitado', 'abierto', 'solicitud de trabajo', 'en espera de emision', ''];
 const CAUSA_EAM_PENDIENTE = 'A completar (cerrada desde EAM)';
 const EAM_MINUTOS = 15;
 
@@ -93,9 +93,11 @@ const HEADERS = [
   // v13 — integracion EAM: ultimo estado de la OT y cuando cambio algo desde el EAM
   'Estado EAM', 'Actualizado EAM',
   // v20 — arbol de equipos por SISTEMA (codigo unico del lugar) y ubicacion del arbol anterior (no se pierde)
-  'Sistema', 'Ubicacion anterior'
+  'Sistema', 'Ubicacion anterior',
+  // v21 — intercambio con el EAM: cierre con horas por persona y dia, exclusion de la migracion y rechazos del EAM
+  'Fecha inicio real', 'Horas detalle', 'Export EAM', 'Rechazo EAM'
 ];
-const COLS_FECHAHORA = ['Fecha alta', 'Fecha cierre', 'Fecha verificacion'];
+const COLS_FECHAHORA = ['Fecha alta', 'Fecha cierre', 'Fecha verificacion', 'Fecha inicio real'];
 const COLS_FECHA = ['Fecha compromiso', 'Parada objetivo', 'Fecha planificada'];
 
 const H_HIST = ['Fecha', 'ID', 'Accion', 'Campo', 'Antes', 'Despues', 'Usuario'];
@@ -131,6 +133,7 @@ function handle_(e) {
     migrarV3_();   // toma y suelta su propio lock; va ANTES del lock de la accion (los locks no son reentrantes)
     repararAuto_();
     migrarArbol_();
+    migrarExportEAM_();
     if (ACCIONES_ESCRITURA.indexOf(action) > -1) {
       lock = LockService.getScriptLock();
       lock.waitLock(25000);
@@ -154,6 +157,7 @@ function handle_(e) {
       case 'derivarEHS':      out = derivarEHSManual_(req.id, usuario); break;
       case 'sincronizarEAM':  out = sincronizarEAMSeguro_(usuario || 'manual'); break;
       case 'estadoEAM':       out = estadoEAM_(); break;
+      case 'descargaEAM':     out = (function () { var x = armarExportEAM_(); return { ok: true, tarjetas: x.tarjetas, horas: x.horas, res: x.res }; })(); break;
       case 'completarCausa':  out = completarCausa_(req, usuario); break;
       case 'historialEstimacion': out = { ok: true, filas: historialEstimacion_() }; break;
       default:                out = { ok: false, error: 'Accion desconocida: ' + action };
@@ -436,7 +440,10 @@ function guardarFoto_(dataUrl, nombre) {
    se descarta apenas cambia algo (cualquier escritura de la app, la lectura del EAM, reparaciones). */
 const CACHE_LISTAR_SEG = 600;
 function invalidarCacheListar_() {
-  try { PropertiesService.getScriptProperties().setProperty('cache_listar_ver', String(Date.now())); } catch (e) {}
+  try {
+    var pr = PropertiesService.getScriptProperties(), prev = +pr.getProperty('cache_listar_ver') || 0;
+    pr.setProperty('cache_listar_ver', String(Math.max(Date.now(), prev + 1)));   // siempre distinta, aunque caiga en el mismo milisegundo
+  } catch (e) {}
 }
 function listarRapido_(desde) {
   var cache = null, key = '';
@@ -615,6 +622,16 @@ function cerrar_(req, usuario) {
   var id = req.id, accion = String(req.accion || '').trim(), cerradoPor = String(req.cerradoPor || '').trim();
   if (!accion) throw new Error('Indica la accion de cierre.');
   if (!cerradoPor) throw new Error('Indica quien resolvio la tarjeta.');
+  var det = (req.horasDetalle || []).map(function (x) { return { p: String(x.p || '').trim(), f: String(x.f || '').slice(0, 10), h: Math.round(eamNum_(x.h) * 100) / 100 }; })
+    .filter(function (x) { return x.p && x.h > 0; });
+  if (det.some(function (x) { return x.h > 24 || !/^\d{4}-\d{2}-\d{2}$/.test(x.f); })) throw new Error('Revisa las horas: cada fila necesita fecha y entre 0 y 24 horas.');
+  if (det.some(function (x) { return x.f > ahora_().slice(0, 10); })) throw new Error('Las horas no pueden tener fecha futura.');
+  if (det.length) {
+    req.horasReales = det.reduce(function (a, x) { return a + x.h; }, 0);
+    req.personasReales = Object.keys(det.reduce(function (o, x) { o[x.p] = 1; return o; }, {})).length;
+  }
+  var ini = req.fechaInicio ? eamFecha_(req.fechaInicio) : '';
+  if (ini && ini > ahora_()) throw new Error('El inicio del trabajo no puede ser una fecha futura.');
   var hr = parseFloat(req.horasReales), pr = parseInt(req.personasReales, 10);
   if (!(hr > 0)) throw new Error('Indica cuantas horas llevo realmente.');
   if (!(pr >= 1)) throw new Error('Indica cuantas personas trabajaron.');
@@ -632,6 +649,8 @@ function cerrar_(req, usuario) {
     'Causa': req.causa || '', 'Horas reales': hr, 'Personas reales': pr, 'Agregar a MP': req.agregarMP ? 'Si' : '', 'Actualizar estandar': req.actualizarEstandar ? 'Si' : ''
   };
   if (fotoCierre) v['Foto cierre URL'] = fotoCierre;
+  if (det.length) v['Horas detalle'] = det.map(function (x) { return x.p + '|' + x.f + '|' + x.h; }).join('; ');
+  if (ini) v['Fecha inicio real'] = ini;
   if (req.costo !== undefined && req.costo !== null && req.costo !== '') v['Costo estimado'] = req.costo;
   escribir_(id, v);
   log_(id, 'Resuelta', 'Estado', t['Estado'], 'Cerrada', usuario || cerradoPor);
@@ -1012,7 +1031,8 @@ function estadoEAM_() {
   // del backup solo se informa si anduvo: ni link a la carpeta ni a la copia (los backups son solo del dueño del script)
   var bk = b ? JSON.parse(b) : null;
   if (bk) bk = { ok: bk.ok, fecha: bk.fecha, guardados: bk.guardados, error: bk.ok ? '' : 'revisar en Apps Script' };
-  return { ok: true, ultima: p ? JSON.parse(p) : null, cada: EAM_MINUTOS, backup: bk };
+  var ex = props.getProperty('EAM_EXPORT_ULTIMA');
+  return { ok: true, ultima: p ? JSON.parse(p) : null, cada: EAM_MINUTOS, backup: bk, exportacion: ex ? JSON.parse(ex) : null };
 }
 
 function eamNorm_(s) {
@@ -1268,6 +1288,13 @@ function sincronizarEAM_(origen) {
           poner('Notas', (val('Notas') ? val('Notas') + '\n' : '') + nota);
           res.cerradas++;
         }
+      } else if (EAM_ESTADOS_ANULADOS.indexOf(estN) > -1) {
+        // Mantenimiento descarto la OT: la tarjeta queda anulada (rechazada por Mantenimiento) y deja de exportarse
+        if (abierta) {
+          poner('Estado', 'Anulada');
+          poner('Notas', (val('Notas') ? val('Notas') + '\n' : '') + '[EAM] OT ' + ot + ' ' + estEAM + ' por Mantenimiento → tarjeta anulada.' + (g(r, 'com') ? ' ' + g(r, 'com') : ''));
+          res.anuladas = (res.anuladas || 0) + 1;
+        }
       } else if (abierta) {
         // OT viva en el EAM: el EAM manda en la programacion
         poner('Responsable asignado', eamNombre_(g(r, 'asig')));
@@ -1300,7 +1327,10 @@ function sincronizarEAM_(origen) {
     }
   });
   res.sinTarjeta = res.sinTarjeta.slice(0, 30);
-  if (res.cerradas || res.actualizadas) invalidarCacheListar_();
+  // rechazos del EAM (tarjetas_rechazadas.csv) y despues la exportacion Tarjetas -> EAM
+  try { res.rechazos = leerRechazosEAM_(sh, datos); } catch (e) { res.errores.push('Rechazos: ' + (e.message || e)); }
+  if (res.cerradas || res.actualizadas || res.anuladas || res.rechazos) invalidarCacheListar_();
+  try { res.exportacion = exportarEAM_(); } catch (e) { res.errores.push('Exportacion: ' + (e.message || e)); }
   PropertiesService.getScriptProperties().setProperty('EAM_ULTIMA', JSON.stringify(res));
   return res;
 }
@@ -3477,3 +3507,355 @@ const MIGRACION_ARBOL = {
 "LABORATORIO"
 ]
 };
+
+/* ============================ EXPORTACION A EAM (Tarjetas -> EAM) ============================
+   Especificacion "Intercambio Tarjetas TPM <-> Infor EAM" v1.0 (07/10/2026).
+   Cada corrida escribe en Drive, en la carpeta del CSV del EAM (o EAM_CARPETA_ID en Propiedades):
+     1) tarjetas_horas.csv      una fila por tarjeta + legajo + dia
+     2) tarjetas_para_eam.csv   una fila por tarjeta roja / verde vigente
+   Formato: ';' · UTF-8 con BOM · CRLF · fechas 'yyyy-MM-dd HH:mm' · decimales con punto · sin saltos de linea.
+   Son fotos completas: cada vez se escribe todo lo vigente. Primero horas, despues tarjetas (seccion 4.3). */
+const EAM_TIPOS_EXPORT = { 'Roja': 'CORRECTIVO', 'Verde': 'MEJORA' };
+const EAM_PRIORIDAD = { 'Alta': '10', 'Media': '9', 'Baja': '7' };   // 11 E-Emergencia · 10 A-Alerta · 9 P-Precaucion · 7 N-Normal
+const EAM_EQUIPO_GENERAL = 'INST-GRAL';   // lugares sin codigo en el EAM (LUG.*, SIN-CODIGO) van a este equipo
+const EAM_ESTADOS_FINALES = ['terminado', 'cancelado', 'rechazado'];
+const EAM_ESTADOS_ANULADOS = ['cancelado', 'rechazado'];
+const EAM_ARCH_TARJETAS = 'tarjetas_para_eam.csv', EAM_ARCH_HORAS = 'tarjetas_horas.csv', EAM_ARCH_RECHAZOS = 'tarjetas_rechazadas.csv';
+const EAM_COLS_TARJETAS = ['ID_Tarjeta', 'Estado_Tarjeta', 'Fecha_Tarjeta', 'Descripcion', 'Detalle', 'Equipo', 'Naturaleza', 'Condicion',
+  'Taller', 'Prioridad', 'Solicitante', 'Solicitante_Nombre', 'Fecha_Objetivo', 'Sector', 'Hs_Estimadas', 'Personas',
+  'Fecha_Inicio_Real', 'Fecha_Fin_Real', 'Comentario_Cierre', 'Lineas_Horas'];
+const EAM_COLS_HORAS = ['ID_Tarjeta', 'Legajo', 'Fecha', 'Horas'];
+
+function legajoDe_(nombre) { return LEGAJOS_EAM[String(nombre || '').trim()] || ''; }
+function eamTexto_(s, max) {
+  var t = String(s == null ? '' : s).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return max ? t.slice(0, max) : t;
+}
+function eamCampo_(v) {
+  var s = String(v == null ? '' : v);
+  return /[;"]|^\s|\s$/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function eamCsv_(cols, filas) {
+  return '﻿' + [cols].concat(filas).map(function (f) { return f.map(eamCampo_).join(';'); }).join('\r\n') + '\r\n';
+}
+function eamDec_(n) { n = Math.round((+n || 0) * 100) / 100; return n ? String(n) : ''; }
+function eamFinal_(estadoEAM) { return EAM_ESTADOS_FINALES.indexOf(String(estadoEAM || '').trim().toLowerCase()) > -1; }
+function eamEquipo_(sistema) {
+  var s = String(sistema || '').trim();
+  return !s || /^LUG\./.test(s) || /^SIN-CODIGO/.test(s) || s.length > 30 ? EAM_EQUIPO_GENERAL : s;
+}
+function eamTaller_(t) {
+  var a = String(t['Area responsable'] || ''), e = String(t['Especialidad'] || '');
+  if (/el[eé]ctric/i.test(a)) return 'TE';
+  if (/icopro|instrument/i.test(a)) return 'TI';
+  if (/mec[aá]nic/i.test(a)) return 'TM';
+  if (/producci|operaci/i.test(a)) return 'PR';
+  if (/electric/i.test(e)) return 'TE';
+  if (/instrument/i.test(e)) return 'TI';
+  if (/operacion/i.test(e)) return 'PR';
+  return 'TM';   // mecanica, lubricacion, contratistas y sin dato
+}
+// "Nombre|yyyy-MM-dd|horas; ..." -> [{p, f, h}]
+function horasDetalle_(txt) {
+  return String(txt || '').split(';').map(function (x) {
+    var p = x.split('|'); return { p: String(p[0] || '').trim(), f: String(p[1] || '').trim(), h: eamNum_(p[2]) };
+  }).filter(function (x) { return x.p && x.h > 0; });
+}
+
+// Arma las dos fotos. No escribe nada: la usan exportarEAM_ y la descarga desde Seguimiento.
+function armarExportEAM_() {
+  var sh = getSheet_(), n = sh.getLastRow() - 1;
+  var datos = n > 0 ? sh.getRange(2, 1, n, HEADERS.length).getValues() : [];
+  var hoy = ahora_(), hoyDia = hoy.slice(0, 10), filasT = [], filasH = [], vistos = {};
+  var res = { abiertas: 0, cerradas: 0, anuladas: 0, horas: 0, sinLegajo: {}, equipoGeneral: 0, excluidas: 0 };
+  datos.forEach(function (r) {
+    var t = {}; HEADERS.forEach(function (h, k) { t[h] = fmt_(r[k], h); });
+    var id = String(t['ID'] || '').trim();
+    if (!id || vistos[id] || !EAM_TIPOS_EXPORT[t['Tipo']]) return;
+    if (t['Export EAM'] === 'Excluida') { res.excluidas++; return; }
+    if (eamFinal_(t['Estado EAM'])) return;   // el EAM ya confirmo el estado final: se deja de exportar
+    vistos[id] = 1;
+    var est = t['Estado'], estado = ESTADOS_RESUELTOS.indexOf(est) > -1 ? 'CERRADA' : est === 'Anulada' ? 'ANULADA' : 'ABIERTA';
+    var desc = String(t['Descripcion'] || ''), titulo = eamTexto_(desc.split(/\r?\n/)[0] || desc, 80) || eamTexto_(t['Categoria'], 80) || id;
+    var detalle = eamTexto_(desc + (t['Categoria'] ? ' | Anomalia: ' + t['Categoria'] : '') + (t['Equipo'] ? ' | Lugar: ' + t['Equipo'] : '') +
+      (t['Notas'] ? ' | Notas: ' + t['Notas'] : ''), 2000);
+    var eq = eamEquipo_(t['Sistema']); if (eq === EAM_EQUIPO_GENERAL && t['Sistema'] !== EAM_EQUIPO_GENERAL) res.equipoGeneral++;
+    var hs = eamNum_(t['Horas estimadas']), pers = parseInt(t['Personas necesarias'], 10);
+    var fila = [id, estado, eamFecha_(t['Fecha alta']) || hoy, titulo, detalle === titulo ? '' : detalle, eq,
+      EAM_TIPOS_EXPORT[t['Tipo']], condicionDe_(t) === 'Maquina en marcha' ? 'MARCHA' : 'PARADA', eamTaller_(t),
+      EAM_PRIORIDAD[t['Prioridad']] || EAM_PRIORIDAD.Media, legajoDe_(t['Detectado por']), eamTexto_(t['Detectado por'], 80),
+      eamFecha_(t['Fecha planificada'], true) || eamFecha_(t['Fecha compromiso'], true), eamTexto_(t['Area equipo'] || t['Sector'], 80),
+      hs > 0 ? eamDec_(hs) : '', hs > 0 ? String(pers >= 1 ? pers : 1) : '', '', '', '', ''];
+    if (estado === 'CERRADA') {
+      var fin = eamFecha_(t['Fecha cierre']) || hoy; if (fin > hoy) fin = hoy;
+      var ini = eamFecha_(t['Fecha inicio real']);
+      if (!ini || ini > fin) {   // cierres sin inicio cargado: inicio = fin - horas reales
+        var hr = eamNum_(t['Horas reales']) || 1, d = parseFecha_(fin);
+        ini = d ? Utilities.formatDate(new Date(d.getTime() - hr * 3600000), TZ, 'yyyy-MM-dd HH:mm') : fin;
+      }
+      // horas por persona y dia; si el cierre es viejo (sin detalle) se reparten las horas reales entre los ejecutores
+      var det = horasDetalle_(t['Horas detalle']);
+      if (!det.length && eamNum_(t['Horas reales']) > 0) {
+        var gente = listaNombres_(t['Cerrado por'] || t['Ejecutores']).filter(function (p) { return legajoDe_(p); });
+        if (!gente.length) gente = listaNombres_(t['Ejecutores']);
+        var cada = eamNum_(t['Horas reales']) / Math.max(1, gente.length);
+        det = gente.map(function (p) { return { p: p, f: fin.slice(0, 10), h: cada }; });
+      }
+      var suma = {};
+      det.forEach(function (x) {
+        var leg = legajoDe_(x.p); if (!leg) { res.sinLegajo[x.p] = 1; return; }
+        var f = eamFecha_(x.f, true) || fin.slice(0, 10); if (f > hoyDia) f = hoyDia;
+        var k = leg + '|' + f; suma[k] = (suma[k] || 0) + x.h;
+      });
+      var lineas = Object.keys(suma).sort().map(function (k) { var p = k.split('|'); return [id, p[0], p[1], eamDec_(Math.min(24, suma[k]))]; });
+      lineas.forEach(function (l) { filasH.push(l); });
+      res.horas += lineas.length;
+      var com = eamTexto_((t['Accion de cierre'] || 'Resuelta en Tarjetas') + (t['Causa'] && t['Causa'] !== CAUSA_EAM_PENDIENTE ? ' | Causa: ' + t['Causa'] : '') +
+        (t['Cerrado por'] ? ' | Resuelta por: ' + t['Cerrado por'] : ''), 2000);
+      fila[16] = ini; fila[17] = fin; fila[18] = com; fila[19] = String(lineas.length);
+      res.cerradas++;
+    } else if (estado === 'ANULADA') res.anuladas++;
+    else res.abiertas++;
+    filasT.push(fila);
+  });
+  res.sinLegajo = Object.keys(res.sinLegajo);
+  res.tarjetas = filasT.length;
+  return { tarjetas: eamCsv_(EAM_COLS_TARJETAS, filasT), horas: eamCsv_(EAM_COLS_HORAS, filasH), res: res };
+}
+function condicionDe_(t) { return CONDICIONES.indexOf(t['Condicion intervencion']) > -1 ? t['Condicion intervencion'] : 'A definir'; }
+
+// Carpeta del intercambio: EAM_CARPETA_ID (Propiedades) o la carpeta donde esta el CSV del EAM.
+function carpetaEAM_() {
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty('EAM_CARPETA_ID');
+  if (id) return DriveApp.getFolderById(id);
+  var ps = DriveApp.getFileById(props.getProperty('EAM_CSV_ID') || EAM_CSV_ID).getParents();
+  if (!ps.hasNext()) throw new Error('El CSV del EAM no esta en una carpeta: configura EAM_CARPETA_ID en Propiedades.');
+  return ps.next();
+}
+// Escritura "atomica" en Drive: archivo .tmp completo y despues se reemplaza el definitivo.
+function escribirEnCarpeta_(carpeta, nombre, contenido) {
+  var tmp = carpeta.createFile(nombre + '.tmp', contenido, MimeType.CSV);
+  var viejos = carpeta.getFilesByName(nombre);
+  while (viejos.hasNext()) viejos.next().setTrashed(true);
+  tmp.setName(nombre);
+  return tmp.getId();
+}
+function exportarEAM_() {
+  var x = armarExportEAM_(), props = PropertiesService.getScriptProperties();
+  var huella = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, x.horas + '\n' + x.tarjetas, Utilities.Charset.UTF_8));
+  x.res.fecha = ahora_();
+  if (huella === props.getProperty('EAM_EXPORT_HUELLA')) { x.res.sinCambios = true; }
+  else {
+    var carpeta = carpetaEAM_();
+    escribirEnCarpeta_(carpeta, EAM_ARCH_HORAS, x.horas);        // primero las horas (seccion 4.3)
+    escribirEnCarpeta_(carpeta, EAM_ARCH_TARJETAS, x.tarjetas);
+    props.setProperty('EAM_EXPORT_HUELLA', huella);
+  }
+  props.setProperty('EAM_EXPORT_ULTIMA', JSON.stringify(x.res));
+  return x.res;
+}
+
+// Rechazos del EAM: se guardan en la tarjeta (columna Rechazo EAM). Es una foto: lo que ya no figura se limpia.
+function leerRechazosEAM_(sh, datos) {
+  var it;
+  try { it = carpetaEAM_().getFilesByName(EAM_ARCH_RECHAZOS); } catch (e) { return null; }
+  if (!it.hasNext()) return null;
+  var f = it.next(), txt = f.getBlob().getDataAsString('UTF-8');
+  if (txt.indexOf('�') > -1) txt = f.getBlob().getDataAsString('ISO-8859-1');
+  var filas = eamParseCsv_(txt);
+  if (!filas.length) return 0;
+  var h = filas[0].map(eamNorm_), cId = h.indexOf('idtarjeta'), cCol = h.indexOf('columna'), cMot = h.indexOf('motivo'), cF = h.indexOf('fechaintento');
+  if (cId === -1 || cMot === -1) return null;
+  var porId = {};
+  filas.slice(1).forEach(function (r) {
+    var id = String(r[cId] || '').trim().toUpperCase(); if (!id) return;
+    var m = String(r[cMot] || '').trim(), c = cCol > -1 ? String(r[cCol] || '').trim() : '';
+    (porId[id] = porId[id] || []).push((c ? c + ': ' : '') + m + (cF > -1 && r[cF] ? ' (' + String(r[cF]).trim() + ')' : ''));
+  });
+  var col = HEADERS.indexOf('Rechazo EAM'), cambios = 0;
+  datos.forEach(function (r, i) {
+    var id = String(r[0]).trim().toUpperCase(), nuevo = (porId[id] || []).join(' · ').slice(0, 2000);
+    if (String(r[col] || '') === nuevo) return;
+    r[col] = nuevo; sh.getRange(i + 2, col + 1).setValue(nuevo); cambios++;
+    if (nuevo) log_(r[0], 'EAM', 'Rechazo EAM', '', nuevo, 'EAM');
+  });
+  return cambios;
+}
+
+// Una sola vez: las tarjetas que ya existian antes de la integracion y no van al EAM quedan marcadas.
+// Van solo las rojas / verdes abiertas o en proceso SIN OT (las que ya tienen OT en el EAM se excluyen).
+function migrarExportEAM_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('migracion_export_eam_v1')) return;
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(25000); } catch (e) { return; }
+  try {
+    if (props.getProperty('migracion_export_eam_v1')) return;
+    var sh = getSheet_(), n = sh.getLastRow() - 1;
+    if (n > 0) {
+      var c = function (h) { return HEADERS.indexOf(h); };
+      var rng = sh.getRange(2, 1, n, HEADERS.length), v = rng.getValues(), marcadas = 0;
+      v.forEach(function (r) {
+        var abierta = ESTADOS_ABIERTOS.indexOf(String(r[c('Estado')])) > -1;
+        var conOT = String(r[c('N OT')] || '').trim() || String(r[c('Estado EAM')] || '').trim();
+        if (!abierta || conOT) { r[c('Export EAM')] = 'Excluida'; marcadas++; }
+      });
+      rng.setValues(v);
+      log_('-', 'Migracion EAM', 'Export EAM', '', marcadas + ' tarjetas existentes excluidas (cerradas, anuladas o con OT)', 'sistema');
+      invalidarCacheListar_();
+    }
+    props.setProperty('migracion_export_eam_v1', ahora_());
+  } finally { try { lock.releaseLock(); } catch (e2) {} }
+}
+
+
+// Nombre en Tarjetas -> legajo (codigo de personal del EAM). Fuente: Empleados.xlsx del EAM (07/10/2026).
+const LEGAJOS_EAM = {
+  "Alchao, Jonatan Rodolfo": "4312",
+  "Alvarez, Bruno Nicolas": "4374",
+  "Antunez, Juan Jose": "4250",
+  "Arata, Alan": "4313",
+  "Arrieta, Ceferino Juan Cruz": "4333",
+  "Baier, Juan Carlos": "4300",
+  "Bares, Gustavo Ariel": "4237",
+  "Batstoc, Jonatan Braian": "6372",
+  "Bauer, Inaki": "4356",
+  "Bauer, Juan Horacio": "4111",
+  "Belarra, Marcelo": "6093",
+  "Bender, Lucas": "6362",
+  "Benzi, Lucas": "4375",
+  "Berezaga, Mauro Javier": "4277",
+  "Bernardt, Leandro Matias": "4310",
+  "Bilbao, Sofia": "6356",
+  "Biolato, Juan Manuel": "4383",
+  "Bolletta, Franco": "6365",
+  "Braun, Maximiliano": "4364",
+  "Bucchi, Geronimo": "4370",
+  "Cabrera, Claudio Marcelo": "4265",
+  "Callava, Sebastian": "6332",
+  "Camargo, Juan Ceferino": "4280",
+  "Candal, Nicolas": "4371",
+  "Cassano Medina, Celestino": "4351",
+  "Catalan, Alexis": "4349",
+  "Cesoni, Oscar Luis": "4267",
+  "Civerchia, Branko": "4365",
+  "Codutti, Cristian": "6355",
+  "Colli Y Ockier, Maximiliano": "6327",
+  "Cotta, Sebastian Raul": "4309",
+  "Dosal, Eduardo Martin": "4380",
+  "Dupuy, David Angel": "4296",
+  "Echeguia Donnari, Juan": "4341",
+  "Echeguia, Martin Alberto": "6307",
+  "Egoburo, Juan": "4367",
+  "Esquivel, Gabriel Fernando": "4318",
+  "Fahn, Jorge Oscar Benjamin": "4301",
+  "Fernandez, Adolfo Antonio": "4220",
+  "Fernandez, Angel Alberto": "4180",
+  "Fernandez, Diego": "6083",
+  "Ferrer, Sergio Rene": "4258",
+  "Ferrero, Ariel Norman": "6271",
+  "Ferro, Cesar Alexis David": "4381",
+  "Flores, Martin Alejandro": "4262",
+  "Franco, Gabriel": "4352",
+  "Frias, Ruben Dario": "4286",
+  "Funes Ibanez, Carlos": "4340",
+  "Gamero, Luciano": "6342",
+  "Gamero, Ruben Luis": "4159",
+  "Garcia Cuevas, Gustavo": "4338",
+  "Garcia, Luis Agustin": "6286",
+  "Garciarena Serain, Joaquin": "4337",
+  "Garrido Olivares, Heriberto": "4317",
+  "Getino, Alejandro Hernan": "6310",
+  "Giampieri, Gonzalo Jose": "6291",
+  "Gimenez, Emiliano": "4363",
+  "Gimenez, Lucas": "4376",
+  "Gisler, Guillermo": "6358",
+  "Godoy, Dario": "4373",
+  "Gomez, Mario Hugo": "4190",
+  "Goni, Santiago Luis": "6292",
+  "Gonzalez, Eduardo Fabian": "4171",
+  "Gonzalez, Luis Alberto": "4246",
+  "Graff, Ezequiel Adrian": "4292",
+  "Gutierrez, Jorge Alberto": "4166",
+  "Heiland, Hugo Oscar": "4240",
+  "Hernandez Mascaro, Sergio Javier": "6306",
+  "Herrada, Mauro Sebastian": "4289",
+  "Hirsch, Gustavo": "4321",
+  "Iommi, Juan Pablo": "6317",
+  "Iriarte, Aldo Jorge": "6258",
+  "Issaly, Ignacio": "6303",
+  "Izaguirre, Andoni": "4324",
+  "Kraemer, Sebastian Edgardo": "4307",
+  "Labat, Norberto Andres": "6321",
+  "Lambrecht, Horacio Javier": "4316",
+  "Lanaro, Gustavo Alberto": "4287",
+  "Lanaro, Natalio": "4366",
+  "Larralde, Maximiliano": "4348",
+  "Lascalea Stremel, Franco": "4339",
+  "Lopez, Diego Martin Dario": "6334",
+  "Lopez, Rodrigo Ezequiel": "4323",
+  "Lorenzo, Nelson Guillermo": "6318",
+  "Manfredi, Juan Martin": "6279",
+  "Marcolini, Edgardo Ceferino": "4227",
+  "Marconi, Jorge": "6296",
+  "Marillan, Braian": "4359",
+  "Martinez, Cintia Daniela": "6364",
+  "Martinez, Santiago": "4378",
+  "Medina, Alejandro Daniel": "4304",
+  "Meriggi, Cesar Hugo": "6323",
+  "Montero, Marcelo": "6359",
+  "Morales, Alejandro Daniel": "4382",
+  "Moyano, Guillermo Javier": "4325",
+  "Murillas Cornelli, Sergio Ruben": "4241",
+  "Neville, Sergio Jorge Fabian": "6285",
+  "Olmedo Torres, Segundo": "4344",
+  "Oteiza, Adrian": "4369",
+  "Panis, Guillermo Adrian": "6367",
+  "Pastori, Juan Alberto": "4326",
+  "Perez, Marcelo Fabian": "4173",
+  "Perez, Victor Fernando": "4311",
+  "Pieroni, Adrian": "6259",
+  "Pollio Biolato, Gaston": "4332",
+  "Quintrileo, Juan Carlos": "4193",
+  "Quiroga, Facundo": "4357",
+  "Raising, Claudio Fabian": "4200",
+  "Raising, Hernan Matias": "4295",
+  "Riera, Damian Angel": "4285",
+  "Rincon, Fabio Maria": "4210",
+  "Rodriguez, Carina Noemi": "6314",
+  "Rodriguez, Osvaldo Sergio Roque": "4230",
+  "Rodriguez, Pablo Hernan": "4275",
+  "Salazar Schawn, Cristian": "4330",
+  "Sanabria, Edgar": "4354",
+  "Sanchez, Matias": "6360",
+  "Sandoval, Nicolas Roberto": "4315",
+  "Santana, Alfredo Ezequiel": "4379",
+  "Schlegel, Sergio Daniel": "4247",
+  "Schulz, Fernando Alberto": "4238",
+  "Schwab, Dario Hernan": "4319",
+  "Schwindt, Ricardo David": "4297",
+  "Sepulveda, Agustin": "4368",
+  "Sepulveda, Lautaro": "4358",
+  "Sigismondi Munoz, Carlos": "4329",
+  "Silva, Diego Armando": "4320",
+  "Souto Krause, Facundo": "4328",
+  "Stefanof, Juan": "4372",
+  "Stoessel, Silvana Karen": "6294",
+  "Temps, Bernardo Oscar": "4303",
+  "Trespalacios, Luciano": "4331",
+  "Uribe, Sebastian": "6340",
+  "Urriaga, Marcelo Alejandro": "6290",
+  "Urriaga, Martin": "6346",
+  "Ustua Evangelista, Julian": "4350",
+  "Ustua, Juan Manuel": "4293",
+  "Vallejos, Jose Luis": "6288",
+  "Vallese, Luis Maria": "4269",
+  "Venzi, Jorge Enrique": "4175",
+  "Vila, Alejandro Emilio": "4306",
+  "Vila, Gabriel": "4353",
+  "Villalba, Kevin Emmanuel": "4334",
+  "Wendorff, Pablo Juan": "6262",
+  "Zanotto, Agustin": "4377",
+  "Zaracho Ayala, Ernesto": "4347",
+  "Zarza, Sandro Ariel": "4263"
+  };

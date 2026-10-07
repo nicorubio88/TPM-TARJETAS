@@ -1,5 +1,13 @@
 # Informe de pruebas · Tarjetas TPM
 
+## Intercambio con el EAM · 07/10/2026 (servidor v21)
+
+`pruebas/intercambio.test.js` 42/42: migración (excluidas), formato (BOM, CRLF, `;`, encabezados exactos, 20 columnas, comillas),
+listas de valores, 80 caracteres, equipo general, horas por legajo y día (suma, sin legajo, `Lineas_Horas`), orden horas → tarjetas
+con `.tmp`, sin reescritura si no cambió, Terminado / Cancelado / Solicitud de trabajo, rechazos que se guardan y se limpian.
+Pantallas: cierre con filas de horas y condición obligatoria (`fe.test.py` 214/214). Regresión completa OK, incluida la de datos reales (70/70).
+Corregido de paso: la caché de la lista podía quedar vieja si dos escrituras caían en el mismo milisegundo.
+
 ## Dashboard por color · 07/10/2026
 
 Nueva fila "Para decidir hoy" (semáforo contra meta + tendencia vs. período anterior) y bloque 1 "Abiertas vs. cerradas" por color

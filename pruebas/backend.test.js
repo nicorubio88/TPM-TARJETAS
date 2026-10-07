@@ -59,7 +59,7 @@ const base={tipo:'Roja',detectadoPor:'Perez, Juan',areaEquipo:'PULPERS',equipo:'
   r=E.call({action:'actualizar',id,cambios:{estado:'Anulada'}}); ok(!r.ok,'anular sin motivo');
   E.call({action:'actualizar',id,usuario:'Jefe',cambios:{condicion:'Parada planificada'}});
   ok(E.call({action:'listar'}).tarjetas.find(x=>x.ID===id)['Condicion intervencion']==='Parada planificada','acepta condición Parada planificada');
-  ok(E.call({action:'ping'}).version===20,'ping devuelve versión 20');
+  ok(E.call({action:'ping'}).version===21,'ping devuelve versión 20');
   E.call({action:'actualizar',id,usuario:'Jefe',cambios:{fechaCompromiso:'2026-01-10'}});
   E.call({action:'actualizar',id,usuario:'Jefe',cambios:{fechaCompromiso:'2026-01-10'}});
   E.call({action:'actualizar',id,usuario:'Jefe',cambios:{fechaCompromiso:'2026-01-15',tipo:'Azul',condicion:'Maquina parada',campoRaro:'x'}});

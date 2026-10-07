@@ -74,7 +74,7 @@
     <!-- ============ BLOQUE C ============ -->
     <div class="bloque-t">C · Para planificar</div>
 
-    <div class="paso"><span class="pn">8</span>¿Se puede resolver con la máquina en marcha?</div>
+    <div class="paso"><span class="pn">8</span>¿Se puede resolver con la máquina en marcha? <span class="oblig">obligatorio</span></div>
     <div class="condsel" id="condsel"></div>
 
     <div class="paso"><span class="pn">9</span><span id="prioTit">¿Qué prioridad tiene?</span> <span class="oblig">obligatorio</span></div>
@@ -265,7 +265,7 @@
 
   /* ---------- marcha / parada ---------- */
   function pintarCondicion(){
-    $('condsel').innerHTML = Object.keys(CONDICIONES).map(function(k){
+    $('condsel').innerHTML = Object.keys(CONDICIONES).filter(function(k){ return k !== 'A definir'; }).map(function(k){
       var c = CONDICIONES[k], sel = (k === condSel);
       var titulo = k === 'A definir' ? '? No sé' : c.icono + ' ' + (k === 'Maquina en marcha' ? 'Sí, en marcha' : k === 'Parada planificada' ? 'Para parada planificada' : 'No, requiere parada');
       return '<div class="op'+(sel?' sel':'')+'" data-c="'+k+'" style="'+(sel?'border-color:'+c.color+';background:'+c.soft:'')+'">'+
@@ -436,6 +436,7 @@
     if (!$('categoria').value) return msg('Elegí el tipo de anomalía (paso 4).', false);
     if (!tipoSel) return msg('Elegí el color de la tarjeta (paso 5).', false);
     if (!areaRespSel) return msg('Elegí qué área lo resuelve (paso 6).', false);
+    if (!CONDICIONES[condSel] || condSel === 'A definir') return msg('Indicá si se resuelve con la máquina en marcha o requiere parada (paso 8).', false);
     if (!$('prioridad').value) return msg('Elegí la prioridad (paso 9).', false);
     if (tiempoSel === 'mas' && !horasElegidas()) return msg('Indicá cuántas horas (9 o más) o elegí "No sé" (paso 10).', false);
 
