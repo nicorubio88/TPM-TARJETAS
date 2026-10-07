@@ -16,7 +16,7 @@ function makeEnv(transform){
     appendRow(a){ st.appends++; this.rows[this.getLastRow()]=a.map(conv); }, deleteRow(i){ this.rows.splice(i-1,1); },
     setFrozenRows(){}, setColumnWidth(){} }; }
   const SHEETS={}, PROPS={};
-  const FOLDER={files:[],createFile(n,c){ const f={n,c,t:false,setName(x){f.n=x;return f},setTrashed(){f.t=true;return f},getId(){return 'F'+FOLDER.files.indexOf(f)},getBlob(){return {getDataAsString:()=>f.c}}}; FOLDER.files.push(f); return f; },
+  const FOLDER={files:[],getId(){return 'CARPETA'},getName(){return 'Intercambio Tarjetas EAM'},getUrl(){return 'https://drive/x'},createFile(n,c){ const f={n,c,t:false,setName(x){f.n=x;return f},setTrashed(){f.t=true;return f},getId(){return 'F'+FOLDER.files.indexOf(f)},getBlob(){return {getDataAsString:()=>f.c}}}; FOLDER.files.push(f); return f; },
     getFilesByName(n){ const l=FOLDER.files.filter(f=>f.n===n&&!f.t); let i=0; return {hasNext:()=>i<l.length,next:()=>l[i++]}; }};
   const p=n=>String(n).padStart(2,'0');
   const ctx={

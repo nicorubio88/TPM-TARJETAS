@@ -368,6 +368,7 @@
   }
   function textoExport(x){
     if(!x) return '<br>📤 Envío al EAM: todavía no corrió (arranca con la próxima lectura del EAM).';
+    if(x.ok === false) return '<br><span style="color:#B3261E">⚠ Envío al EAM: falló ('+esc(x.fecha||'')+'): '+esc(x.error||'')+'</span> · <a href="#" id="eamDesc">Descargar archivos</a>';
     var rech = TODAS.filter(function(t){ return t['Rechazo EAM']; }).length;
     return '<br>📤 Envío al EAM · '+esc(x.fecha||'')+': <b>'+x.tarjetas+' tarjetas</b> ('+x.abiertas+' abiertas, '+x.cerradas+' cerradas, '+x.anuladas+' anuladas) · '+x.horas+' líneas de horas'+
       (x.equipoGeneral ? ' · <span title="Lugares sin código en el EAM: van a '+esc('INST-GRAL')+'">'+x.equipoGeneral+' a equipo general</span>' : '')+

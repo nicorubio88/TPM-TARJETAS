@@ -1012,6 +1012,7 @@ function sincronizarEAMSeguro_(origen) {
     else if (/no se encontr|not found|no item|no existe|does not exist/i.test(m)) m = 'No se encuentra el CSV del EAM en Drive (ID ' + (PropertiesService.getScriptProperties().getProperty('EAM_CSV_ID') || EAM_CSV_ID) + '). ' + m;
     var r = { ok: false, error: m, fecha: ahora_(), origen: origen };
     PropertiesService.getScriptProperties().setProperty('EAM_ULTIMA', JSON.stringify(r));
+    r.exportacion = exportarEAMSeguro_();   // el envio al EAM no depende de que se haya podido leer el archivo de vuelta
     return r;
   }
 }
@@ -1330,7 +1331,8 @@ function sincronizarEAM_(origen) {
   // rechazos del EAM (tarjetas_rechazadas.csv) y despues la exportacion Tarjetas -> EAM
   try { res.rechazos = leerRechazosEAM_(sh, datos); } catch (e) { res.errores.push('Rechazos: ' + (e.message || e)); }
   if (res.cerradas || res.actualizadas || res.anuladas || res.rechazos) invalidarCacheListar_();
-  try { res.exportacion = exportarEAM_(); } catch (e) { res.errores.push('Exportacion: ' + (e.message || e)); }
+  res.exportacion = exportarEAMSeguro_();
+  if (res.exportacion.error) res.errores.push('Exportacion: ' + res.exportacion.error);
   PropertiesService.getScriptProperties().setProperty('EAM_ULTIMA', JSON.stringify(res));
   return res;
 }
@@ -3625,12 +3627,23 @@ function armarExportEAM_() {
 function condicionDe_(t) { return CONDICIONES.indexOf(t['Condicion intervencion']) > -1 ? t['Condicion intervencion'] : 'A definir'; }
 
 // Carpeta del intercambio: EAM_CARPETA_ID (Propiedades) o la carpeta donde esta el CSV del EAM.
+// Si el CSV del EAM esta compartido desde otra cuenta (sin carpeta visible), se usa / crea la carpeta
+// "Intercambio Tarjetas EAM" en el Drive de quien publica el script y se recuerda en EAM_CARPETA_ID.
+const EAM_CARPETA_NOMBRE = 'Intercambio Tarjetas EAM';
 function carpetaEAM_() {
   var props = PropertiesService.getScriptProperties(), id = props.getProperty('EAM_CARPETA_ID');
   if (id) return DriveApp.getFolderById(id);
-  var ps = DriveApp.getFileById(props.getProperty('EAM_CSV_ID') || EAM_CSV_ID).getParents();
-  if (!ps.hasNext()) throw new Error('El CSV del EAM no esta en una carpeta: configura EAM_CARPETA_ID en Propiedades.');
-  return ps.next();
+  var c = null;
+  try {
+    var ps = DriveApp.getFileById(props.getProperty('EAM_CSV_ID') || EAM_CSV_ID).getParents();
+    if (ps.hasNext()) { c = ps.next(); c.getFilesByName(EAM_ARCH_TARJETAS); }   // prueba de acceso
+  } catch (e) { c = null; }
+  if (!c) {
+    var it = DriveApp.getFoldersByName(EAM_CARPETA_NOMBRE);
+    c = it.hasNext() ? it.next() : DriveApp.createFolder(EAM_CARPETA_NOMBRE);
+  }
+  props.setProperty('EAM_CARPETA_ID', c.getId());
+  return c;
 }
 // Escritura "atomica" en Drive: archivo .tmp completo y despues se reemplaza el definitivo.
 function escribirEnCarpeta_(carpeta, nombre, contenido) {
@@ -3640,13 +3653,22 @@ function escribirEnCarpeta_(carpeta, nombre, contenido) {
   tmp.setName(nombre);
   return tmp.getId();
 }
+function exportarEAMSeguro_() {
+  try { return exportarEAM_(); }
+  catch (e) {
+    var r = { ok: false, error: String(e && e.message ? e.message : e), fecha: ahora_() };
+    PropertiesService.getScriptProperties().setProperty('EAM_EXPORT_ULTIMA', JSON.stringify(r));
+    return r;
+  }
+}
 function exportarEAM_() {
   var x = armarExportEAM_(), props = PropertiesService.getScriptProperties();
   var huella = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, x.horas + '\n' + x.tarjetas, Utilities.Charset.UTF_8));
-  x.res.fecha = ahora_();
-  if (huella === props.getProperty('EAM_EXPORT_HUELLA')) { x.res.sinCambios = true; }
+  x.res.fecha = ahora_(); x.res.ok = true;
+  if (huella === props.getProperty('EAM_EXPORT_HUELLA')) { x.res.sinCambios = true; var u = JSON.parse(props.getProperty('EAM_EXPORT_ULTIMA') || '{}'); x.res.carpeta = u.carpeta; x.res.carpetaUrl = u.carpetaUrl; }
   else {
     var carpeta = carpetaEAM_();
+    x.res.carpeta = carpeta.getName(); x.res.carpetaUrl = carpeta.getUrl();
     escribirEnCarpeta_(carpeta, EAM_ARCH_HORAS, x.horas);        // primero las horas (seccion 4.3)
     escribirEnCarpeta_(carpeta, EAM_ARCH_TARJETAS, x.tarjetas);
     props.setProperty('EAM_EXPORT_HUELLA', huella);

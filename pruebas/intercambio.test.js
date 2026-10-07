@@ -8,7 +8,7 @@ function __file(name,content){ var id='F'+(++__SEQ); var f={id:id,name:name,cont
   getId:function(){return id}, setName:function(n){f.name=n; __ORDEN.push('rename:'+n); return f}, setTrashed:function(t){f.trashed=t; return f},
   getBlob:function(){return {getDataAsString:function(){return f.content}}}, getMimeType:function(){return 'text/csv'}, getParents:function(){ var d=false; return {hasNext:function(){return !d}, next:function(){d=true; return __FOLDER}}; } };
   __FILES[id]=f; return f; }
-var __FOLDER={ createFile:function(n,c){ __ORDEN.push('create:'+n); return __file(n,c); },
+var __FOLDER={ getId:function(){return 'C1'}, getName:function(){return 'Carpeta EAM'}, getUrl:function(){return 'https://drive/c1'}, createFile:function(n,c){ __ORDEN.push('create:'+n); return __file(n,c); },
   getFilesByName:function(n){ var l=Object.keys(__FILES).map(function(k){return __FILES[k]}).filter(function(f){return f.name===n && !f.trashed}); var i=0; return {hasNext:function(){return i<l.length}, next:function(){return l[i++]}}; } };
 var __EAMCSV=__file('ot_cerradas_tarjetas.csv','');
 DriveApp.getFileById=function(id){ return __EAMCSV; };
@@ -125,5 +125,6 @@ ok(/Equipo: Equipo X no existe/.test(t[conHs]['Rechazo EAM']) && /AVISO/.test(t[
 X.rech('ID_Tarjeta;Fecha_Intento;Columna;Motivo\r\n'); r=E.call({action:'sincronizarEAM',usuario:'x'}); t=T();
 ok(!t[conHs]['Rechazo EAM'] && !t[larga]['Rechazo EAM'],'rechazo resuelto: se limpia');
 ok(E.call({action:'estadoEAM'}).exportacion.tarjetas>0,'estado informa la exportacion');
+ok(JSON.parse(E.PROPS.EAM_EXPORT_ULTIMA).carpeta==='Carpeta EAM','informa la carpeta usada');
 ok(E.st.lockErrors===0,'sin locks anidados');
 console.log('INTERCAMBIO EAM: '+pass+' OK, '+fail+' FALLAS'); fails.forEach(f=>console.log('  ✖ '+f));
