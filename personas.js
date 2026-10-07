@@ -73,7 +73,6 @@ const PERSONAS_POR_SECTOR = {
     "Garcia, Luis Agustin",
     "Garciarena Serain, Joaquin",
     "Gisler, Guillermo",
-    "Heim, Rene",
     "Hirsch, Gustavo",
     "Montero, Marcelo",
     "Neville, Sergio Jorge Fabian"
