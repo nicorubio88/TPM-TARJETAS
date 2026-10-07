@@ -103,6 +103,25 @@ function badgeEAM(t) {
   const st = des ? 'background:#FDECD8;color:#8A4B0A' : cerr ? 'background:#E3ECF7;color:#1F5FA8' : planificadaEAM(t) ? 'background:#E3F1E1;color:#2E6B2E' : 'background:#EEF0EC;color:#5A6055';
   return '<span class="cond" style="' + st + '" title="OT ' + esc(t['N OT'] || '') + ' en el EAM' + (t['Actualizado EAM'] ? ' · actualizada ' + esc(t['Actualizado EAM']) : '') + '">' + (des ? '⚠ ' : '🔗 ') + 'EAM · ' + esc(e) + '</span>';
 }
+/* Número de OT del EAM bien visible (ida y vuelta con el EAM).
+   - con OT: "OT 200123" (varias OT separadas por ;), color según el estado de la OT
+   - roja / verde enviada al EAM y todavía sin OT: "EAM · sin OT"
+   - rechazada por el EAM: "⛔ EAM" */
+function chipOT(t, chico) {
+  const ots = String(t['N OT'] || '').split(/[;,]/).map(function (x) { return x.trim(); }).filter(String);
+  const fs = chico ? 'font-size:10.5px;padding:1px 6px' : 'font-size:12px;padding:2px 8px';
+  const base = 'display:inline-block;border-radius:6px;font-weight:800;font-family:ui-monospace,Consolas,monospace;white-space:nowrap;' + fs + ';';
+  if (ots.length) {
+    const e = estadoEAMDe(t) || (esCerradaEAM(t) ? 'Terminado' : ''), el = e.toLowerCase();
+    const st = /cancelado|rechazado/.test(el) ? 'background:#F3E3E1;color:#8A2E1C' : EAM_CERRADOS.indexOf(el) > -1 ? 'background:#E3ECF7;color:#1F5FA8' :
+      planificadaEAM(t) ? 'background:#E3F1E1;color:#2E6B2E' : 'background:#FFF3D6;color:#7A5200';
+    return '<span style="' + base + st + '" title="Orden de trabajo del EAM' + (e ? ' · ' + esc(e) : '') + (t['Actualizado EAM'] ? ' · actualizada ' + esc(t['Actualizado EAM']) : '') + '">OT ' + esc(ots.join(' · ')) + '</span>';
+  }
+  if (t['Rechazo EAM']) return '<span style="' + base + 'background:#FBE4E2;color:#8A2E1C" title="' + esc(t['Rechazo EAM']) + '">⛔ EAM</span>';
+  if ((t['Tipo'] === 'Roja' || t['Tipo'] === 'Verde') && t['Export EAM'] !== 'Excluida' && t['Estado'] !== 'Anulada')
+    return '<span style="' + base + 'background:#EEF0EC;color:#6B7266;font-weight:700" title="Enviada al EAM: la OT aparece cuando el EAM la crea">EAM · sin OT</span>';
+  return '';
+}
 function esCerradaEAM(t) { return /^EAM/.test(String(t['Verificado por'] || '')); }
 // cerrada por el EAM sin causa real (el EAM no la exporta): hay que completarla
 function causaPendienteEAM(t) { const c = String(t['Causa'] || '').trim(); return c === CAUSA_EAM_PENDIENTE || (esCerradaEAM(t) && !c); }

@@ -273,7 +273,7 @@
 
   function kTarjeta(t){
     return '<a href="seguimiento.html?id='+encodeURIComponent(t['ID'])+'" class="ktarjeta'+(t.vencida?' venc':'')+'" style="border-left-color:'+colorTipo(t['Tipo'])+'">'+
-      '<div class="kid">'+esc(t['ID'])+' '+badgeCondicion(condicionDe(t), false)+(t.repetidaDe?' ↻':'')+'</div>'+
+      '<div class="kid">'+esc(t['ID'])+' '+badgeCondicion(condicionDe(t), false)+(t.repetidaDe?' ↻':'')+(t['N OT']?' '+chipOT(t, true):'')+'</div>'+
       '<div class="ktxt">'+esc(t['Area equipo']||'—')+(t['Equipo']?' · '+esc(t['Equipo']):'')+'</div>'+
       '<div class="kresp">'+esc(t['Responsable asignado']||'sin asignar')+' · '+t.diasAbierta+'d</div></a>';
   }

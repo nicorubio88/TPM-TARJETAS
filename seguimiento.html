@@ -48,7 +48,7 @@
       <div><label>Período</label><select id="fPeriodo"><option value="90">Últimos 90 días</option><option value="180">Últimos 6 meses</option><option value="365" selected>Últimos 12 meses</option><option value="0">Todo</option></select></div>
       <div><label>Estado</label><select id="fEstado">
         <optgroup label="Abiertas"><option value="_abiertas">Abiertas + en proceso</option><option value="_plan">📅 Planificadas (fecha, parada o EAM)</option><option value="_sinplan">⏳ Sin planificar</option><option value="_planEAM">🔗 Planificadas en EAM</option><option value="_vincEAM">🔗 Abiertas con OT en EAM</option></optgroup>
-        <optgroup label="Resueltas"><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="_EAM">🔗 Cerradas por EAM</option><option value="_causaEAM">🔗 Cerradas por EAM · causa a completar</option><option value="_desfEAM">⚠ Resueltas acá, OT abierta en EAM</option><option value="_rechEAM">⛔ Con rechazo o aviso del EAM</option></optgroup>
+        <optgroup label="Resueltas"><option value="Cerrada">Resueltas · a verificar</option><option value="Verificada">Verificadas</option><option value="_EAM">🔗 Cerradas por EAM</option><option value="_causaEAM">🔗 Cerradas por EAM · causa a completar</option><option value="_desfEAM">⚠ Resueltas acá, OT abierta en EAM</option><option value="_rechEAM">⛔ Con rechazo o aviso del EAM</option><option value="_sinOT">EAM · enviadas sin OT todavía</option></optgroup>
         <optgroup label="Otras"><option value="Anulada">Anuladas</option><option value="">Todas</option></optgroup></select></div>
       <div><label>Color</label><select id="fColor"><option value="">Todos</option><option>Roja</option><option>Azul</option><option>Verde</option></select></div>
       <div><label>Condición máquina</label><select id="fCond"></select></div>
@@ -436,7 +436,7 @@
     var dp = +v('fPeriodo'), lim = dp ? desdeISO(dp) : '';
     return TODAS.filter(function(t){
       if(lim && !esAbierta(t) && t['Estado']!=='Cerrada' && String(t['Fecha alta']).slice(0,10) < lim && String(t['Fecha cierre']||'').slice(0,10) < lim) return false;
-      var FE = { _plan: esPlanificada, _sinplan: function(x){ return esAbierta(x) && !esPlanificada(x); }, _planEAM: function(x){ return esAbierta(x) && planificadaEAM(x); },
+      var FE = { _sinOT: function(x){ return /sin OT/.test(chipOT(x)); }, _plan: esPlanificada, _sinplan: function(x){ return esAbierta(x) && !esPlanificada(x); }, _planEAM: function(x){ return esAbierta(x) && planificadaEAM(x); },
         _vincEAM: function(x){ return esAbierta(x) && vinculadaEAM(x); }, _desfEAM: desfasadaEAM };
       if (FE[e]) { if (!FE[e](t)) return false; } else
       if(e==='_abiertas' ? !esAbierta(t) : e==='_EAM' ? !esCerradaEAM(t) : e==='_rechEAM' ? !t['Rechazo EAM'] : e==='_causaEAM' ? !causaPendienteEAM(t) : (e && t['Estado']!==e)) return false;
@@ -482,7 +482,7 @@
       return '<tr class="clic" data-id="'+esc(t['ID'])+'">'+
         '<td><input type="checkbox" class="sel" data-id="'+esc(t['ID'])+'"'+(SEL[t['ID']]?' checked':'')+'></td>'+
         '<td><span class="pts-mini" title="'+esc(textoPuntaje(puntaje(t)))+'">'+(esAbierta(t)?puntaje(t).total:'')+'</span></td>'+
-        '<td style="font-family:monospace;font-size:12px">'+esc(t['ID'])+'</td>'+
+        '<td style="font-family:monospace;font-size:12px">'+esc(t['ID'])+(chipOT(t, true)?'<div style="margin-top:4px">'+chipOT(t, true)+'</div>':'')+'</td>'+
         '<td>'+badgeTipo(t['Tipo'])+'</td>'+
         '<td>'+badgeCondicion(condicionDe(t))+'<div style="margin-top:4px">'+badgePrioridad(t['Prioridad'])+'</div></td>'+
         '<td>'+esc(t['Area equipo']||'—')+(t['Equipo']?'<br><span class="mini">'+esc(t['Equipo'])+(t['Componente/Ubicacion']?' › '+esc(t['Componente/Ubicacion']):'')+'</span>':'')+'</td>'+
@@ -541,7 +541,7 @@
     actual = TODAS.find(function(t){ return t['ID']===id; });
     if(!actual) return;
     var t = actual, est = t['Estado'];
-    $('mTitulo').textContent = t['ID'];
+    $('mTitulo').innerHTML = esc(t['ID']) + (chipOT(t) ? ' &nbsp;' + chipOT(t) : '');
     $('mBadges').innerHTML = badgeTipo(t['Tipo']) + ' ' + badgeEstado(est, t.vencida) + ' ' + badgeCondicion(condicionDe(t)) + ' ' + badgeRepetida(t);
     var kv = function(l, v){ return v || v === 0 ? '<b>'+l+':</b> '+esc(v)+' &nbsp; ' : ''; };
     $('mDetalle').innerHTML =

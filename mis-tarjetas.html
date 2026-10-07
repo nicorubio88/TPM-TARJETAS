@@ -62,7 +62,7 @@
     var fotos = (t['Foto URL'] ? '<div class="foto"><div class="mini">Antes</div><img src="'+esc(fotoSrc(t['Foto URL']))+'"></div>' : '') +
                 (t['Foto cierre URL'] ? '<div class="foto"><div class="mini">Después</div><img src="'+esc(fotoSrc(t['Foto cierre URL']))+'"></div>' : '');
     var h = '<div class="tj" style="border-left-color:'+colorTipo(t['Tipo'])+'">' + (nuevo ? '<span class="nuevo">NUEVO</span>' : '') +
-      '<div class="mini" style="font-family:monospace">'+esc(t['ID'])+'</div>' +
+      '<div class="mini" style="font-family:monospace">'+esc(t['ID'])+(chipOT(t, true)?' &nbsp;'+chipOT(t, true):'')+'</div>' +
       '<div style="font-weight:800;font-size:13.5px;margin:3px 0">'+esc(claveEquipo(t))+'</div>' +
       '<div style="margin:4px 0">'+badgeEstado(t['Estado'], t.vencida)+' '+badgeCondicion(condicionDe(t))+' '+badgeRepetida(t)+'</div>' +
       '<div class="desc" style="margin:6px 0">'+esc(t['Descripcion'])+'</div>';
