@@ -329,7 +329,7 @@
     var CV = indicadoresCierre(tsV, desde, null, null, enMarcha ? MM : null);
     var sinCl = ts.filter(function(t){ return esAbierta(t) && condicionDe(t) === 'A definir'; }).length;
     $('condAviso').innerHTML = !VCOND
-      ? 'Total: <b>'+CV.pend+'</b> pendientes. Por condición: '+['Maquina en marcha','Maquina parada','Parada planificada','A definir'].map(function(c){
+      ? 'Total: <b>'+CV.pend+'</b> pendientes. Por condición: '+['Maquina en marcha','Maquina parada','Parada planificada'].map(function(c){
           return (CONDICIONES[c]||{}).corto ? '<b>'+ts.filter(function(t){ return esAbierta(t) && condicionDe(t) === c; }).length+'</b> '+esc(CONDICIONES[c].corto.toLowerCase()) : ''; }).filter(String).join(' · ')+
         (sinCl ? ' · <span style="color:#8A2E1C">'+sinCl+' sin clasificar: no aparecen en ninguna de las tres vistas</span>' : '')
       : enMarcha
