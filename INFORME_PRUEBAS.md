@@ -1,5 +1,13 @@
 # Informe de pruebas · Tarjetas TPM
 
+## Cierre de tarjetas con nombres mal escritos · 07/10/2026
+
+Causa: "Resuelta por" se precargaba con el primer ejecutor tal como estaba escrito (p. ej. "Fernandez, Adolfo" en AZU-261001-1743-TEZ,
+"Rincon Fabio", "Mecanico de Turno, ") y el cierre exigía un nombre exacto de la lista, sin decir cuál era el problema.
+Ahora los nombres se reconocen aunque estén incompletos o sin coma/acentos, la precarga siempre es un nombre válido, los mensajes
+dicen qué nombre no está en la lista, y los ejecutores se guardan con el nombre de la lista. Baja de Abarzúa, Osvaldo.
+`pruebas/cierre.fe.py` 17/17; regresión completa OK.
+
 ## Árbol de equipos nuevo · 06/10/2026 (servidor v20)
 
 Migración y búsqueda de Sistema: `pruebas/arbol.test.js` 12/12. Pantallas (alta con buscador, QR `?s=` y `?u=` viejo,

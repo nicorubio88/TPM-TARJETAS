@@ -198,7 +198,6 @@ const PERSONAS_POR_SECTOR = {
     "Lopez, Diego Martin Dario"
   ],
   "Producción": [
-    "Abarzua, Osvaldo Daniel",
     "Cabrera, Claudio Marcelo",
     "Callava, Sebastian",
     "Frias, Ruben Dario",

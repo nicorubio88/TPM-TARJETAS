@@ -296,6 +296,8 @@
     $('gResponsable').innerHTML = '<option value="__auto__">Automático: el menos cargado ('+esc(menosCargado(pool, carga) || '—')+')</option>' +
       '<optgroup label="Equipo de '+esc(area||'—')+'">' + pool.map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+' · '+(carga[p]||0)+' abiertas</option>'; }).join('') + '</optgroup>' +
       '<optgroup label="Otra persona">' + todasLasPersonas().filter(function(p){ return pool.indexOf(p) === -1; }).map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+'</option>'; }).join('') + '</optgroup>';
+    if (sel && sel !== '__auto__' && todasLasPersonas().indexOf(sel) === -1)   // ya no está en la nómina: se muestra igual para no perderlo
+      $('gResponsable').insertAdjacentHTML('beforeend', '<optgroup label="Ya no está en la lista"><option value="'+esc(sel)+'">'+esc(sel)+' (reasignar)</option></optgroup>');
     $('gResponsable').value = sel || '__auto__';
   }
   $('rCausa').innerHTML = '<option value="">—</option>' + opciones(CAUSAS);
@@ -562,7 +564,7 @@
     if (esAbierta(t)) pintarEstGestion(t); else $('gEst').innerHTML = '';
     $('gCategoria').value = t['Categoria']||''; $('gEtapaMa').value = t['Etapa MA']||''; $('gNotas').value = t['Notas']||'';
     $('gMotivo').value = ''; $('boxMotivo').style.display = 'none';
-    $('rAccion').value = ''; $('rPor').value = listaNombres(t['Ejecutores'])[0] || t['Responsable asignado'] || getYo(); $('rCausa').value = ''; $('rCosto').value = t['Costo estimado']||'';
+    $('rAccion').value = ''; $('rPor').value = [listaNombres(t['Ejecutores'])[0], t['Responsable asignado'], getYo()].map(resolverPersona).filter(String)[0] || ''; $('rCausa').value = ''; $('rCosto').value = t['Costo estimado']||'';
     // horas y personas reales: precargadas con lo estimado (1 toque si coincidio)
     rHoras = parseFloat(t['Horas estimadas']) ? String(Math.max(1, Math.round(parseFloat(t['Horas estimadas'])))) : '';
     if (+rHoras > 8) { $('rMasHoras').value = rHoras; rHoras = 'mas'; } else $('rMasHoras').value = '';
@@ -656,7 +658,8 @@
     if (!actual) return;
     if (!getYo()) { abrirQuienSoy(); return msg('Identificate primero: queda registrado quién hace la corrección.', false); }
     var det = $('cDet').value.trim();
-    if (!personaValida(det)) return msg('Elegí de la lista quién detectó la anomalía.', false);
+    if (det !== actual['Detectado por']) det = resolverPersona(det) || det;   // el detector original queda aunque ya no esté en la nómina
+    if (det !== actual['Detectado por'] && !personaValida(det)) return msg('Elegí de la lista quién detectó la anomalía.', false);
     if (!$('cDesc').value.trim()) return msg('La descripción no puede quedar vacía.', false);
     var eqs = ((ARBOL_EQUIPO[$('cArea').value] || {})[$('cSub').value]) || [];
     if (!$('cArea').value || !$('cSub').value || (eqs.length && !$('cComp').value)) return msg('Completá la ubicación: área y equipo / lugar.', false);
@@ -686,12 +689,18 @@
     var nuevoEstado = $('gEstado').value;
     if (nuevoEstado === 'Anulada' && actual['Estado'] !== 'Anulada' && !$('gMotivo').value.trim()) return msg('Indicá el motivo de anulación.', false);
     if (!$('gAreaResp').value) return msg('Elegí el área que resuelve la tarjeta.', false);
+    var ejOrig = listaNombres(actual['Ejecutores']), ejMal = [];
+    var ejecutores = listaNombres($('gEjecutores').value).map(function(n){
+      var r = resolverPersona(n); if (r) return r; if (ejOrig.indexOf(n) === -1) ejMal.push(n); return n;
+    });
+    if (ejMal.length) return msg('Ejecutores: "'+esc(ejMal.join('", "'))+'" no está en la lista de personas. Escribí Apellido, Nombre como figura en la lista.', false);
+    $('gEjecutores').value = ejecutores.join('; ');
     var cambios = {
       tipo: $('gTipo').value, prioridad: $('gPrioridad').value, areaResponsable: $('gAreaResp').value,
       responsable: $('gResponsable').value, poolResponsable: poolDe($('gAreaResp').value),
       fechaCompromiso: $('gCompromiso').value, paradaObjetivo: $('gParada').value, condicion: $('gCondicion').value,
       especialidad: $('gEspecialidad').value, horasEstimadas: $('gHoras').value, loto: $('gLoto').value,
-      personas: $('gPersonas').value, ejecutores: $('gEjecutores').value.trim(), fechaPlanificada: $('gFechaPlan').value, horario: $('gHorario').value.trim(),
+      personas: $('gPersonas').value, ejecutores: ejecutores.join('; '), fechaPlanificada: $('gFechaPlan').value, horario: $('gHorario').value.trim(),
       nOT: $('gOT').value.trim(), repuestos: $('gRepuestos').value.trim(), categoria: $('gCategoria').value,
       etapaMa: $('gEtapaMa').value, notas: $('gNotas').value.trim()
     };
@@ -737,9 +746,10 @@
 
   $('rCerrar').addEventListener('click', async function(){
     if(!actual) return;
-    var accion = $('rAccion').value.trim(), por = $('rPor').value.trim();
+    var accion = $('rAccion').value.trim(), escrito = $('rPor').value.trim(), por = resolverPersona(escrito);
     if(!accion) return msg('Indicá la acción realizada.', false);
-    if(!personaValida(por)) return msg('Indicá quién la resolvió (elegí de la lista).', false);
+    if(!por) return msg(escrito ? '"'+esc(escrito)+'" no está en la lista de personas: elegí de la lista quién la resolvió.' : 'Indicá quién la resolvió (elegí de la lista).', false);
+    $('rPor').value = por;
     if(!$('rCausa').value) return msg('Indicá la causa.', false);
     var hReal = rHoras === 'mas' ? Math.round(parseFloat($('rMasHoras').value)) : parseFloat(rHoras);
     if(!(hReal > 0)) return msg('Indicá cuántas horas llevó realmente.', false);
@@ -756,8 +766,9 @@
 
   async function verificar(ok){
     if(!actual) return;
-    var quien = $('vQuien').value.trim(), com = $('vCom').value.trim();
-    if(!personaValida(quien)) return msg('Indicá quién verifica (elegí de la lista).', false);
+    var escrito = $('vQuien').value.trim(), quien = resolverPersona(escrito), com = $('vCom').value.trim();
+    if(!quien) return msg(escrito ? '"'+esc(escrito)+'" no está en la lista de personas: elegí de la lista quién verifica.' : 'Indicá quién verifica (elegí de la lista).', false);
+    $('vQuien').value = quien;
     if(!ok && !com) return msg('Contá por qué no quedó bien.', false);
     try{ var r = await api('verificar', { id: actual['ID'], ok: ok, verificadoPor: quien, comentario: com });
       if(r.ok){ var id = actual['ID']; cerrarModal(); msg(ok ? 'Tarjeta '+esc(id)+' verificada ✔' : 'Tarjeta '+esc(id)+' reabierta.', true); cargar(); }

@@ -106,7 +106,7 @@ async def flujos(p):
   ok('Producción' in await pg.inner_text('#avisoResp'),'avisa que Producción no tiene 4 supervisores')
   i=await pg.evaluate("RESP.findIndex(r=>r.Area==='Producción')")
   await pg.click('[data-ej="%d"]'%i); await pg.click('#ejNadie')
-  for n in ['Abarzua, Osvaldo Daniel','Cabrera, Claudio Marcelo','Callava, Sebastian','Frias, Ruben Dario']: await pg.check('#ejLista [data-n="%s"]'%n)
+  for n in ['Getino, Alejandro Hernan','Cabrera, Claudio Marcelo','Callava, Sebastian','Frias, Ruben Dario']: await pg.check('#ejLista [data-n="%s"]'%n)
   await pg.click('#ejOk'); ok(await pg.inner_text('#avisoResp')=='','con 4 supervisores desaparece el aviso')
   await pg.click('#guardarResp'); await pg.wait_for_timeout(1200); ok('guardadas' in await pg.inner_text('#msg'),'guardar áreas que resuelven')
   await pg.select_option('#tCrit select[data-a="PULPERS"]','A'); await pg.click('#guardarAreas'); await pg.wait_for_timeout(900); ok('Criticidad guardada' in await pg.inner_text('#msg'),'guardar criticidad')

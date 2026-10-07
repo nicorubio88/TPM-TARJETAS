@@ -884,6 +884,33 @@ function montarBuscadorPersona(input, valorInicial) {
   if (valorInicial) input.value = valorInicial;
 }
 function personaValida(n) { return !!n && todasLasPersonas().indexOf(n) > -1; }
+/* Nombre tal como figura en la lista a partir de lo escrito ("Fernandez, Adolfo" -> "Fernandez, Adolfo Antonio",
+   "Rincon Fabio" -> "Rincon, Fabio Maria"). Devuelve '' si no hay una persona clara. */
+function _tokPers(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(String); }
+function _lev1(a, b) {
+  if (a === b) return true; if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, d = 0;
+  while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++d > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } }
+  return d + (a.length - i) + (b.length - j) <= 1;
+}
+function resolverPersona(n) {
+  n = String(n || '').trim();
+  if (!n) return '';
+  const todas = todasLasPersonas();
+  if (todas.indexOf(n) > -1) return n;
+  const T = _tokPers(n); if (!T.length) return '';
+  const ok = function (x) { return T.some(function (t) { return t === x || ((t.length === 1 || x.length === 1) ? t[0] === x[0] : (x.length >= 4 && t.length >= 4 && _lev1(x, t))); }); };
+  let mejor = '', pts = -1, empate = false;
+  todas.forEach(function (p) {
+    const k = p.indexOf(','), S = _tokPers(k > -1 ? p.slice(0, k) : p), N = k > -1 ? _tokPers(p.slice(k + 1)) : [];
+    if (!S.length || !S.every(ok)) return;
+    const nOk = N.filter(ok).length;
+    if (N.length && !nOk) return;
+    const v = S.length * 2 + nOk;
+    if (v > pts) { mejor = p; pts = v; empate = false; } else if (v === pts && p !== mejor) empate = true;
+  });
+  return empate ? '' : mejor;
+}
 
 /* ---------- Orden de trabajo imprimible (la usan Seguimiento y Planificacion) ---------- */
 function htmlOrdenTrabajo(t, plan){
