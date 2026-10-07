@@ -1,6 +1,7 @@
 import asyncio, re, json, urllib.request
 from playwright.async_api import async_playwright
 B='http://localhost:8080/'; API='http://localhost:8789/'
+EQN=int(__import__('subprocess').check_output(['node','-e','eval(require("fs").readFileSync("/home/claude/tpm/TPM-TARJETAS-main/arbol.js","utf8")+";console.log(EQUIPOS.length)")']))
 res={'ok':0,'fail':[]}
 def ok(c,m):
   if c: res['ok']+=1
@@ -19,7 +20,7 @@ async def main():
       pg=await ctx.new_page(); errs=[]; pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
       tag=' (celular)' if cel else ''
       await pg.goto(B+'formulario.html'); await pg.wait_for_timeout(1000)
-      n=await pg.evaluate("document.querySelectorAll('#dl-equipos option').length"); ok(n==836,'buscador con los 836 equipos'+tag+' (%d)'%n)
+      n=await pg.evaluate("document.querySelectorAll('#dl-equipos option').length"); ok(n==EQN,'buscador con todos los equipos'+tag+' (%d)'%n)
       ok(await pg.evaluate("document.querySelectorAll('#areaEquipo option').length")>=27,'áreas del árbol nuevo'+tag)
       await pg.fill('#buscaEquipo','Rastrillo Pulper E22 · PULPERS · RASTRILLO E22'); await pg.dispatch_event('#buscaEquipo','change'); await pg.wait_for_timeout(150)
       ok(await pg.input_value('#areaEquipo')=='PULPERS' and await pg.input_value('#equipo')=='Rastrillo Pulper E22','buscar por descripción elige área y equipo'+tag)
@@ -51,7 +52,7 @@ async def main():
       # seguridad usa el mismo árbol
       await pg.goto(B+'formulario.html'); await pg.wait_for_timeout(900)
       await pg.select_option('#categoria','Condicion insegura'); await pg.wait_for_timeout(100)
-      ok(await pg.evaluate("document.querySelectorAll('#dl-equipos option').length")==836,'tarjeta de seguridad: mismo árbol'+tag)
+      ok(await pg.evaluate("document.querySelectorAll('#dl-equipos option').length")==EQN,'tarjeta de seguridad: mismo árbol'+tag)
       # seguimiento: código visible, búsqueda por código, corrección al árbol nuevo
       api({'action':'crear','data':{'tipo':'Roja','detectadoPor':'Bolletta, Franco','areaEquipo':'PULPERS','equipo':'PULPER D30','componente':'TROMMEL PULPER D30','descripcion':'tarjeta vieja'+tag,
            'categoria':'Fuga (aceite / aire / agua / vapor)','prioridad':'Media','areaResponsable':'Mantenimiento Mecánico','poolResponsable':['Mec, A']}})
