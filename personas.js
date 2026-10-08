@@ -27,6 +27,9 @@ const PERSONAS_POR_SECTOR = {
     "Iriarte, Aldo Jorge",
     "Sanchez, Matias"
   ],
+  "Analista de Mantenimiento": [
+    "Barone, Valentino"
+  ],
   "Calidad": [
     "Bilbao, Sofia",
     "Pieroni, Adrian"
