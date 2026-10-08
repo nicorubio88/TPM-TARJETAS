@@ -42,7 +42,7 @@
     </div>
   </div>
   <div id="msg"></div>
-  <div class="eam" id="eamBar" style="display:none"><span id="eamTxt"></span> <button class="btn sec sm" id="eamSync">↻ Sincronizar con EAM</button></div>
+  <details class="eam" id="eamBar" style="display:none"><summary id="eamSum" style="cursor:pointer;font-weight:700">🔗 EAM y sistema</summary><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;margin-top:6px"><span id="eamTxt"></span> <button class="btn sec sm" id="eamSync">↻ Sincronizar con EAM</button></div></details>
   <div class="card">
     <div class="filtros">
       <div><label>Período</label><select id="fPeriodo"><option value="90">Últimos 90 días</option><option value="180">Últimos 6 meses</option><option value="365" selected>Últimos 12 meses</option><option value="0">Todo</option></select></div>
@@ -397,7 +397,12 @@
     try{
       var r = await api('estadoEAM');
       if(!r || !r.ok) return;   // backend viejo: no se muestra
-      $('eamBar').style.display = 'flex'; $('eamTxt').innerHTML = textoEAM(r.ultima) + textoExport(r.exportacion) + textoBackup(r.backup);
+      $('eamBar').style.display = 'block'; $('eamTxt').innerHTML = textoEAM(r.ultima) + textoExport(r.exportacion) + textoBackup(r.backup);
+      var u = r.ultima || {}, x = r.exportacion || {}, rech = TODAS.filter(function(t){ return t['Rechazo EAM']; }).length;
+      var mal = !u.ok || (u.errores && u.errores.length) || x.ok === false || rech;
+      $('eamSum').innerHTML = (mal ? '⚠ ' : '🔗 ') + 'EAM y sistema' + (u.fecha ? ' · última lectura ' + esc(String(u.fecha).slice(11)) : '') +
+        (mal ? ' · <span style="color:#B3261E">revisar' + (rech ? ' (' + rech + ' con rechazo)' : '') + '</span>' : ' · todo en orden') +
+        ' <span class="mini" style="font-weight:400">(tocá para ver el detalle)</span>';
       if ($('eamDesc')) $('eamDesc').addEventListener('click', function(ev){ ev.preventDefault(); descargarEAM(); });
       [['eamRech','_rechEAM'],['eamPend','_causaEAM'],['eamTot','_EAM'],['eamVinc','_vincEAM'],['eamPlan','_planEAM'],['eamDesf','_desfEAM']].forEach(function(x){ var a = $(x[0]); if(a) a.addEventListener('click', function(ev){ ev.preventDefault(); $('fEstado').value=x[1]; $('fID').value=''; render(); }); });
     }catch(e){}

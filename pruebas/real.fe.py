@@ -46,7 +46,7 @@ async def main():
     ok(r[2]==0,'A: no queda ningún responsable "__auto__" (reparación automática)')
 
     # ===== B. Lectura del EAM con el CSV real
-    await pg.click('#eamSync'); await pg.wait_for_timeout(3000)
+    await pg.evaluate("document.getElementById('eamBar').open=true"); await pg.click('#eamSync'); await pg.wait_for_timeout(3000)
     st=api({'action':'estadoEAM'})['ultima']
     ok(st['ok'] and st['leidas']==20 and st['cruzadas']==19 and not st['sinTarjeta'] and not st['errores'],'B: lee las 20 OT reales, 19 tarjetas, sin errores (%s)'%{k:st.get(k) for k in ('leidas','cruzadas','cerradas','actualizadas','sinTarjeta','errores')})
     t=card('ROJ-261001-1418-PGM'); ok(t['Estado']=='En proceso' and t['Responsable asignado']=='Marconi, Jorge' and t['Fecha planificada']=='2026-10-05' and num(t['Horas estimadas'])==6 and str(t['N OT'])=='159459' and t['Estado EAM']=='Planificado','B: PGM planificada desde EAM')
@@ -64,7 +64,7 @@ async def main():
     ok(f['_desfEAM']==['ROJ-260814-2158-YPG'],'B: filtro desfasadas = YPG %s'%f['_desfEAM'])
     ok(len(f['_EAM'])==11 and 'ROJ-260930-1028-CFP' in f['_EAM'],'B: filtro Cerradas por EAM (%d)'%len(f['_EAM']))
     ok('ROJ-261001-1426-FG8' in f['_causaEAM'],'B: FG8 con causa a completar')
-    b=await pg.inner_text('#eamTxt'); ok('planificadas en EAM' in b and 'desfasadas' in b,'B: franja con totales')
+    b=await pg.text_content('#eamTxt'); ok('planificadas en EAM' in b and 'desfasadas' in b,'B: franja con totales')
     st2=api({'action':'sincronizarEAM'}); ok(st2['ok'] and st2['cerradas']==0 and st2['actualizadas']==0,'B: segunda lectura no cambia nada')
 
     # ===== C. Ciclo completo de una tarjeta nueva desde la pantalla

@@ -3576,6 +3576,9 @@ function armarExportEAM_() {
     if (!id || vistos[id] || !EAM_TIPOS_EXPORT[t['Tipo']]) return;
     if (t['Export EAM'] === 'Excluida') { res.excluidas++; return; }
     if (eamFinal_(t['Estado EAM'])) return;   // el EAM ya confirmo el estado final: se deja de exportar
+    // cerrada / anulada en Tarjetas antes de que exista la OT: el EAM la rechaza (no crea una OT solo para cerrarla).
+    // Con ese rechazo ya confirmado se deja de exportar, para que no quede en el archivo para siempre.
+    if (!String(t['N OT'] || '').trim() && t['Rechazo EAM'] && t['Estado'] !== 'Abierta' && t['Estado'] !== 'En proceso') return;
     vistos[id] = 1;
     var est = t['Estado'], estado = ESTADOS_RESUELTOS.indexOf(est) > -1 ? 'CERRADA' : est === 'Anulada' ? 'ANULADA' : 'ABIERTA';
     var desc = String(t['Descripcion'] || ''), titulo = eamTexto_(desc.split(/\r?\n/)[0] || desc, 80) || eamTexto_(t['Categoria'], 80) || id;

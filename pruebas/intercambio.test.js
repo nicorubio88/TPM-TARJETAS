@@ -122,6 +122,15 @@ ok(parse(X.get('tarjetas_horas.csv')).slice(1).every(f=>f[0]!==cer),'sus horas t
 X.rech('﻿ID_Tarjeta;Fecha_Intento;Columna;Motivo\r\n'+conHs+';2026-10-07 10:00;Equipo;Equipo X no existe en EAM\r\n'+larga+';2026-10-07 10:00;;AVISO: revisar\r\n');
 r=E.call({action:'sincronizarEAM',usuario:'x'}); t=T();
 ok(/Equipo: Equipo X no existe/.test(t[conHs]['Rechazo EAM']) && /AVISO/.test(t[larga]['Rechazo EAM']),'rechazos guardados en la tarjeta');
+// cerrada sin OT: el EAM la rechaza -> deja de exportarse
+const sinOT=crear({tipo:'Roja',descripcion:'cerrada antes de la OT'},'n9');
+E.call({action:'cerrar',id:sinOT,accion:'ok',cerradoPor:'Baier, Juan Carlos',causa:'Otra',usuario:'Baier, Juan Carlos',horasDetalle:[{p:'Baier, Juan Carlos',f:dia(hoy),h:1}]});
+r=E.call({action:'sincronizarEAM',usuario:'x'});
+ok(parse(X.get('tarjetas_para_eam.csv')).slice(1).some(f=>f[0]===sinOT && f[1]==='CERRADA'),'cerrada sin OT se exporta (primera vez)');
+X.rech('ID_Tarjeta;Fecha_Intento;Columna;Motivo\r\n'+sinOT+';2026-10-08 10:00;;La tarjeta esta CERRADA y no tiene OT\r\n');
+r=E.call({action:'sincronizarEAM',usuario:'x'});
+ok(!parse(X.get('tarjetas_para_eam.csv')).slice(1).some(f=>f[0]===sinOT),'cerrada sin OT rechazada: deja de exportarse');
+ok(!parse(X.get('tarjetas_horas.csv')).slice(1).some(f=>f[0]===sinOT),'y sus horas tampoco');
 X.rech('ID_Tarjeta;Fecha_Intento;Columna;Motivo\r\n'); r=E.call({action:'sincronizarEAM',usuario:'x'}); t=T();
 ok(!t[conHs]['Rechazo EAM'] && !t[larga]['Rechazo EAM'],'rechazo resuelto: se limpia');
 ok(E.call({action:'estadoEAM'}).exportacion.tarjetas>0,'estado informa la exportacion');
