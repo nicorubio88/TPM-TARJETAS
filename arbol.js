@@ -698,6 +698,7 @@ const EQUIPOS = [
   ["EFLS.DECAN", "Decantador TSE", "SERVICIOS AUXILIARES"],
   ["CAKE.DESAE", "Desaireador Agua Calderas", "SERVICIOS AUXILIARES"],
   ["EAF4 WESTRIC", "Equipo agua fria 4 Westric", "SERVICIOS AUXILIARES"],
+  ["INST-GRAL", "Instalaciones generales", "SERVICIOS AUXILIARES"],
   ["EFLS.MEZCLA", "Mezclador AE2 Pileta Aireación TSE", "SERVICIOS AUXILIARES"],
   ["MIXER.FLOC", "Mixer preparacion Floculante TSE", "SERVICIOS AUXILIARES"],
   ["LUG.SSAA.GAS", "Planta de Gas / GLP", "SERVICIOS AUXILIARES"],
